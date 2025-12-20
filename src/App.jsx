@@ -9,6 +9,11 @@ export default function App() {
   const [playFilter, setPlayFilter] = useState("All");
   const [ageFilter, setAgeFilter] = useState("All");
 
+  // NEW: checkbox filters
+  const [pottyOnly, setPottyOnly] = useState(false);
+  const [kidsOnly, setKidsOnly] = useState(false);
+  const [catsOnly, setCatsOnly] = useState(false);
+
   useEffect(() => {
     loadDogs();
   }, []);
@@ -16,10 +21,7 @@ export default function App() {
   async function loadDogs() {
     setError("");
 
-    const { data, error } = await supabase
-      .from("dogs")
-      .select("*")
-      .limit(20);
+    const { data, error } = await supabase.from("dogs").select("*").limit(50);
 
     if (error) {
       setError(error.message);
@@ -39,10 +41,12 @@ export default function App() {
   };
 
   const filteredDogs = dogs.filter((dog) => {
+    // Energy dropdown
     if (energyFilter !== "All" && dog.energy_level !== energyFilter) {
       return false;
     }
 
+    // Play style dropdown
     if (
       playFilter !== "All" &&
       (!dog.play_styles || !dog.play_styles.includes(playFilter))
@@ -50,6 +54,7 @@ export default function App() {
       return false;
     }
 
+    // Age dropdown
     if (ageFilter !== "All") {
       if (ageFilter === "Puppy" && dog.age_years > 1) return false;
       if (ageFilter === "Adult" && (dog.age_years < 1 || dog.age_years > 7))
@@ -57,15 +62,22 @@ export default function App() {
       if (ageFilter === "Senior" && dog.age_years < 7) return false;
     }
 
+    // NEW: Potty trained only checkbox
+    if (pottyOnly && dog.potty_trained !== true) return false;
+
+    // NEW: Good with kids only checkbox
+    if (kidsOnly && dog.good_with_kids !== true) return false;
+
+    // NEW: Good with cats only checkbox
+    if (catsOnly && dog.good_with_cats !== true) return false;
+
     return true;
   });
 
   return (
     <div className="min-h-screen bg-green-100 p-6">
       {/* Hero */}
-      <h1 className="text-3xl font-bold mb-2">
-        Find your perfect rescue dog
-      </h1>
+      <h1 className="text-3xl font-bold mb-2">Find your perfect rescue dog</h1>
 
       <p className="text-gray-700 mb-6 max-w-xl">
         Hooman Finder helps match adopters with rescue dogs based on lifestyle,
@@ -108,9 +120,7 @@ export default function App() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">
-              Play style
-            </label>
+            <label className="block text-sm font-medium mb-1">Play style</label>
             <select
               className="w-full rounded-lg border p-2"
               value={playFilter}
@@ -140,6 +150,39 @@ export default function App() {
           </div>
         </div>
 
+        {/* NEW: Checkbox filters */}
+        <div className="mt-4 flex flex-wrap gap-4">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={pottyOnly}
+              onChange={(e) => setPottyOnly(e.target.checked)}
+            />
+            Potty trained only
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={kidsOnly}
+              onChange={(e) => setKidsOnly(e.target.checked)}
+            />
+            Good with kids
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={catsOnly}
+              onChange={(e) => setCatsOnly(e.target.checked)}
+            />
+            Good with cats
+          </label>
+        </div>
+
         <p className="mt-3 text-sm text-gray-600">
           Showing {filteredDogs.length} of {dogs.length} dogs
         </p>
@@ -152,10 +195,7 @@ export default function App() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filteredDogs.map((dog) => (
-          <div
-            key={dog.id}
-            className="rounded-2xl bg-white p-4 shadow"
-          >
+          <div key={dog.id} className="rounded-2xl bg-white p-4 shadow">
             <div className="flex items-start justify-between mb-2">
               <h3 className="text-lg font-semibold">{dog.name}</h3>
               {dog.adoptable && (
@@ -167,19 +207,48 @@ export default function App() {
 
             <div className="text-sm text-gray-700 space-y-1 mb-2">
               <p>
-                <span className="font-medium">Age:</span>{" "}
-                {dog.age_years} yrs
+                <span className="font-medium">Age:</span> {dog.age_years} yrs
               </p>
               <p>
                 <span className="font-medium">Size:</span> {dog.size}
               </p>
               <p>
-                <span className="font-medium">Energy:</span>{" "}
-                {dog.energy_level}
+                <span className="font-medium">Energy:</span> {dog.energy_level}
               </p>
             </div>
 
-            {dog.play_styles && (
+            {/* NEW: Badges */}
+            <div className="flex flex-wrap gap-2 mb-2">
+              {dog.potty_trained === true ? (
+                <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-medium text-green-800">
+                  Potty trained
+                </span>
+              ) : (
+                <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-medium text-yellow-800">
+                  House training in progress
+                </span>
+              )}
+
+              {dog.first_time_friendly === true && (
+                <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
+                  First-time adopter friendly
+                </span>
+              )}
+
+              {dog.good_with_kids === true && (
+                <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">
+                  Good with kids
+                </span>
+              )}
+
+              {dog.good_with_cats === true && (
+                <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800">
+                  Good with cats
+                </span>
+              )}
+            </div>
+
+            {Array.isArray(dog.play_styles) && (
               <div className="flex flex-wrap gap-2 mb-2">
                 {dog.play_styles.map((style) => (
                   <span
@@ -193,9 +262,7 @@ export default function App() {
             )}
 
             {dog.description && (
-              <p className="text-sm text-gray-600">
-                {dog.description}
-              </p>
+              <p className="text-sm text-gray-600">{dog.description}</p>
             )}
           </div>
         ))}
