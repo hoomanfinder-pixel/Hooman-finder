@@ -95,7 +95,16 @@ export default function Home() {
 
       return true;
     });
-  }, [dogs, ageFilter, sizeFilter, energyFilter, hypoOnly, pottyOnly, kidsOnly, catsOnly]);
+  }, [
+    dogs,
+    ageFilter,
+    sizeFilter,
+    energyFilter,
+    hypoOnly,
+    pottyOnly,
+    kidsOnly,
+    catsOnly,
+  ]);
 
   function resetFilters() {
     setAgeFilter("all");
@@ -122,7 +131,6 @@ export default function Home() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-3">
-            {/* ✅ NEW: For shelters link */}
             <Link
               to="/shelters/join"
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
@@ -141,13 +149,23 @@ export default function Home() {
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-10">
+        {/* Demo disclaimer */}
+        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-sm text-slate-700">
+            This is an early demo of Hooman Finder. Dogs shown are sample/tester
+            profiles for development purposes and may link to a real Michigan
+            rescue as a placeholder.
+          </p>
+        </div>
+
         {/* Hero */}
         <div className="text-center">
           <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
             Find a rescue dog that fits your life
           </h1>
           <p className="mt-3 text-slate-600 max-w-2xl mx-auto">
-            We match you with adoptable dogs based on your lifestyle, home, and preferences — not endless scrolling.
+            We match you with adoptable dogs based on your lifestyle, home, and
+            preferences — not endless scrolling.
           </p>
 
           <div className="mt-6 flex items-center justify-center gap-3">
@@ -170,7 +188,9 @@ export default function Home() {
         {/* Browse + filters */}
         <div className="mt-12">
           <div className="flex items-start justify-between gap-6 flex-wrap">
-            <h2 className="text-xl font-extrabold text-slate-900">Recently added pups</h2>
+            <h2 className="text-xl font-extrabold text-slate-900">
+              Recently added pups
+            </h2>
 
             <button
               onClick={resetFilters}
@@ -230,22 +250,38 @@ export default function Home() {
 
             <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">
               <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={hypoOnly} onChange={(e) => setHypoOnly(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={hypoOnly}
+                  onChange={(e) => setHypoOnly(e.target.checked)}
+                />
                 Hypoallergenic only
               </label>
 
               <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={pottyOnly} onChange={(e) => setPottyOnly(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={pottyOnly}
+                  onChange={(e) => setPottyOnly(e.target.checked)}
+                />
                 Potty trained only
               </label>
 
               <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={kidsOnly} onChange={(e) => setKidsOnly(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={kidsOnly}
+                  onChange={(e) => setKidsOnly(e.target.checked)}
+                />
                 Good with kids
               </label>
 
               <label className="inline-flex items-center gap-2">
-                <input type="checkbox" checked={catsOnly} onChange={(e) => setCatsOnly(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={catsOnly}
+                  onChange={(e) => setCatsOnly(e.target.checked)}
+                />
                 Good with cats
               </label>
             </div>
@@ -260,7 +296,12 @@ export default function Home() {
           ) : (
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredDogs.map((dog) => (
-                <DogCard key={dog.id} dog={dog} scorePct={null} showMatch={false} />
+                <DogCard
+                  key={dog.id}
+                  dog={dog}
+                  scorePct={null}
+                  showMatch={false}
+                />
               ))}
             </div>
           )}
