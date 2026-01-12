@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import QuestionCard from "../components/QuestionCard";
 import { rankDogs } from "../lib/matchingLogic";
 
-const STORAGE_KEY = "hooman_quiz_answers_v2";
+const STORAGE_KEY = "hooman_quiz_answers_v3";
 
 // Special values that should be mutually exclusive in multi-select questions
 const EXCLUSIVE_MULTI = {
@@ -13,6 +13,7 @@ const EXCLUSIVE_MULTI = {
   size_preference: ["any"],
   age_preference: ["any"],
   shedding_levels: ["no_preference"],
+  pets_in_home: ["none", "not_sure"],
 };
 
 function safeParseJSON(raw) {
@@ -23,7 +24,7 @@ function safeParseJSON(raw) {
   }
 }
 
-// ✅ Safari-safe session id generator with fallback if crypto.randomUUID doesn't exist
+// Safari-safe session id generator with fallback if crypto.randomUUID doesn't exist
 function makeSessionId() {
   try {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -33,7 +34,6 @@ function makeSessionId() {
     // ignore
   }
 
-  // Fallback: time + random
   const rand = Math.random().toString(16).slice(2);
   const time = Date.now().toString(16);
   return `sess_${time}_${rand}`;
@@ -52,7 +52,6 @@ function formatSupabaseError(e) {
   if (!e) return "Unknown error.";
   if (typeof e === "string") return e;
 
-  // Supabase errors often have: message, details, hint, code
   const parts = [];
   if (e.message) parts.push(e.message);
   if (e.details) parts.push(e.details);
@@ -82,10 +81,12 @@ export default function Quiz() {
     age_preference: Array.isArray(initial.age_preference) ? initial.age_preference : [],
     potty_requirement: initial.potty_requirement || "",
     kids_in_home: initial.kids_in_home || "",
-    cats_in_home: initial.cats_in_home || "",
+    pets_in_home: Array.isArray(initial.pets_in_home) ? initial.pets_in_home : [],
     first_time_owner: initial.first_time_owner || "",
     allergy_sensitivity: initial.allergy_sensitivity || "",
     shedding_levels: Array.isArray(initial.shedding_levels) ? initial.shedding_levels : [],
+    noise_preference: initial.noise_preference || "",
+    alone_time: initial.alone_time || "",
     yard: typeof initial.yard === "boolean" ? initial.yard : null, // null means “unknown”
   });
 
@@ -174,16 +175,20 @@ export default function Quiz() {
       canNext: (a) => !!a.kids_in_home,
     },
 
+    // ✅ Combined animals question (multi-select)
     {
-      key: "cats_in_home",
-      title: "Do you have cats in the home (or frequent cat exposure)?",
-      description: "We can filter out risky matches for cats.",
-      multiple: false,
+      key: "pets_in_home",
+      title: "What animals will your dog need to be comfortable around?",
+      description: "Pick all that apply. This helps avoid unsafe matches at home.",
+      multiple: true,
       options: [
-        { value: "yes", label: "Yes", help: "Only show dogs marked good with cats." },
-        { value: "no", label: "No", help: "No restriction." },
+        { value: "dogs", label: "Other dogs", help: "You have dogs or frequent dog exposure." },
+        { value: "cats", label: "Cats", help: "You have cats or frequent cat exposure." },
+        { value: "small_animals", label: "Small animals", help: "Rabbits, birds, guinea pigs, etc." },
+        { value: "none", label: "No other animals / not important", help: "No constraints." },
+        { value: "not_sure", label: "Not sure / flexible", help: "No constraints." },
       ],
-      canNext: (a) => !!a.cats_in_home,
+      canNext: (a) => Array.isArray(a.pets_in_home) && a.pets_in_home.length > 0,
     },
 
     {
@@ -236,6 +241,38 @@ export default function Quiz() {
       ],
       canNext: (a) => Array.isArray(a.shedding_levels) && a.shedding_levels.length > 0,
     },
+
+    // ✅ Noise preference
+    {
+      key: "noise_preference",
+      title: "How do you feel about barking?",
+      description: "This helps avoid stress with neighbors, roommates, or apartment living.",
+      multiple: false,
+      options: [
+        { value: "alert_ok", label: "I like an alert dog (barking is fine)", help: "Vocal/alerting is okay." },
+        { value: "some_ok", label: "Some barking is fine", help: "Normal dog barking is okay." },
+        { value: "prefer_quiet", label: "I prefer a mostly quiet dog", help: "Lower vocal tendency preferred." },
+        { value: "need_very_quiet", label: "I need a very quiet dog", help: "Strong preference for quiet." },
+        { value: "no_pref", label: "No strong preference", help: "I’m flexible." },
+      ],
+      canNext: (a) => !!a.noise_preference,
+    },
+
+    // ✅ Time alone
+    {
+      key: "alone_time",
+      title: "On a typical weekday, how long will the dog be alone?",
+      description: "This helps avoid separation anxiety mismatches.",
+      multiple: false,
+      options: [
+        { value: "lt4", label: "Less than 4 hours", help: "Dog will rarely be alone for long." },
+        { value: "4to6", label: "4–6 hours", help: "Moderate alone time." },
+        { value: "6to8", label: "6–8 hours", help: "Longer workday schedule." },
+        { value: "gt8", label: "8+ hours", help: "Dog may be alone most of the day." },
+        { value: "not_sure", label: "Not sure", help: "Schedule varies." },
+      ],
+      canNext: (a) => !!a.alone_time,
+    },
   ];
 
   const current = steps[step];
@@ -246,13 +283,10 @@ export default function Quiz() {
 
     const set = new Set(nextVal);
 
-    // If user picked an exclusive option, it should become the ONLY selection
     const pickedExclusive = exclusives.find((x) => set.has(x));
     if (pickedExclusive) return [pickedExclusive];
 
-    // If user picked a non-exclusive option while exclusive was already selected, remove exclusive(s)
     exclusives.forEach((x) => set.delete(x));
-
     return Array.from(set);
   }
 
@@ -282,16 +316,31 @@ export default function Quiz() {
     let normalized_score = null;
 
     try {
-      // Keep this lightweight. We only need fields rankDogs touches.
+      // Keep lightweight. We only need fields rankDogs touches.
       const dogsRes = await supabase
         .from("dogs")
         .select(
-          "id, play_styles, energy_level, size, age_years, potty_trained, good_with_kids, good_with_cats, first_time_friendly, hypoallergenic, shedding_level"
+          [
+            "id",
+            "play_styles",
+            "energy_level",
+            "size",
+            "age_years",
+            "potty_trained",
+            "good_with_kids",
+            "good_with_cats",
+            "first_time_friendly",
+            "hypoallergenic",
+            "shedding_level",
+            // new optional fields:
+            "good_with_dogs",
+            "good_with_small_animals",
+            "barking_level",
+            "max_alone_hours",
+          ].join(",")
         );
 
-      if (dogsRes.error) {
-        // Don't block insert; we just skip scoring.
-      } else if (Array.isArray(dogsRes.data) && dogsRes.data.length) {
+      if (!dogsRes.error && Array.isArray(dogsRes.data) && dogsRes.data.length) {
         const ranked = rankDogs(dogsRes.data, answers);
         const top = ranked[0];
         if (top) {
@@ -303,6 +352,11 @@ export default function Quiz() {
       // If scoring fails, still insert the quiz response
     }
 
+    // Derive backward-compatible fields
+    const pets = Array.isArray(answers.pets_in_home) ? answers.pets_in_home : [];
+    const cats_in_home = pets.includes("cats") ? "yes" : "no";
+    const has_pets = pets.includes("dogs") || pets.includes("cats") || pets.includes("small_animals");
+
     try {
       const payload = {
         session_id,
@@ -313,15 +367,21 @@ export default function Quiz() {
         age_preference: answers.age_preference,
         potty_requirement: answers.potty_requirement,
         kids_in_home: answers.kids_in_home,
-        cats_in_home: answers.cats_in_home,
+
+        // Keep existing fields so older code/data doesn't break
+        cats_in_home,
         first_time_owner: answers.first_time_owner,
         allergy_sensitivity: answers.allergy_sensitivity,
         shedding_levels: answers.shedding_levels,
-
         shedding_preference: computeSheddingPreferenceFromLevels(answers.shedding_levels),
 
         has_kids: answers.kids_in_home === "yes",
-        has_pets: answers.cats_in_home === "yes",
+        has_pets,
+
+        // new fields
+        pets_in_home: pets,
+        noise_preference: answers.noise_preference,
+        alone_time: answers.alone_time,
 
         yard: typeof answers.yard === "boolean" ? answers.yard : null,
 
@@ -330,10 +390,7 @@ export default function Quiz() {
       };
 
       const res = await supabase.from("quiz_responses").insert([payload]);
-
-      if (res.error) {
-        throw res.error;
-      }
+      if (res.error) throw res.error;
 
       navigate(`/results?session=${session_id}`);
     } catch (e) {
@@ -381,9 +438,7 @@ export default function Quiz() {
           onChange={(val) => updateAnswer(current.key, val)}
           onBack={step === 0 ? () => navigate("/") : back}
           onNext={next}
-          nextLabel={
-            step === steps.length - 1 ? (saving ? "Saving..." : "See my matches") : "Next"
-          }
+          nextLabel={step === steps.length - 1 ? (saving ? "Saving..." : "See my matches") : "Next"}
           canGoNext={!saving && canGoNext}
         />
 
