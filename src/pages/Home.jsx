@@ -48,6 +48,9 @@ export default function Home() {
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
 
+  // ✅ NEW
+  const [dogsOnly, setDogsOnly] = useState(false);
+
   useEffect(() => {
     let mounted = true;
 
@@ -93,6 +96,12 @@ export default function Home() {
       if (kidsOnly && !dog.good_with_kids) return false;
       if (catsOnly && !dog.good_with_cats) return false;
 
+      // ✅ NEW: Good with other dogs
+      // If toggled on: block only explicit false. Allow true OR null (unknown).
+      if (dogsOnly) {
+        if (dog.good_with_dogs === false) return false;
+      }
+
       return true;
     });
   }, [
@@ -104,6 +113,7 @@ export default function Home() {
     pottyOnly,
     kidsOnly,
     catsOnly,
+    dogsOnly,
   ]);
 
   function resetFilters() {
@@ -114,6 +124,7 @@ export default function Home() {
     setPottyOnly(false);
     setKidsOnly(false);
     setCatsOnly(false);
+    setDogsOnly(false);
   }
 
   return (
@@ -283,6 +294,16 @@ export default function Home() {
                   onChange={(e) => setCatsOnly(e.target.checked)}
                 />
                 Good with cats
+              </label>
+
+              {/* ✅ NEW */}
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={dogsOnly}
+                  onChange={(e) => setDogsOnly(e.target.checked)}
+                />
+                Good with other dogs
               </label>
             </div>
 
