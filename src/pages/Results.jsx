@@ -73,6 +73,9 @@ export default function Results() {
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
 
+  // ✅ NEW
+  const [dogsOnly, setDogsOnly] = useState(false);
+
   // Keep shelterFilter in sync with URL (back/forward and manual edits)
   useEffect(() => {
     setShelterFilter(shelterFromUrl || "all");
@@ -141,6 +144,11 @@ export default function Results() {
       first_time_owner: quizRow.first_time_owner || "",
       allergy_sensitivity: quizRow.allergy_sensitivity || "",
       shedding_levels: safeArray(quizRow.shedding_levels),
+
+      // (these can exist later when you add them to quiz_responses)
+      pets_in_home: safeArray(quizRow.pets_in_home),
+      noise_preference: quizRow.noise_preference || "",
+      alone_time: quizRow.alone_time || "",
     };
   }, [quizRow]);
 
@@ -218,6 +226,15 @@ export default function Results() {
       if (kidsOnly && !d.good_with_kids) return false;
       if (catsOnly && !d.good_with_cats) return false;
 
+      // ✅ NEW: Good with other dogs
+      // when toggled on:
+      //   - allow true
+      //   - allow null/undefined (unknown)
+      //   - block false
+      if (dogsOnly) {
+        if (d.good_with_dogs === false) return false;
+      }
+
       return true;
     });
   }, [
@@ -230,6 +247,7 @@ export default function Results() {
     pottyOnly,
     kidsOnly,
     catsOnly,
+    dogsOnly,
   ]);
 
   function onShelterChange(nextValue) {
@@ -247,8 +265,8 @@ export default function Results() {
     setPottyOnly(false);
     setKidsOnly(false);
     setCatsOnly(false);
+    setDogsOnly(false);
 
-    // Remove shelter param from URL
     const nextSearch = setParam(location.search, "shelter", "all");
     navigate({ pathname: location.pathname, search: nextSearch }, { replace: true });
   }
@@ -404,6 +422,7 @@ export default function Results() {
               />
               Hypoallergenic only
             </label>
+
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -412,6 +431,7 @@ export default function Results() {
               />
               Potty trained only
             </label>
+
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -420,6 +440,7 @@ export default function Results() {
               />
               Good with kids
             </label>
+
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -427,6 +448,16 @@ export default function Results() {
                 onChange={(e) => setCatsOnly(e.target.checked)}
               />
               Good with cats
+            </label>
+
+            {/* ✅ NEW */}
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={dogsOnly}
+                onChange={(e) => setDogsOnly(e.target.checked)}
+              />
+              Good with other dogs
             </label>
           </div>
 
