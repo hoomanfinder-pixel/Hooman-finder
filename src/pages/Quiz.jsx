@@ -74,6 +74,9 @@ export default function Quiz() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // ✅ Notes dropdown state
+  const [showNotes, setShowNotes] = useState(false);
+
   const [answers, setAnswers] = useState({
     play_styles: Array.isArray(initial.play_styles) ? initial.play_styles : [],
     energy_preference: initial.energy_preference || "",
@@ -175,7 +178,6 @@ export default function Quiz() {
       canNext: (a) => !!a.kids_in_home,
     },
 
-    // ✅ Combined animals question (multi-select)
     {
       key: "pets_in_home",
       title: "What animals will your dog need to be comfortable around?",
@@ -242,7 +244,6 @@ export default function Quiz() {
       canNext: (a) => Array.isArray(a.shedding_levels) && a.shedding_levels.length > 0,
     },
 
-    // ✅ Noise preference
     {
       key: "noise_preference",
       title: "How do you feel about barking?",
@@ -258,7 +259,6 @@ export default function Quiz() {
       canNext: (a) => !!a.noise_preference,
     },
 
-    // ✅ Time alone
     {
       key: "alone_time",
       title: "On a typical weekday, how long will the dog be alone?",
@@ -282,7 +282,6 @@ export default function Quiz() {
     if (!Array.isArray(nextVal) || exclusives.length === 0) return nextVal;
 
     const set = new Set(nextVal);
-
     const pickedExclusive = exclusives.find((x) => set.has(x));
     if (pickedExclusive) return [pickedExclusive];
 
@@ -316,7 +315,6 @@ export default function Quiz() {
     let normalized_score = null;
 
     try {
-      // Keep lightweight. We only need fields rankDogs touches.
       const dogsRes = await supabase
         .from("dogs")
         .select(
@@ -332,7 +330,6 @@ export default function Quiz() {
             "first_time_friendly",
             "hypoallergenic",
             "shedding_level",
-            // new optional fields:
             "good_with_dogs",
             "good_with_small_animals",
             "barking_level",
@@ -349,10 +346,10 @@ export default function Quiz() {
         }
       }
     } catch {
-      // If scoring fails, still insert the quiz response
+      // ignore scoring failure
     }
 
-    // Derive backward-compatible fields
+    // Backward-compatible fields
     const pets = Array.isArray(answers.pets_in_home) ? answers.pets_in_home : [];
     const cats_in_home = pets.includes("cats") ? "yes" : "no";
     const has_pets = pets.includes("dogs") || pets.includes("cats") || pets.includes("small_animals");
@@ -368,7 +365,6 @@ export default function Quiz() {
         potty_requirement: answers.potty_requirement,
         kids_in_home: answers.kids_in_home,
 
-        // Keep existing fields so older code/data doesn't break
         cats_in_home,
         first_time_owner: answers.first_time_owner,
         allergy_sensitivity: answers.allergy_sensitivity,
@@ -378,7 +374,6 @@ export default function Quiz() {
         has_kids: answers.kids_in_home === "yes",
         has_pets,
 
-        // new fields
         pets_in_home: pets,
         noise_preference: answers.noise_preference,
         alone_time: answers.alone_time,
@@ -415,7 +410,7 @@ export default function Quiz() {
   return (
     <div className="min-h-screen bg-green-100">
       <div className="mx-auto max-w-3xl px-6 py-10">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex items-start justify-between">
           <button
             className="text-sm font-semibold text-green-800 hover:underline"
             onClick={() => navigate("/")}
@@ -423,10 +418,43 @@ export default function Quiz() {
             ← Back to dogs
           </button>
 
-          <div className="text-sm text-gray-600">
-            Step {step + 1} of {steps.length}
+          {/* ✅ Right side: Step + smaller notes pill directly under it */}
+          <div className="flex flex-col items-end gap-2">
+            <div className="text-sm text-gray-600">
+              Step {step + 1} of {steps.length}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowNotes((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full border border-green-300 bg-green-50 px-3 py-1 text-xs font-medium text-green-800 hover:bg-green-100"
+              aria-expanded={showNotes}
+              aria-controls="quiz-notes"
+            >
+              ℹ️ Things to know
+              <span className="text-[10px] leading-none">{showNotes ? "▲" : "▼"}</span>
+            </button>
           </div>
         </div>
+
+        {showNotes && (
+          <div
+            id="quiz-notes"
+            className="mb-4 rounded-xl border border-green-200 bg-green-50 p-3 text-xs text-green-900"
+          >
+            <ul className="space-y-2">
+              <li>
+                <span className="font-semibold">Behavior can differ.</span> Dogs may act differently in a home than in a shelter.
+              </li>
+              <li>
+                <span className="font-semibold">Traits aren’t guaranteed.</span> These are best-known traits based on what the rescue has observed so far.
+              </li>
+              <li>
+                <span className="font-semibold">Accidents can happen.</span> Even potty-trained dogs may have accidents when introduced to a new space.
+              </li>
+            </ul>
+          </div>
+        )}
 
         <QuestionCard
           stepLabel="Quiz"
