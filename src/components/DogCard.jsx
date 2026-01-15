@@ -3,6 +3,40 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 
+const SAVED_KEY = "hooman_saved_dog_ids_v1";
+
+function readSavedIds() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedIds(ids) {
+  try {
+    localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
+    window.dispatchEvent(new Event("hooman:saved_changed"));
+  } catch {
+    // ignore
+  }
+}
+
+function isSavedId(id) {
+  const ids = readSavedIds();
+  return ids.includes(String(id));
+}
+
+function toggleSavedId(id) {
+  const sid = String(id);
+  const ids = readSavedIds();
+  const next = ids.includes(sid) ? ids.filter((x) => x !== sid) : [sid, ...ids];
+  writeSavedIds(next);
+  return next.includes(sid);
+}
+
 function formatAge(ageYears) {
   const n = Number(ageYears);
   if (!Number.isFinite(n)) return "";
@@ -26,26 +60,21 @@ function buildTopReasons({ dog }) {
   return reasons.slice(0, 3);
 }
 
-// Simple viewport-aware popover positioning
 function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
 
-  // Prefer below-right of anchor
   let left = anchorRect.left;
   let top = anchorRect.bottom + gap;
 
-  // If overflow right, shift left
   if (left + popoverSize.width > vw - 12) {
     left = Math.max(12, vw - popoverSize.width - 12);
   }
 
-  // If overflow bottom, flip above
   if (top + popoverSize.height > vh - 12) {
     top = anchorRect.top - popoverSize.height - gap;
   }
 
-  // Clamp
   left = Math.max(12, Math.min(left, vw - popoverSize.width - 12));
   top = Math.max(12, Math.min(top, vh - popoverSize.height - 12));
 
@@ -57,6 +86,8 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
   const [showHover, setShowHover] = useState(false); // hover popover
   const [hoverPos, setHoverPos] = useState({ left: 0, top: 0 });
 
+  const [saved, setSaved] = useState(() => isSavedId(dog?.id));
+
   const whyBtnRef = useRef(null);
   const hoverPanelRef = useRef(null);
 
@@ -66,7 +97,16 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
   const ageLabel = useMemo(() => formatAge(dog?.age_years), [dog]);
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
 
-  // Measure + position hover popover whenever it opens
+  useEffect(() => {
+    const sync = () => setSaved(isSavedId(dog?.id));
+    window.addEventListener("storage", sync);
+    window.addEventListener("hooman:saved_changed", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("hooman:saved_changed", sync);
+    };
+  }, [dog?.id]);
+
   useEffect(() => {
     if (!showHover) return;
 
@@ -75,11 +115,8 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
     if (!anchor || !pop) return;
 
     const anchorRect = anchor.getBoundingClientRect();
-
-    // Temporarily make it visible to measure
     const popRect = pop.getBoundingClientRect();
-    const pos = computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10);
-    setHoverPos(pos);
+    setHoverPos(computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10));
 
     const onScrollOrResize = () => {
       const a = anchor.getBoundingClientRect();
@@ -96,7 +133,6 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
     };
   }, [showHover]);
 
-  // Small delay prevents flicker moving from button to popover
   const closeTimer = useRef(null);
   function clearCloseTimer() {
     if (closeTimer.current) {
@@ -123,6 +159,13 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
     setOpenModal(false);
   }
 
+  function onToggleSaved(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const nextSaved = toggleSavedId(dog?.id);
+    setSaved(nextSaved);
+  }
+
   return (
     <>
       <Link
@@ -143,6 +186,22 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
               No photo
             </div>
           )}
+
+          {/* Save button */}
+          <button
+            type="button"
+            onClick={onToggleSaved}
+            className={[
+              "absolute right-3 bottom-3 inline-flex items-center justify-center rounded-full border px-3 py-2 text-xs font-semibold shadow-sm transition",
+              saved
+                ? "bg-rose-600 text-white border-rose-600"
+                : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50",
+            ].join(" ")}
+            aria-label={saved ? "Unsave dog" : "Save dog"}
+            title={saved ? "Saved" : "Save"}
+          >
+            {saved ? "♥ Saved" : "♡ Save"}
+          </button>
 
           {/* Match pill */}
           {showMatch && tier && (
@@ -208,44 +267,45 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
         </div>
       </Link>
 
-      {/* HOVER POPOVER (portal so it never gets clipped) */}
-      {showMatch && showHover && createPortal(
-        <div
-          ref={hoverPanelRef}
-          className="fixed z-[9999] w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-lg"
-          style={{ left: hoverPos.left, top: hoverPos.top }}
-          onMouseEnter={openHover}
-          onMouseLeave={scheduleCloseHover}
-        >
-          <div className="text-xs font-semibold text-slate-500">Top reasons</div>
+      {/* Hover popover */}
+      {showMatch &&
+        showHover &&
+        createPortal(
+          <div
+            ref={hoverPanelRef}
+            className="fixed z-[9999] w-72 rounded-xl border border-slate-200 bg-white p-4 shadow-lg"
+            style={{ left: hoverPos.left, top: hoverPos.top }}
+            onMouseEnter={openHover}
+            onMouseLeave={scheduleCloseHover}
+          >
+            <div className="text-xs font-semibold text-slate-500">Top reasons</div>
 
-          {/* optional: show % here, but not huge */}
-          {Number.isFinite(Number(scorePct)) && (
-            <div className="mt-1 text-sm font-bold text-slate-900">
-              {Math.round(scorePct)}% match
-            </div>
-          )}
-
-          <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">
-            {topReasons.length ? (
-              topReasons.map((r) => (
-                <li key={r} className="capitalize">
-                  {r}
-                </li>
-              ))
-            ) : (
-              <li>general fit</li>
+            {Number.isFinite(Number(scorePct)) && (
+              <div className="mt-1 text-sm font-bold text-slate-900">
+                {Math.round(scorePct)}% match
+              </div>
             )}
-          </ul>
 
-          <div className="mt-3 text-xs text-slate-500">
-            Based on your quiz + what the shelter has observed so far.
-          </div>
-        </div>,
-        document.body
-      )}
+            <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">
+              {topReasons.length ? (
+                topReasons.map((r) => (
+                  <li key={r} className="capitalize">
+                    {r}
+                  </li>
+                ))
+              ) : (
+                <li>general fit</li>
+              )}
+            </ul>
 
-      {/* CLICK MODAL (kept as your “full details” version) */}
+            <div className="mt-3 text-xs text-slate-500">
+              Based on your quiz + what the shelter has observed so far.
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Click modal */}
       {openModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"

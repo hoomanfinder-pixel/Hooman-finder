@@ -43,12 +43,11 @@ export default function Home() {
   const [ageFilter, setAgeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [energyFilter, setEnergyFilter] = useState("all");
+
   const [hypoOnly, setHypoOnly] = useState(false);
   const [pottyOnly, setPottyOnly] = useState(false);
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
-
-  // ✅ NEW
   const [dogsOnly, setDogsOnly] = useState(false);
 
   useEffect(() => {
@@ -88,6 +87,7 @@ export default function Home() {
         const bucket = normalizeAgeBucket(dog.age_years);
         if (bucket !== ageFilter) return false;
       }
+
       if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
       if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
 
@@ -96,11 +96,9 @@ export default function Home() {
       if (kidsOnly && !dog.good_with_kids) return false;
       if (catsOnly && !dog.good_with_cats) return false;
 
-      // ✅ NEW: Good with other dogs
-      // If toggled on: block only explicit false. Allow true OR null (unknown).
-      if (dogsOnly) {
-        if (dog.good_with_dogs === false) return false;
-      }
+      // Good with other dogs:
+      // If toggled on: exclude only explicit false. Allow true OR null/unknown.
+      if (dogsOnly && dog.good_with_dogs === false) return false;
 
       return true;
     });
@@ -132,7 +130,7 @@ export default function Home() {
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3">
+          <Link to="/" className="flex items-center gap-3" aria-label="Go home">
             <img
               src="/logo.png"
               alt="Hooman Finder"
@@ -142,6 +140,13 @@ export default function Home() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-3">
+            <Link
+              to="/saved"
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            >
+              Saved
+            </Link>
+
             <Link
               to="/shelters/join"
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
@@ -296,7 +301,6 @@ export default function Home() {
                 Good with cats
               </label>
 
-              {/* ✅ NEW */}
               <label className="inline-flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -317,12 +321,7 @@ export default function Home() {
           ) : (
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredDogs.map((dog) => (
-                <DogCard
-                  key={dog.id}
-                  dog={dog}
-                  scorePct={null}
-                  showMatch={false}
-                />
+                <DogCard key={dog.id} dog={dog} scorePct={null} showMatch={false} />
               ))}
             </div>
           )}
