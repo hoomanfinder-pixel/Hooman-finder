@@ -72,8 +72,6 @@ export default function Results() {
   const [pottyOnly, setPottyOnly] = useState(false);
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
-
-  // ✅ NEW
   const [dogsOnly, setDogsOnly] = useState(false);
 
   // Keep shelterFilter in sync with URL (back/forward and manual edits)
@@ -144,11 +142,10 @@ export default function Results() {
       first_time_owner: quizRow.first_time_owner || "",
       allergy_sensitivity: quizRow.allergy_sensitivity || "",
       shedding_levels: safeArray(quizRow.shedding_levels),
-
-      // (these can exist later when you add them to quiz_responses)
       pets_in_home: safeArray(quizRow.pets_in_home),
       noise_preference: quizRow.noise_preference || "",
       alone_time: quizRow.alone_time || "",
+      yard: typeof quizRow.yard === "boolean" ? quizRow.yard : null,
     };
   }, [quizRow]);
 
@@ -225,15 +222,7 @@ export default function Results() {
       if (pottyOnly && !d.potty_trained) return false;
       if (kidsOnly && !d.good_with_kids) return false;
       if (catsOnly && !d.good_with_cats) return false;
-
-      // ✅ NEW: Good with other dogs
-      // when toggled on:
-      //   - allow true
-      //   - allow null/undefined (unknown)
-      //   - block false
-      if (dogsOnly) {
-        if (d.good_with_dogs === false) return false;
-      }
+      if (dogsOnly && !d.good_with_dogs) return false;
 
       return true;
     });
@@ -267,6 +256,7 @@ export default function Results() {
     setCatsOnly(false);
     setDogsOnly(false);
 
+    // Remove shelter param from URL
     const nextSearch = setParam(location.search, "shelter", "all");
     navigate({ pathname: location.pathname, search: nextSearch }, { replace: true });
   }
@@ -276,9 +266,8 @@ export default function Results() {
   return (
     <div className="min-h-screen bg-white">
       <div className="mx-auto max-w-6xl px-6 py-10">
-        {/* ✅ Header with centered clickable logo */}
+        {/* Header with centered clickable logo */}
         <div className="grid grid-cols-3 items-center">
-          {/* Left */}
           <div>
             <button
               onClick={() => navigate(-1)}
@@ -288,7 +277,6 @@ export default function Results() {
             </button>
           </div>
 
-          {/* Center */}
           <div className="flex justify-center">
             <button
               onClick={() => navigate("/")}
@@ -303,7 +291,6 @@ export default function Results() {
             </button>
           </div>
 
-          {/* Right */}
           <div className="flex justify-end">
             <button
               onClick={() => navigate("/quiz")}
@@ -422,7 +409,6 @@ export default function Results() {
               />
               Hypoallergenic only
             </label>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -431,7 +417,6 @@ export default function Results() {
               />
               Potty trained only
             </label>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -440,7 +425,6 @@ export default function Results() {
               />
               Good with kids
             </label>
-
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -449,8 +433,6 @@ export default function Results() {
               />
               Good with cats
             </label>
-
-            {/* ✅ NEW */}
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -484,6 +466,7 @@ export default function Results() {
                 key={item?.dog?.id || `dog-${idx}`}
                 dog={item.dog}
                 scorePct={item.scorePct}
+                breakdown={item.breakdown}   // ✅ NEW: enables “Why matched?”
                 showMatch={hasQuiz}
               />
             ))}
