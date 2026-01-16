@@ -8,19 +8,16 @@ export default function About() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Top bar */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate("/")}
-            className="flex items-center gap-3"
-            aria-label="Go home"
-          >
+          <Link to="/" className="flex items-center gap-3" aria-label="Go home">
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-16 w-16 object-contain"
+              className="h-24 w-24 object-contain"
             />
-          </button>
+          </Link>
 
           <div className="flex items-center gap-3">
             <Link
@@ -33,8 +30,8 @@ export default function About() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl px-4 py-10 flex-1">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+      <main className="mx-auto max-w-4xl w-full px-4 py-10 flex-1">
+        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
           About Hooman Finder
         </h1>
 
@@ -44,44 +41,66 @@ export default function About() {
           based on compatibility.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">How it works</h2>
-          <ol className="mt-3 list-decimal pl-5 text-slate-700 space-y-2">
-            <li>Take the quiz (home, routine, preferences).</li>
-            <li>See ranked matches and filter further if you want.</li>
-            <li>
-              When you’re ready, click <span className="font-semibold">Apply to adopt</span>{" "}
-              to go directly to the shelter’s application.
-            </li>
-          </ol>
-        </div>
+        <div className="mt-8 grid gap-6">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-extrabold text-slate-900">Why this matters</h2>
+            <p className="mt-3 text-slate-700 leading-relaxed">
+              The U.S. is facing an animal shelter capacity crisis. Hundreds of thousands of
+              dogs and cats are euthanized each year, often because shelters run out of space.
+              When one dog stays in a shelter longer than necessary, it can block a kennel that
+              could have saved the next dog coming in.
+            </p>
+          </div>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">Important note</h2>
-          <p className="mt-2 text-slate-700 leading-relaxed">
-            Hooman Finder does not process adoptions. All applications and final adoption decisions
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-extrabold text-slate-900">Our mission</h2>
+            <p className="mt-3 text-slate-700 leading-relaxed">
+              Our mission is to help more people feel confident adopting by making it easier to
+              find a dog that genuinely fits their life. More adoptions means more open spots in
+              shelters — and more chances for the next dog to be taken in, cared for, and placed.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-extrabold text-slate-900">Why I started it</h2>
+            <p className="mt-3 text-slate-700 leading-relaxed">
+              I’ve always wanted to rescue. I also love playing fetch with dogs — and I wanted a
+              faster, more specific way to find the “right” dog who’s already out there waiting.
+              Hooman Finder is my attempt to make adoption feel simpler and more personal, so
+              more people choose rescue.
+            </p>
+
+            <p className="mt-4 text-sm text-slate-600">Founder: Lauren Breukink</p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to="/"
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            >
+              Back to home
+            </Link>
+
+            <Link
+              to="/quiz"
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Start matching
+            </Link>
+
+            <Link
+              to="/contact"
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            >
+              Contact
+            </Link>
+          </div>
+
+          <div className="text-xs text-slate-500 leading-relaxed">
+            Note: Hooman Finder does not process adoptions. All applications and final adoption decisions
             happen directly through the shelter or rescue listed on each dog profile.
-          </p>
+          </div>
         </div>
-
-        <div className="mt-6 flex items-center gap-3">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
-          >
-            Back to home
-          </Link>
-          <Link
-            to="/quiz"
-            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-          >
-            Start matching
-          </Link>
-        </div>
-
-        <p className="mt-8 text-sm text-slate-600">
-          Founder: Lauren Breukink
-        </p>
       </main>
 
       <SiteFooter />

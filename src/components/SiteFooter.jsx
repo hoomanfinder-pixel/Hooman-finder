@@ -8,12 +8,15 @@ export default function SiteFooter() {
       <div className="mx-auto max-w-6xl px-4 py-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-600">
-            Hooman Finder helps you discover compatible rescue dogs. Adoptions are completed
-            directly through shelters.
+            Hooman Finder helps you discover compatible rescue dogs. Adoptions are
+            completed directly through shelters.
           </p>
 
           <div className="flex items-center gap-4 text-xs">
-            <Link to="/about" className="text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline">
+            <Link
+              to="/about"
+              className="text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+            >
               About
             </Link>
             <Link
@@ -22,12 +25,12 @@ export default function SiteFooter() {
             >
               For shelters
             </Link>
-            <a
-              href="mailto:hoomanfinder@gmail.com"
+            <Link
+              to="/contact"
               className="text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
             >
               Contact
-            </a>
+            </Link>
           </div>
         </div>
 
