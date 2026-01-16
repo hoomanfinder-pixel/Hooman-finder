@@ -18,43 +18,69 @@ function readSavedIds() {
 function writeSavedIds(ids) {
   try {
     localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
-    window.dispatchEvent(new Event("hooman:saved_changed"));
   } catch {
     // ignore
   }
 }
 
-function isSavedId(id) {
-  const ids = readSavedIds();
-  return ids.includes(String(id));
+function boolLabel(v) {
+  if (v === true) return "Yes";
+  if (v === false) return "No";
+  return "Unknown";
 }
 
-function toggleSavedId(id) {
-  const sid = String(id);
-  const ids = readSavedIds();
-  const next = ids.includes(sid) ? ids.filter((x) => x !== sid) : [sid, ...ids];
-  writeSavedIds(next);
-  return next.includes(sid);
+function textOrUnknown(v) {
+  const s = String(v ?? "").trim();
+  return s ? s : "Unknown";
+}
+
+function numberOrUnknown(v, suffix = "") {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "Unknown";
+  return `${n}${suffix}`;
+}
+
+function chipClass(tone) {
+  // simple color variety w/out overthinking
+  const base =
+    "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border";
+  switch (tone) {
+    case "blue":
+      return `${base} bg-blue-50 text-blue-700 border-blue-200`;
+    case "green":
+      return `${base} bg-emerald-50 text-emerald-700 border-emerald-200`;
+    case "amber":
+      return `${base} bg-amber-50 text-amber-800 border-amber-200`;
+    case "purple":
+      return `${base} bg-violet-50 text-violet-700 border-violet-200`;
+    case "pink":
+      return `${base} bg-pink-50 text-pink-700 border-pink-200`;
+    case "slate":
+    default:
+      return `${base} bg-slate-50 text-slate-700 border-slate-200`;
+  }
+}
+
+function traitRow(label, value, tone = "slate") {
+  return (
+    <div className="flex items-start justify-between gap-3 py-2">
+      <div className="text-sm font-semibold text-slate-800">{label}</div>
+      <div className={chipClass(tone)}>{value}</div>
+    </div>
+  );
 }
 
 export default function DogDetail() {
-  const { id } = useParams();
   const navigate = useNavigate();
+  const { id } = useParams();
 
   const [loading, setLoading] = useState(true);
   const [dog, setDog] = useState(null);
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState(() => isSavedId(id));
 
-  useEffect(() => {
-    const sync = () => setSaved(isSavedId(id));
-    window.addEventListener("storage", sync);
-    window.addEventListener("hooman:saved_changed", sync);
-    return () => {
-      window.removeEventListener("storage", sync);
-      window.removeEventListener("hooman:saved_changed", sync);
-    };
-  }, [id]);
+  const [savedIds, setSavedIds] = useState(() => readSavedIds());
+
+  const isSaved = useMemo(() => savedIds.includes(String(id)), [savedIds, id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +90,7 @@ export default function DogDetail() {
       setError("");
 
       try {
-        const res = await supabase
+        const { data, error: e } = await supabase
           .from("dogs")
           .select(
             "*, shelters ( id, name, city, state, apply_url, website, contact_email, logo_url )"
@@ -72,12 +98,14 @@ export default function DogDetail() {
           .eq("id", id)
           .maybeSingle();
 
-        if (res.error) throw res.error;
+        if (e) throw e;
 
-        if (!cancelled) setDog(res.data || null);
+        if (!cancelled) {
+          setDog(data || null);
+        }
       } catch (e) {
         if (!cancelled) {
-          setError(e?.message || "Something went wrong loading this dog.");
+          setError(e?.message || "Could not load dog.");
           setDog(null);
         }
       } finally {
@@ -85,30 +113,73 @@ export default function DogDetail() {
       }
     }
 
-    load();
+    if (id) load();
     return () => {
       cancelled = true;
     };
   }, [id]);
 
-  const imgSrc = useMemo(() => {
-    return dog?.photo_url || dog?.image_url || dog?.photo || "";
-  }, [dog]);
+  function toggleSaved() {
+    const sid = String(id);
+    const next = isSaved ? savedIds.filter((x) => x !== sid) : [...savedIds, sid];
+    setSavedIds(next);
+    writeSavedIds(next);
+  }
 
   const shelter = dog?.shelters || null;
-  const applyUrl = shelter?.apply_url || dog?.apply_url || "";
+  const applyUrl = shelter?.apply_url || dog?.apply_url || dog?.application_url || "";
 
-  function onToggleSaved() {
-    const nextSaved = toggleSavedId(id);
-    setSaved(nextSaved);
-  }
+  // ---- traits you evaluate (always shown) ----
+  const traits = useMemo(() => {
+    if (!dog) return [];
+
+    // normalize array-ish fields
+    const playStyles = Array.isArray(dog.play_styles)
+      ? dog.play_styles
+      : dog.play_styles
+      ? [dog.play_styles]
+      : [];
+
+    return [
+      { label: "Age", value: numberOrUnknown(dog.age_years, " yrs"), tone: "blue" },
+      { label: "Size", value: textOrUnknown(dog.size), tone: "purple" },
+      { label: "Energy level", value: textOrUnknown(dog.energy_level), tone: "pink" },
+
+      { label: "Hypoallergenic", value: boolLabel(dog.hypoallergenic), tone: "green" },
+      { label: "Potty trained", value: boolLabel(dog.potty_trained), tone: "green" },
+
+      { label: "Good with kids", value: boolLabel(dog.good_with_kids), tone: "amber" },
+      { label: "Good with cats", value: boolLabel(dog.good_with_cats), tone: "amber" },
+      { label: "Good with other dogs", value: boolLabel(dog.good_with_dogs), tone: "amber" },
+
+      { label: "Shedding", value: textOrUnknown(dog.shedding_level), tone: "slate" },
+      { label: "Grooming", value: textOrUnknown(dog.grooming_level), tone: "slate" },
+
+      {
+        label: "Play style",
+        value: playStyles.length ? playStyles.join(", ") : "Unknown",
+        tone: "blue",
+      },
+
+      { label: "Noise level", value: textOrUnknown(dog.noise_level), tone: "purple" },
+      { label: "Alone time", value: textOrUnknown(dog.alone_time), tone: "purple" },
+      {
+        label: "Yard needed",
+        value:
+          typeof dog.yard_required === "boolean"
+            ? boolLabel(dog.yard_required)
+            : typeof dog.yard === "boolean"
+            ? boolLabel(dog.yard)
+            : "Unknown",
+        tone: "pink",
+      },
+    ];
+  }, [dog]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-10 text-slate-600">
-          Loading…
-        </div>
+        <div className="mx-auto max-w-6xl px-6 py-10 text-slate-600">Loading…</div>
       </div>
     );
   }
@@ -116,220 +187,239 @@ export default function DogDetail() {
   if (error || !dog) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-10">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+        <div className="mx-auto max-w-6xl px-6 py-10">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
             {error || "Dog not found."}
           </div>
           <button
             onClick={() => navigate(-1)}
-            className="mt-4 rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
           >
-            Go back
+            ← Back
           </button>
         </div>
       </div>
     );
   }
 
+  const heroImg =
+    dog.photo_url ||
+    dog.image_url ||
+    (Array.isArray(dog.photos) && dog.photos[0]) ||
+    "";
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="text-sm font-semibold text-slate-700 hover:text-slate-900"
-          >
-            ← Back
-          </button>
+        <div className="mx-auto max-w-6xl px-4 py-4 grid grid-cols-3 items-center">
+          <div>
+            <button
+              onClick={() => navigate(-1)}
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
+              ← Back
+            </button>
+          </div>
 
-          <Link to="/" className="flex items-center gap-3" aria-label="Go home">
-            <img
-              src="/logo.png"
-              alt="Hooman Finder"
-              className="h-16 w-16 object-contain"
-            />
-          </Link>
+          <div className="flex justify-center">
+            <button onClick={() => navigate("/")} aria-label="Go home">
+              <img src="/logo.png" alt="Hooman Finder" className="h-14 w-auto" />
+            </button>
+          </div>
 
-          <Link
-            to="/saved"
-            className="text-sm font-semibold text-slate-700 hover:text-slate-900"
-          >
-            Saved
-          </Link>
+          <div className="flex justify-end">
+            <Link to="/saved" className="text-sm text-slate-600 hover:text-slate-900">
+              Saved
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-10">
-        {/* KEY FIX: items-start prevents the left card from stretching to match the right column height */}
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2 items-start">
-          {/* Left: image (self-start ensures it hugs content height) */}
-          <div className="self-start rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="relative w-full">
-              {imgSrc ? (
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          {/* LEFT: photo card */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="relative">
+              {heroImg ? (
                 <img
-                  src={imgSrc}
-                  alt={dog?.name || "Dog"}
-                  className="w-full h-auto object-contain block"
+                  src={heroImg}
+                  alt={dog.name || "Dog"}
+                  className="w-full h-[420px] object-cover"
                 />
               ) : (
-                <div className="flex w-full items-center justify-center py-24 text-sm text-slate-500">
+                <div className="w-full h-[420px] bg-slate-100 flex items-center justify-center text-slate-500">
                   No photo
                 </div>
               )}
 
               <button
-                type="button"
-                onClick={onToggleSaved}
-                className={[
-                  "absolute right-4 bottom-4 inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
-                  saved
-                    ? "bg-rose-600 text-white border-rose-600"
-                    : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50",
-                ].join(" ")}
+                onClick={toggleSaved}
+                className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-200 shadow-sm hover:bg-white"
               >
-                {saved ? "♥ Saved" : "♡ Save"}
+                <span aria-hidden="true">{isSaved ? "♥" : "♡"}</span>
+                {isSaved ? "Saved" : "Save"}
               </button>
             </div>
           </div>
 
-          {/* Right: details */}
-          <div className="w-full">
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          {/* RIGHT: info + traits */}
+          <div className="space-y-6">
+            {/* Top card */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
               <h1 className="text-3xl font-extrabold text-slate-900">
-                {dog?.name || "Dog"}
+                {textOrUnknown(dog.name)}
               </h1>
 
               <div className="mt-2 text-slate-600">
-                {dog?.breed ? dog.breed : "Mixed breed"}
-                {dog?.age_years !== null && dog?.age_years !== undefined ? (
-                  <span> • {dog.age_years} yrs</span>
-                ) : null}
-                {dog?.size ? <span> • {dog.size}</span> : null}
-                {dog?.energy_level ? (
-                  <span> • {dog.energy_level} energy</span>
-                ) : null}
+                {textOrUnknown(dog.breed)} • {numberOrUnknown(dog.age_years, " yrs")} •{" "}
+                {textOrUnknown(dog.size)} • {textOrUnknown(dog.energy_level)}
               </div>
 
-              {/* Hooman Finder role */}
-              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-sm font-bold text-slate-900">
+              {/* Role blurb */}
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-extrabold text-slate-900">
                   Hooman Finder’s role
                 </div>
-                <p className="mt-2 text-sm text-slate-700">
-                  Hooman Finder helps you find dogs that fit your lifestyle. We
-                  don’t process adoptions — when you’re ready, you’ll apply
-                  directly with the shelter or rescue.
+                <p className="mt-1 text-sm text-slate-700">
+                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t
+                  process adoptions — when you’re ready, you’ll apply directly with the
+                  shelter or rescue.
                 </p>
               </div>
 
               {/* Apply */}
               <div className="mt-5">
-                <div className="text-sm font-bold text-slate-900">
-                  Apply to adopt
-                </div>
+                <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  You’ll be redirected to the shelter’s official application
-                  page.
+                  You’ll be redirected to the shelter’s official application page.
                 </p>
 
-                {applyUrl ? (
-                  <a
-                    href={applyUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-                  >
-                    Apply on shelter site
-                  </a>
-                ) : (
-                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    Application link not available yet for this dog.
-                  </div>
-                )}
+                <button
+                  onClick={() => {
+                    if (!applyUrl) return;
+                    window.open(applyUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  disabled={!applyUrl}
+                  className={`mt-3 w-full rounded-full px-6 py-3 text-sm font-semibold text-white ${
+                    applyUrl ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300 cursor-not-allowed"
+                  }`}
+                >
+                  Apply on shelter site
+                </button>
               </div>
 
-              {/* Shelter */}
-              {shelter && (
-                <div className="mt-6 border-t border-slate-200 pt-5">
-                  <div className="text-sm font-bold text-slate-900">Listed by</div>
+              {/* Listed by */}
+              <div className="mt-6 pt-5 border-t border-slate-200">
+                <div className="text-sm font-extrabold text-slate-900">Listed by</div>
 
-                  <div className="mt-2 flex items-center gap-3">
-                    {shelter?.logo_url ? (
-                      <img
-                        src={shelter.logo_url}
-                        alt={shelter.name || "Shelter logo"}
-                        className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-slate-200" />
-                    )}
+                <div className="mt-3 flex items-center gap-3">
+                  {shelter?.logo_url ? (
+                    <img
+                      src={shelter.logo_url}
+                      alt={shelter?.name || "Shelter"}
+                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200" />
+                  )}
 
-                    <div>
-                      <div className="font-semibold text-slate-900">
-                        {shelter?.name || "Shelter"}
-                      </div>
-                      <div className="text-sm text-slate-600">
-                        {[shelter?.city, shelter?.state].filter(Boolean).join(", ")}
-                      </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">
+                      {textOrUnknown(shelter?.name)}
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      {[shelter?.city, shelter?.state].filter(Boolean).join(", ") || "Unknown"}
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Expectations / what to know */}
-            <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-sm font-bold text-slate-900">Things to know</div>
-
-              <div className="mt-3 grid gap-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Shelter behavior can look different at home
-                  </div>
-                  <div className="mt-1 text-sm text-slate-700">
-                    Stress, noise, and routine changes can affect how a dog acts
-                    in a shelter versus a home.
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Traits aren’t guaranteed
-                  </div>
-                  <div className="mt-1 text-sm text-slate-700">
-                    These details are based on what the shelter knows today —
-                    dogs keep learning and adjusting.
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Accidents can happen in new spaces
-                  </div>
-                  <div className="mt-1 text-sm text-slate-700">
-                    Even potty-trained dogs may have accidents during the first
-                    days in a new home.
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 text-xs text-slate-500">
-                Tip: Meeting the dog (and asking the shelter about routines) is
-                always the best next step.
               </div>
             </div>
 
-            {/* Quick actions */}
-            <div className="mt-6 flex gap-3">
+            {/* Traits card (always shows everything) */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-extrabold text-slate-900">Traits</h2>
+                <span className="text-xs text-slate-500">
+                  Unknown means the shelter hasn’t provided it yet.
+                </span>
+              </div>
+
+              <div className="mt-4 divide-y divide-slate-100">
+                {traits.map((t) => (
+                  <div key={t.label}>{traitRow(t.label, t.value, t.tone)}</div>
+                ))}
+              </div>
+            </div>
+
+            {/* Things to know (collapsible pill) */}
+            <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-extrabold">
+                    Things to know
+                  </span>
+                  <span className="text-sm text-slate-600">
+                    Tap to expand
+                  </span>
+                </div>
+
+                <span className="text-slate-500 group-open:rotate-180 transition-transform">
+                  ▼
+                </span>
+              </summary>
+
+              <div className="px-6 pb-6">
+                <div className="space-y-3">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-sm font-extrabold text-slate-900">
+                      Shelter behavior can look different at home
+                    </div>
+                    <p className="mt-1 text-sm text-slate-700">
+                      Stress, noise, and routine changes can affect how a dog acts in a
+                      shelter versus a home.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-sm font-extrabold text-slate-900">
+                      Traits aren’t guaranteed
+                    </div>
+                    <p className="mt-1 text-sm text-slate-700">
+                      These details are based on what the shelter knows today — dogs keep
+                      learning and adjusting.
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-sm font-extrabold text-slate-900">
+                      Accidents can happen in new spaces
+                    </div>
+                    <p className="mt-1 text-sm text-slate-700">
+                      Even potty-trained dogs may have accidents during the first days in
+                      a new home.
+                    </p>
+                  </div>
+
+                  <div className="text-sm text-slate-500 pt-2">
+                    Tip: Meeting the dog (and asking the shelter about routines) is always
+                    the best next step.
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            {/* Bottom actions */}
+            <div className="flex items-center gap-4">
               <Link
                 to="/saved"
-                className="inline-flex flex-1 items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+                className="flex-1 inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
               >
                 View saved dogs
               </Link>
               <Link
                 to="/quiz"
-                className="inline-flex flex-1 items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                className="flex-1 inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
               >
                 Retake quiz
               </Link>
