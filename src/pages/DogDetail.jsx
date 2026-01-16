@@ -41,7 +41,6 @@ function numberOrUnknown(v, suffix = "") {
 }
 
 function chipClass(tone) {
-  // simple color variety w/out overthinking
   const base =
     "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border";
   switch (tone) {
@@ -79,7 +78,6 @@ export default function DogDetail() {
   const [error, setError] = useState("");
 
   const [savedIds, setSavedIds] = useState(() => readSavedIds());
-
   const isSaved = useMemo(() => savedIds.includes(String(id)), [savedIds, id]);
 
   useEffect(() => {
@@ -99,10 +97,7 @@ export default function DogDetail() {
           .maybeSingle();
 
         if (e) throw e;
-
-        if (!cancelled) {
-          setDog(data || null);
-        }
+        if (!cancelled) setDog(data || null);
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || "Could not load dog.");
@@ -129,11 +124,15 @@ export default function DogDetail() {
   const shelter = dog?.shelters || null;
   const applyUrl = shelter?.apply_url || dog?.apply_url || dog?.application_url || "";
 
-  // ---- traits you evaluate (always shown) ----
+  const heroImg =
+    dog?.photo_url ||
+    dog?.image_url ||
+    (Array.isArray(dog?.photos) && dog.photos[0]) ||
+    "";
+
   const traits = useMemo(() => {
     if (!dog) return [];
 
-    // normalize array-ish fields
     const playStyles = Array.isArray(dog.play_styles)
       ? dog.play_styles
       : dog.play_styles
@@ -202,12 +201,6 @@ export default function DogDetail() {
     );
   }
 
-  const heroImg =
-    dog.photo_url ||
-    dog.image_url ||
-    (Array.isArray(dog.photos) && dog.photos[0]) ||
-    "";
-
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
@@ -238,130 +231,41 @@ export default function DogDetail() {
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* LEFT: photo card */}
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-            <div className="relative">
-              {heroImg ? (
-                <img
-                  src={heroImg}
-                  alt={dog.name || "Dog"}
-                  className="w-full h-[420px] object-cover"
-                />
-              ) : (
-                <div className="w-full h-[420px] bg-slate-100 flex items-center justify-center text-slate-500">
-                  No photo
-                </div>
-              )}
-
-              <button
-                onClick={toggleSaved}
-                className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-200 shadow-sm hover:bg-white"
-              >
-                <span aria-hidden="true">{isSaved ? "♥" : "♡"}</span>
-                {isSaved ? "Saved" : "Save"}
-              </button>
-            </div>
-          </div>
-
-          {/* RIGHT: info + traits */}
+          {/* LEFT column */}
           <div className="space-y-6">
-            {/* Top card */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
-              <h1 className="text-3xl font-extrabold text-slate-900">
-                {textOrUnknown(dog.name)}
-              </h1>
-
-              <div className="mt-2 text-slate-600">
-                {textOrUnknown(dog.breed)} • {numberOrUnknown(dog.age_years, " yrs")} •{" "}
-                {textOrUnknown(dog.size)} • {textOrUnknown(dog.energy_level)}
-              </div>
-
-              {/* Role blurb */}
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-sm font-extrabold text-slate-900">
-                  Hooman Finder’s role
-                </div>
-                <p className="mt-1 text-sm text-slate-700">
-                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t
-                  process adoptions — when you’re ready, you’ll apply directly with the
-                  shelter or rescue.
-                </p>
-              </div>
-
-              {/* Apply */}
-              <div className="mt-5">
-                <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
-                <p className="mt-1 text-sm text-slate-600">
-                  You’ll be redirected to the shelter’s official application page.
-                </p>
+            {/* Photo card that WRAPS the photo (no extra white box) */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="relative">
+                {heroImg ? (
+                  <img
+                    src={heroImg}
+                    alt={dog.name || "Dog"}
+                    className="block w-full h-auto"
+                  />
+                ) : (
+                  <div className="w-full bg-slate-100 flex items-center justify-center py-24 text-slate-500">
+                    No photo
+                  </div>
+                )}
 
                 <button
-                  onClick={() => {
-                    if (!applyUrl) return;
-                    window.open(applyUrl, "_blank", "noopener,noreferrer");
-                  }}
-                  disabled={!applyUrl}
-                  className={`mt-3 w-full rounded-full px-6 py-3 text-sm font-semibold text-white ${
-                    applyUrl ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300 cursor-not-allowed"
-                  }`}
+                  onClick={toggleSaved}
+                  className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-200 shadow-sm hover:bg-white"
                 >
-                  Apply on shelter site
+                  <span aria-hidden="true">{isSaved ? "♥" : "♡"}</span>
+                  {isSaved ? "Saved" : "Save"}
                 </button>
               </div>
-
-              {/* Listed by */}
-              <div className="mt-6 pt-5 border-t border-slate-200">
-                <div className="text-sm font-extrabold text-slate-900">Listed by</div>
-
-                <div className="mt-3 flex items-center gap-3">
-                  {shelter?.logo_url ? (
-                    <img
-                      src={shelter.logo_url}
-                      alt={shelter?.name || "Shelter"}
-                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200" />
-                  )}
-
-                  <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 truncate">
-                      {textOrUnknown(shelter?.name)}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      {[shelter?.city, shelter?.state].filter(Boolean).join(", ") || "Unknown"}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
 
-            {/* Traits card (always shows everything) */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-extrabold text-slate-900">Traits</h2>
-                <span className="text-xs text-slate-500">
-                  Unknown means the shelter hasn’t provided it yet.
-                </span>
-              </div>
-
-              <div className="mt-4 divide-y divide-slate-100">
-                {traits.map((t) => (
-                  <div key={t.label}>{traitRow(t.label, t.value, t.tone)}</div>
-                ))}
-              </div>
-            </div>
-
-            {/* Things to know (collapsible pill) */}
+            {/* Things to know BELOW photo (desktop + mobile) */}
             <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
               <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="inline-flex items-center rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-extrabold">
                     Things to know
                   </span>
-                  <span className="text-sm text-slate-600">
-                    Tap to expand
-                  </span>
+                  <span className="text-sm text-slate-600">Tap to expand</span>
                 </div>
 
                 <span className="text-slate-500 group-open:rotate-180 transition-transform">
@@ -396,18 +300,104 @@ export default function DogDetail() {
                       Accidents can happen in new spaces
                     </div>
                     <p className="mt-1 text-sm text-slate-700">
-                      Even potty-trained dogs may have accidents during the first days in
-                      a new home.
+                      Even potty-trained dogs may have accidents during the first days in a
+                      new home.
                     </p>
                   </div>
 
                   <div className="text-sm text-slate-500 pt-2">
-                    Tip: Meeting the dog (and asking the shelter about routines) is always
-                    the best next step.
+                    Tip: Meeting the dog (and asking the shelter about routines) is always the
+                    best next step.
                   </div>
                 </div>
               </div>
             </details>
+          </div>
+
+          {/* RIGHT column */}
+          <div className="space-y-6">
+            {/* Top info card */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+              <h1 className="text-3xl font-extrabold text-slate-900">
+                {textOrUnknown(dog.name)}
+              </h1>
+
+              <div className="mt-2 text-slate-600">
+                {textOrUnknown(dog.breed)} • {numberOrUnknown(dog.age_years, " yrs")} •{" "}
+                {textOrUnknown(dog.size)} • {textOrUnknown(dog.energy_level)}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="text-sm font-extrabold text-slate-900">
+                  Hooman Finder’s role
+                </div>
+                <p className="mt-1 text-sm text-slate-700">
+                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t process
+                  adoptions — when you’re ready, you’ll apply directly with the shelter or rescue.
+                </p>
+              </div>
+
+              <div className="mt-5">
+                <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
+                <p className="mt-1 text-sm text-slate-600">
+                  You’ll be redirected to the shelter’s official application page.
+                </p>
+
+                <button
+                  onClick={() => {
+                    if (!applyUrl) return;
+                    window.open(applyUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  disabled={!applyUrl}
+                  className={`mt-3 w-full rounded-full px-6 py-3 text-sm font-semibold text-white ${
+                    applyUrl ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300 cursor-not-allowed"
+                  }`}
+                >
+                  Apply on shelter site
+                </button>
+              </div>
+
+              <div className="mt-6 pt-5 border-t border-slate-200">
+                <div className="text-sm font-extrabold text-slate-900">Listed by</div>
+
+                <div className="mt-3 flex items-center gap-3">
+                  {shelter?.logo_url ? (
+                    <img
+                      src={shelter.logo_url}
+                      alt={shelter?.name || "Shelter"}
+                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200" />
+                  )}
+
+                  <div className="min-w-0">
+                    <div className="font-semibold text-slate-900 truncate">
+                      {textOrUnknown(shelter?.name)}
+                    </div>
+                    <div className="text-sm text-slate-600">
+                      {[shelter?.city, shelter?.state].filter(Boolean).join(", ") || "Unknown"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Traits card */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-extrabold text-slate-900">Traits</h2>
+                <span className="text-xs text-slate-500">
+                  Unknown means the shelter hasn’t provided it yet.
+                </span>
+              </div>
+
+              <div className="mt-4 divide-y divide-slate-100">
+                {traits.map((t) => (
+                  <div key={t.label}>{traitRow(t.label, t.value, t.tone)}</div>
+                ))}
+              </div>
+            </div>
 
             {/* Bottom actions */}
             <div className="flex items-center gap-4">
