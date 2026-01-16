@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import DogCard from "../components/DogCard";
+import SiteFooter from "../components/SiteFooter";
 import { supabase } from "../lib/supabase";
 
 const AGE_OPTIONS = [
@@ -102,17 +103,7 @@ export default function Home() {
 
       return true;
     });
-  }, [
-    dogs,
-    ageFilter,
-    sizeFilter,
-    energyFilter,
-    hypoOnly,
-    pottyOnly,
-    kidsOnly,
-    catsOnly,
-    dogsOnly,
-  ]);
+  }, [dogs, ageFilter, sizeFilter, energyFilter, hypoOnly, pottyOnly, kidsOnly, catsOnly, dogsOnly]);
 
   function resetFilters() {
     setAgeFilter("all");
@@ -126,7 +117,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 flex flex-col">
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
@@ -164,7 +155,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-10">
+      <main className="mx-auto max-w-6xl px-4 py-10 flex-1">
         {/* Demo disclaimer */}
         <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-700">
@@ -327,6 +318,8 @@ export default function Home() {
           )}
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
