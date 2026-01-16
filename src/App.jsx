@@ -5,6 +5,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Home from "./pages/Home.jsx";
 import Quiz from "./pages/Quiz.jsx";
 import Results from "./pages/Results.jsx";
+import Dogs from "./pages/Dogs.jsx";
 import DogDetail from "./pages/DogDetail.jsx";
 import Shelter from "./pages/Shelter.jsx";
 import JoinShelters from "./pages/JoinShelters.jsx";
@@ -17,8 +18,10 @@ export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+
       <Route path="/quiz" element={<Quiz />} />
       <Route path="/results" element={<Results />} />
+      <Route path="/dogs" element={<Dogs />} />
       <Route path="/saved" element={<Saved />} />
 
       <Route path="/about" element={<About />} />

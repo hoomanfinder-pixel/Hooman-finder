@@ -1,120 +1,10 @@
 // src/pages/Home.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
-import DogCard from "../components/DogCard";
 import SiteFooter from "../components/SiteFooter";
-import { supabase } from "../lib/supabase";
-
-const AGE_OPTIONS = [
-  { label: "All ages", value: "all" },
-  { label: "Puppy (<2)", value: "puppy" },
-  { label: "Adult (2–6)", value: "adult" },
-  { label: "Senior (7+)", value: "senior" },
-];
-
-const SIZE_OPTIONS = [
-  { label: "All sizes", value: "all" },
-  { label: "Small", value: "Small" },
-  { label: "Medium", value: "Medium" },
-  { label: "Large", value: "Large" },
-];
-
-const ENERGY_OPTIONS = [
-  { label: "All energy", value: "all" },
-  { label: "Low", value: "Low" },
-  { label: "Moderate", value: "Moderate" },
-  { label: "High", value: "High" },
-];
-
-function normalizeAgeBucket(ageYears) {
-  const n = Number(ageYears);
-  if (!Number.isFinite(n)) return null;
-  if (n < 2) return "puppy";
-  if (n < 7) return "adult";
-  return "senior";
-}
 
 export default function Home() {
   const navigate = useNavigate();
-
-  const [loading, setLoading] = useState(true);
-  const [dogs, setDogs] = useState([]);
-
-  // Home filters (browse-y)
-  const [ageFilter, setAgeFilter] = useState("all");
-  const [sizeFilter, setSizeFilter] = useState("all");
-  const [energyFilter, setEnergyFilter] = useState("all");
-
-  const [hypoOnly, setHypoOnly] = useState(false);
-  const [pottyOnly, setPottyOnly] = useState(false);
-  const [kidsOnly, setKidsOnly] = useState(false);
-  const [catsOnly, setCatsOnly] = useState(false);
-  const [dogsOnly, setDogsOnly] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    async function loadDogs() {
-      setLoading(true);
-
-      const { data, error } = await supabase
-        .from("dogs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(12);
-
-      if (!mounted) return;
-
-      if (error) {
-        console.error("Error fetching dogs:", error);
-        setDogs([]);
-      } else {
-        setDogs(Array.isArray(data) ? data : []);
-      }
-
-      setLoading(false);
-    }
-
-    loadDogs();
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const filteredDogs = useMemo(() => {
-    return dogs.filter((dog) => {
-      if (ageFilter !== "all") {
-        const bucket = normalizeAgeBucket(dog.age_years);
-        if (bucket !== ageFilter) return false;
-      }
-
-      if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
-      if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
-
-      if (hypoOnly && !dog.hypoallergenic) return false;
-      if (pottyOnly && !dog.potty_trained) return false;
-      if (kidsOnly && !dog.good_with_kids) return false;
-      if (catsOnly && !dog.good_with_cats) return false;
-
-      // Good with other dogs:
-      // If toggled on: exclude only explicit false. Allow true OR null/unknown.
-      if (dogsOnly && dog.good_with_dogs === false) return false;
-
-      return true;
-    });
-  }, [dogs, ageFilter, sizeFilter, energyFilter, hypoOnly, pottyOnly, kidsOnly, catsOnly, dogsOnly]);
-
-  function resetFilters() {
-    setAgeFilter("all");
-    setSizeFilter("all");
-    setEnergyFilter("all");
-    setHypoOnly(false);
-    setPottyOnly(false);
-    setKidsOnly(false);
-    setCatsOnly(false);
-    setDogsOnly(false);
-  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -129,20 +19,19 @@ export default function Home() {
             />
           </Link>
 
-          {/* Right side actions */}
           <div className="flex items-center gap-3">
+            <Link
+              to="/about"
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            >
+              About
+            </Link>
+
             <Link
               to="/saved"
               className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
             >
               Saved
-            </Link>
-
-            <Link
-              to="/shelters/join"
-              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
-            >
-              For shelters
             </Link>
 
             <Link
@@ -155,168 +44,83 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-10 flex-1">
-        {/* Demo disclaimer */}
-        <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-700">
-            This is an early demo of Hooman Finder. Dogs shown are sample/tester
-            profiles for development purposes and may link to a real Michigan
-            rescue as a placeholder.
-          </p>
-        </div>
-
+      <main className="flex-1">
         {/* Hero */}
-        <div className="text-center">
-          <h1 className="text-4xl font-extrabold tracking-tight text-slate-900">
-            Find a rescue dog that fits your life
-          </h1>
-          <p className="mt-3 text-slate-600 max-w-2xl mx-auto">
-            We match you with adoptable dogs based on your lifestyle, home, and
-            preferences — not endless scrolling.
-          </p>
-
-          <div className="mt-6 flex items-center justify-center gap-3">
-            <button
-              onClick={() => navigate("/quiz")}
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              Start matching
-            </button>
-
-            <button
-              onClick={() => navigate("/results")}
-              className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
-            >
-              Browse dogs
-            </button>
-          </div>
-        </div>
-
-        {/* Browse + filters */}
-        <div className="mt-12">
-          <div className="flex items-start justify-between gap-6 flex-wrap">
-            <h2 className="text-xl font-extrabold text-slate-900">
-              Recently added pups
-            </h2>
-
-            <button
-              onClick={resetFilters}
-              className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
-            >
-              Reset filters
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <label className="text-sm font-semibold text-slate-800">
-                Age
-                <select
-                  value={ageFilter}
-                  onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {AGE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-semibold text-slate-800">
-                Size
-                <select
-                  value={sizeFilter}
-                  onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {SIZE_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-semibold text-slate-800">
-                Energy
-                <select
-                  value={energyFilter}
-                  onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                >
-                  {ENERGY_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+        <section className="mx-auto max-w-6xl px-4 py-10">
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            {/* Background image */}
+            <div className="absolute inset-0">
+              <img
+                src="/hero-dog.jpg"
+                alt=""
+                className="h-full w-full object-cover opacity-30"
+              />
+              <div className="absolute inset-0 bg-white/30" />
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={hypoOnly}
-                  onChange={(e) => setHypoOnly(e.target.checked)}
-                />
-                Hypoallergenic only
-              </label>
+            <div className="relative px-6 py-14 md:px-12 md:py-16 text-center">
+              <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+                Find a rescue dog that fits your life
+              </h1>
 
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={pottyOnly}
-                  onChange={(e) => setPottyOnly(e.target.checked)}
-                />
-                Potty trained only
-              </label>
+              <p className="mt-4 text-slate-700 max-w-2xl mx-auto">
+                Take a quick lifestyle quiz and get ranked matches — so you can
+                adopt with confidence (not endless scrolling).
+              </p>
 
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={kidsOnly}
-                  onChange={(e) => setKidsOnly(e.target.checked)}
-                />
-                Good with kids
-              </label>
+              <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={() => navigate("/quiz")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                >
+                  Start matching
+                </button>
 
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={catsOnly}
-                  onChange={(e) => setCatsOnly(e.target.checked)}
-                />
-                Good with cats
-              </label>
+                <button
+                  onClick={() => navigate("/dogs")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+                >
+                  Browse example dogs
+                </button>
 
-              <label className="inline-flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={dogsOnly}
-                  onChange={(e) => setDogsOnly(e.target.checked)}
-                />
-                Good with other dogs
-              </label>
-            </div>
+                <button
+                  onClick={() => navigate("/shelters/join")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+                >
+                  For shelters
+                </button>
+              </div>
 
-            <div className="mt-3 text-sm text-slate-600">
-              Showing {filteredDogs.length} of {dogs.length || 0}
+              <p className="mt-4 text-xs text-slate-600">
+                Early demo: dogs shown may be sample/test profiles during development.
+              </p>
             </div>
           </div>
 
-          {loading ? (
-            <div className="mt-8 text-slate-600">Loading…</div>
-          ) : (
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredDogs.map((dog) => (
-                <DogCard key={dog.id} dog={dog} scorePct={null} showMatch={false} />
-              ))}
+          {/* 3 feature icons */}
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-extrabold text-slate-900">Quick quiz</div>
+              <p className="mt-2 text-sm text-slate-600">
+                Answer a few questions about your lifestyle, home, and preferences.
+              </p>
             </div>
-          )}
-        </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-extrabold text-slate-900">Ranked matches</div>
+              <p className="mt-2 text-sm text-slate-600">
+                Get a ranked list with match % so you know who fits best.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-sm font-extrabold text-slate-900">Apply to shelters</div>
+              <p className="mt-2 text-sm text-slate-600">
+                When you’re ready, apply directly through the shelter.
+              </p>
+            </div>
+          </div>
+        </section>
       </main>
 
       <SiteFooter />
