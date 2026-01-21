@@ -59,6 +59,14 @@ export default function Home() {
             </div>
 
             <div className="relative px-6 py-14 md:px-12 md:py-16 text-center">
+              {/* Demo pill */}
+              <div className="mb-4 flex justify-center">
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-800 backdrop-blur">
+                  <span className="h-2 w-2 rounded-full bg-amber-500" />
+                  Demo preview
+                </span>
+              </div>
+
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
                 Find a rescue dog that fits your life
               </h1>
@@ -92,7 +100,7 @@ export default function Home() {
               </div>
 
               <p className="mt-4 text-xs text-slate-600">
-                Early demo: dogs shown may be sample/test profiles during development.
+                This is an early demo — dogs shown may be sample/test profiles while we onboard shelters.
               </p>
             </div>
           </div>
