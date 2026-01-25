@@ -127,7 +127,6 @@ function topMatchRows(breakdown) {
     { key: "firstTime", label: "First-time owner" },
   ];
 
-  // Sort by points, show top 6, and show a label instead of points.
   return map
     .map((m) => {
       const pts = Number(breakdown[m.key] ?? 0);
@@ -167,10 +166,9 @@ export default function DogDetail() {
   const [savedIds, setSavedIds] = useState(() => readSavedIds());
   const isSaved = useMemo(() => savedIds.includes(String(id)), [savedIds, id]);
 
-  // Match info (optional)
   const [matchInfo, setMatchInfo] = useState(() => {
     const st = location.state;
-    if (st?.fromQuiz && st?.match) return st.match; // { scorePct, breakdown }
+    if (st?.fromQuiz && st?.match) return st.match;
     return null;
   });
   const [matchLoading, setMatchLoading] = useState(false);
@@ -209,7 +207,6 @@ export default function DogDetail() {
     };
   }, [id]);
 
-  // If session exists and user refreshed / opened new tab, recompute match for this dog.
   useEffect(() => {
     let cancelled = false;
 
@@ -242,7 +239,7 @@ export default function DogDetail() {
           });
         }
       } catch {
-        // ignore match errors; page still works
+        // ignore
       } finally {
         if (!cancelled) setMatchLoading(false);
       }
@@ -271,6 +268,10 @@ export default function DogDetail() {
     (Array.isArray(dog?.photos) && dog.photos[0]) ||
     "";
 
+  // ✅ FIXED: map to real DB columns:
+  // - "Noise level" should use barking_level (your DB column)
+  // - "Alone time" should use max_alone_hours (your DB column)
+  // - "Yard needed" stays Unknown unless you add a yard_required boolean column later
   const traits = useMemo(() => {
     if (!dog) return [];
 
@@ -301,18 +302,14 @@ export default function DogDetail() {
         tone: "blue",
       },
 
-      { label: "Noise level", value: textOrUnknown(dog.noise_level), tone: "purple" },
-      { label: "Alone time", value: textOrUnknown(dog.alone_time), tone: "purple" },
-      {
-        label: "Yard needed",
-        value:
-          typeof dog.yard_required === "boolean"
-            ? boolLabel(dog.yard_required)
-            : typeof dog.yard === "boolean"
-            ? boolLabel(dog.yard)
-            : "Unknown",
-        tone: "pink",
-      },
+      // FIX: was dog.noise_level (doesn't exist). Your DB has barking_level.
+      { label: "Noise level", value: textOrUnknown(dog.barking_level), tone: "purple" },
+
+      // FIX: was dog.alone_time (doesn't exist). Your DB has max_alone_hours (integer).
+      { label: "Alone time", value: numberOrUnknown(dog.max_alone_hours, " hrs"), tone: "purple" },
+
+      // NOTE: your DB currently has no yard column, so always Unknown unless you add one.
+      { label: "Yard needed", value: "Unknown", tone: "pink" },
     ];
   }, [dog]);
 
@@ -358,7 +355,6 @@ export default function DogDetail() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 grid grid-cols-3 items-center">
           <div>
@@ -389,9 +385,7 @@ export default function DogDetail() {
 
       <main className="mx-auto max-w-6xl px-6 py-10">
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* LEFT column */}
           <div className="space-y-6">
-            {/* Photo card */}
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="relative">
                 {heroImg ? (
@@ -416,7 +410,14 @@ export default function DogDetail() {
               </div>
             </div>
 
-            {/* Things to know */}
+            {/* About (shows description) */}
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+              <div className="text-sm font-extrabold text-slate-900">About</div>
+              <p className="mt-2 text-sm text-slate-700 leading-relaxed">
+                {textOrUnknown(dog.description)}
+              </p>
+            </div>
+
             <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
               <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -472,9 +473,7 @@ export default function DogDetail() {
             </details>
           </div>
 
-          {/* RIGHT column */}
           <div className="space-y-6">
-            {/* Top info card */}
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
               <h1 className="text-3xl font-extrabold text-slate-900">
                 {textOrUnknown(dog.name)}
@@ -495,7 +494,6 @@ export default function DogDetail() {
                 </p>
               </div>
 
-              {/* How you matched (labels instead of points) */}
               {showHowMatched && (
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-3">
@@ -582,7 +580,6 @@ export default function DogDetail() {
               </div>
             </div>
 
-            {/* Traits card */}
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-extrabold text-slate-900">Traits</h2>
@@ -598,7 +595,6 @@ export default function DogDetail() {
               </div>
             </div>
 
-            {/* Bottom actions */}
             <div className="flex items-center gap-4">
               <Link
                 to="/saved"
