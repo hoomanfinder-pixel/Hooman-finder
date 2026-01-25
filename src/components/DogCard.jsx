@@ -47,12 +47,41 @@ function matchTier(scorePct) {
   const n = Number(scorePct);
   if (!Number.isFinite(n)) return null;
 
-  if (n >= 85) return { label: "Strong match", pillClass: "bg-slate-900 text-white" };
+  // Strong match now teal (not black, not red)
+  if (n >= 85) return { label: "Strong match", pillClass: "bg-teal-700 text-white" };
   if (n >= 70) return { label: "Good match", pillClass: "bg-indigo-600 text-white" };
   return { label: "Potential match", pillClass: "bg-slate-600 text-white" };
 }
 
-function buildTopReasons({ dog }) {
+function buildTopReasons({ dog, breakdown }) {
+  // Prefer breakdown if we have it
+  if (breakdown && typeof breakdown === "object") {
+    const pretty = {
+      play: "play style",
+      energy: "energy",
+      size: "size",
+      age: "age",
+      potty: "potty training",
+      kids: "kids",
+      cats: "cats",
+      firstTime: "first-time owner",
+      allergy: "allergies",
+      shedding: "shedding",
+      pets: "pets",
+      noise: "noise",
+      alone: "alone time",
+    };
+
+    const top = Object.entries(breakdown)
+      .filter(([, v]) => Number(v) > 0)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .slice(0, 3)
+      .map(([k]) => pretty[k] || k);
+
+    if (top.length) return top;
+  }
+
+  // Fallback if no breakdown
   const reasons = [];
   if (dog?.size) reasons.push("size");
   if (dog?.energy_level) reasons.push("energy");
@@ -81,7 +110,13 @@ function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
   return { left, top };
 }
 
-export default function DogCard({ dog, scorePct = null, showMatch = false }) {
+export default function DogCard({
+  dog,
+  scorePct = null,
+  breakdown = null,
+  showMatch = false,
+  sessionId = null,
+}) {
   const [openModal, setOpenModal] = useState(false); // click modal
   const [showHover, setShowHover] = useState(false); // hover popover
   const [hoverPos, setHoverPos] = useState({ left: 0, top: 0 });
@@ -92,7 +127,7 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
   const hoverPanelRef = useRef(null);
 
   const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
-  const topReasons = useMemo(() => buildTopReasons({ dog }), [dog]);
+  const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
 
   const ageLabel = useMemo(() => formatAge(dog?.age_years), [dog]);
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
@@ -116,7 +151,9 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
 
     const anchorRect = anchor.getBoundingClientRect();
     const popRect = pop.getBoundingClientRect();
-    setHoverPos(computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10));
+    setHoverPos(
+      computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10)
+    );
 
     const onScrollOrResize = () => {
       const a = anchor.getBoundingClientRect();
@@ -166,10 +203,31 @@ export default function DogCard({ dog, scorePct = null, showMatch = false }) {
     setSaved(nextSaved);
   }
 
+  // ✅ Build link that ALWAYS includes session when we have it (so refresh/new tab still works)
+  const dogLink = useMemo(() => {
+    const base = `/dog/${dog?.id}`;
+    const search = sessionId ? `?session=${encodeURIComponent(sessionId)}` : "";
+    return `${base}${search}`;
+  }, [dog?.id, sessionId]);
+
+  // ✅ Pass match info through router state for instant render (no extra fetch needed)
+  const linkState = useMemo(() => {
+    if (!showMatch) return null;
+    return {
+      fromQuiz: true,
+      sessionId: sessionId || null,
+      match: {
+        scorePct,
+        breakdown,
+      },
+    };
+  }, [showMatch, sessionId, scorePct, breakdown]);
+
   return (
     <>
       <Link
-        to={`/dog/${dog.id}`}
+        to={dogLink}
+        state={linkState}
         className="group block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
       >
         {/* Image */}

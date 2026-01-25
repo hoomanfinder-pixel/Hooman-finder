@@ -1,9 +1,15 @@
 // src/pages/DogDetail.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { rankDogs } from "../lib/matchingLogic";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
+
+function getParam(search, key) {
+  const params = new URLSearchParams(search);
+  return params.get(key);
+}
 
 function readSavedIds() {
   try {
@@ -54,6 +60,8 @@ function chipClass(tone) {
       return `${base} bg-violet-50 text-violet-700 border-violet-200`;
     case "pink":
       return `${base} bg-pink-50 text-pink-700 border-pink-200`;
+    case "teal":
+      return `${base} bg-teal-50 text-teal-700 border-teal-200`;
     case "slate":
     default:
       return `${base} bg-slate-50 text-slate-700 border-slate-200`;
@@ -69,9 +77,88 @@ function traitRow(label, value, tone = "slate") {
   );
 }
 
+// Mirrors weights in matchingLogic.js (used only for display labels)
+const MATCH_MAX = Object.freeze({
+  play: 25,
+  energy: 10,
+  size: 15,
+  age: 10,
+  potty: 15,
+  kids: 10,
+  cats: 10,
+  firstTime: 5,
+  allergy: 10,
+  shedding: 10,
+  pets: 10,
+  noise: 5,
+  alone: 5,
+});
+
+function statusForPoints(points, maxPoints) {
+  const p = Number(points);
+  const m = Number(maxPoints);
+
+  if (!Number.isFinite(p) || !Number.isFinite(m) || m <= 0) {
+    return { label: "Match", tone: "slate" };
+  }
+
+  if (p >= m) return { label: "Matched", tone: "teal" };
+  if (p >= m * 0.6) return { label: "Close match", tone: "purple" };
+  if (p > 0) return { label: "Some match", tone: "slate" };
+  return { label: "Not a match", tone: "slate" };
+}
+
+function topMatchRows(breakdown) {
+  if (!breakdown || typeof breakdown !== "object") return [];
+
+  const map = [
+    { key: "play", label: "Play style" },
+    { key: "energy", label: "Energy" },
+    { key: "size", label: "Size" },
+    { key: "age", label: "Age" },
+    { key: "potty", label: "Potty training" },
+    { key: "kids", label: "Kids" },
+    { key: "cats", label: "Cats" },
+    { key: "pets", label: "Other pets" },
+    { key: "allergy", label: "Allergies" },
+    { key: "shedding", label: "Shedding" },
+    { key: "noise", label: "Noise" },
+    { key: "alone", label: "Alone time" },
+    { key: "firstTime", label: "First-time owner" },
+  ];
+
+  // Sort by points, show top 6, and show a label instead of points.
+  return map
+    .map((m) => {
+      const pts = Number(breakdown[m.key] ?? 0);
+      const maxPts = Number(MATCH_MAX[m.key] ?? 0);
+      const safePts = Number.isFinite(pts) ? pts : 0;
+      const safeMax = Number.isFinite(maxPts) ? maxPts : 0;
+
+      const status = statusForPoints(safePts, safeMax);
+
+      return {
+        key: m.key,
+        traitLabel: m.label,
+        statusLabel: status.label,
+        tone: status.tone,
+        points: safePts,
+      };
+    })
+    .filter((x) => x.points > 0)
+    .sort((a, b) => b.points - a.points)
+    .slice(0, 6);
+}
+
 export default function DogDetail() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
+
+  const sessionId = useMemo(
+    () => getParam(location.search, "session"),
+    [location.search]
+  );
 
   const [loading, setLoading] = useState(true);
   const [dog, setDog] = useState(null);
@@ -80,10 +167,18 @@ export default function DogDetail() {
   const [savedIds, setSavedIds] = useState(() => readSavedIds());
   const isSaved = useMemo(() => savedIds.includes(String(id)), [savedIds, id]);
 
+  // Match info (optional)
+  const [matchInfo, setMatchInfo] = useState(() => {
+    const st = location.state;
+    if (st?.fromQuiz && st?.match) return st.match; // { scorePct, breakdown }
+    return null;
+  });
+  const [matchLoading, setMatchLoading] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
 
-    async function load() {
+    async function loadDog() {
       setLoading(true);
       setError("");
 
@@ -108,11 +203,56 @@ export default function DogDetail() {
       }
     }
 
-    if (id) load();
+    if (id) loadDog();
     return () => {
       cancelled = true;
     };
   }, [id]);
+
+  // If session exists and user refreshed / opened new tab, recompute match for this dog.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMatch() {
+      if (!sessionId) return;
+      if (!dog) return;
+      if (matchInfo) return;
+
+      setMatchLoading(true);
+      try {
+        const quizRes = await supabase
+          .from("quiz_responses")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (quizRes.error) throw quizRes.error;
+        const quizRow = quizRes.data || null;
+        if (!quizRow) return;
+
+        const ranked = rankDogs([dog], quizRow);
+        const first = ranked?.[0] || null;
+
+        if (!cancelled && first) {
+          setMatchInfo({
+            scorePct: first.scorePct ?? null,
+            breakdown: first.breakdown ?? null,
+          });
+        }
+      } catch {
+        // ignore match errors; page still works
+      } finally {
+        if (!cancelled) setMatchLoading(false);
+      }
+    }
+
+    loadMatch();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, dog, matchInfo]);
 
   function toggleSaved() {
     const sid = String(id);
@@ -122,7 +262,8 @@ export default function DogDetail() {
   }
 
   const shelter = dog?.shelters || null;
-  const applyUrl = shelter?.apply_url || dog?.apply_url || dog?.application_url || "";
+  const applyUrl =
+    shelter?.apply_url || dog?.apply_url || dog?.application_url || "";
 
   const heroImg =
     dog?.photo_url ||
@@ -175,10 +316,24 @@ export default function DogDetail() {
     ];
   }, [dog]);
 
+  const showHowMatched = !!sessionId && (matchLoading || !!matchInfo);
+
+  const scoreLabel =
+    matchInfo && Number.isFinite(Number(matchInfo.scorePct))
+      ? `${Math.round(matchInfo.scorePct)}% match`
+      : null;
+
+  const topRows = useMemo(
+    () => topMatchRows(matchInfo?.breakdown),
+    [matchInfo?.breakdown]
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-6 py-10 text-slate-600">Loading…</div>
+        <div className="mx-auto max-w-6xl px-6 py-10 text-slate-600">
+          Loading…
+        </div>
       </div>
     );
   }
@@ -222,7 +377,10 @@ export default function DogDetail() {
           </div>
 
           <div className="flex justify-end">
-            <Link to="/saved" className="text-sm text-slate-600 hover:text-slate-900">
+            <Link
+              to="/saved"
+              className="text-sm text-slate-600 hover:text-slate-900"
+            >
               Saved
             </Link>
           </div>
@@ -233,7 +391,7 @@ export default function DogDetail() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
           {/* LEFT column */}
           <div className="space-y-6">
-            {/* Photo card that WRAPS the photo (no extra white box) */}
+            {/* Photo card */}
             <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
               <div className="relative">
                 {heroImg ? (
@@ -258,7 +416,7 @@ export default function DogDetail() {
               </div>
             </div>
 
-            {/* Things to know BELOW photo (desktop + mobile) */}
+            {/* Things to know */}
             <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
               <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -337,6 +495,45 @@ export default function DogDetail() {
                 </p>
               </div>
 
+              {/* How you matched (labels instead of points) */}
+              {showHowMatched && (
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-extrabold text-slate-900">
+                      How you matched
+                    </div>
+
+                    {matchLoading ? (
+                      <span className={chipClass("slate")}>Loading…</span>
+                    ) : scoreLabel ? (
+                      <span className={chipClass("teal")}>{scoreLabel}</span>
+                    ) : (
+                      <span className={chipClass("slate")}>Match info unavailable</span>
+                    )}
+                  </div>
+
+                  {topRows.length > 0 ? (
+                    <div className="mt-3 divide-y divide-slate-100">
+                      {topRows.map((row) => (
+                        <div
+                          key={row.key}
+                          className="flex items-center justify-between py-2"
+                        >
+                          <div className="text-sm font-semibold text-slate-800">
+                            {row.traitLabel}
+                          </div>
+                          <span className={chipClass(row.tone)}>{row.statusLabel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-sm text-slate-600">
+                      We’ll show more detail as shelters provide more trait info.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="mt-5">
                 <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
                 <p className="mt-1 text-sm text-slate-600">
@@ -350,7 +547,9 @@ export default function DogDetail() {
                   }}
                   disabled={!applyUrl}
                   className={`mt-3 w-full rounded-full px-6 py-3 text-sm font-semibold text-white ${
-                    applyUrl ? "bg-slate-900 hover:bg-slate-800" : "bg-slate-300 cursor-not-allowed"
+                    applyUrl
+                      ? "bg-slate-900 hover:bg-slate-800"
+                      : "bg-slate-300 cursor-not-allowed"
                   }`}
                 >
                   Apply on shelter site

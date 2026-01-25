@@ -10,14 +10,6 @@ function getParam(search, key) {
   return params.get(key);
 }
 
-function setParam(search, key, value) {
-  const params = new URLSearchParams(search);
-  if (!value || value === "all") params.delete(key);
-  else params.set(key, value);
-  const next = params.toString();
-  return next ? `?${next}` : "";
-}
-
 function normalizeAgeBucket(ageYears) {
   const n = Number(ageYears);
   if (!Number.isFinite(n)) return "";
@@ -34,10 +26,7 @@ export default function Results() {
     () => new URLSearchParams(location.search).has("session"),
     [location.search]
   );
-  const sessionId = useMemo(
-    () => getParam(location.search, "session"),
-    [location.search]
-  );
+  const sessionId = useMemo(() => getParam(location.search, "session"), [location.search]);
 
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
@@ -62,10 +51,7 @@ export default function Results() {
       setError("");
 
       try {
-        const dogsRes = await supabase
-          .from("dogs")
-          .select("*");
-
+        const dogsRes = await supabase.from("dogs").select("*");
         if (dogsRes.error) throw dogsRes.error;
 
         let quiz = null;
@@ -87,9 +73,7 @@ export default function Results() {
           setQuizRow(quiz);
         }
       } catch (e) {
-        if (!cancelled) {
-          setError("Something went wrong loading dogs.");
-        }
+        if (!cancelled) setError("Something went wrong loading dogs.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -160,11 +144,7 @@ export default function Results() {
 
           <div className="flex justify-center">
             <button onClick={() => navigate("/")}>
-              <img
-                src="/logo.png"
-                alt="Hooman Finder"
-                className="h-24 w-auto"
-              />
+              <img src="/logo.png" alt="Hooman Finder" className="h-24 w-auto" />
             </button>
           </div>
 
@@ -188,10 +168,10 @@ export default function Results() {
             : "Browse adoptable dogs. Take the quiz to see ranked matches."}
         </p>
 
-        {/* ✅ FIXED: only show warning if session param exists but is invalid */}
-        {sessionParam && !sessionId && (
+        {/* only show warning if session param exists but quiz didn't load */}
+        {sessionParam && !hasQuiz && (
           <p className="mt-2 text-sm text-amber-700">
-            Invalid or missing session. Retake the quiz to see match percentages.
+            Couldn’t load your quiz session. Retake the quiz to see match percentages.
           </p>
         )}
 
@@ -211,6 +191,7 @@ export default function Results() {
                 scorePct={scorePct}
                 breakdown={breakdown}
                 showMatch={hasQuiz}
+                sessionId={hasQuiz ? sessionId : null}
               />
             ))}
           </div>
