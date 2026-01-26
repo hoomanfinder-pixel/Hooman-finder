@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
+import { formatAge } from "../utils/formatAge";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -35,12 +36,6 @@ function toggleSavedId(id) {
   const next = ids.includes(sid) ? ids.filter((x) => x !== sid) : [sid, ...ids];
   writeSavedIds(next);
   return next.includes(sid);
-}
-
-function formatAge(ageYears) {
-  const n = Number(ageYears);
-  if (!Number.isFinite(n)) return "";
-  return `${n} yrs`;
 }
 
 function matchTier(scorePct) {
@@ -129,7 +124,12 @@ export default function DogCard({
   const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
   const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
 
-  const ageLabel = useMemo(() => formatAge(dog?.age_years), [dog]);
+  const ageLabel = useMemo(() => {
+    // formatAge already returns "Unknown" for non-numbers — for the small subtitle, we hide Unknown.
+    const v = formatAge(dog?.age_years);
+    return v === "Unknown" ? "" : v;
+  }, [dog?.age_years]);
+
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
 
   useEffect(() => {

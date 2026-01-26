@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { rankDogs } from "../lib/matchingLogic";
+import { formatAge } from "../utils/formatAge";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -38,12 +39,6 @@ function boolLabel(v) {
 function textOrUnknown(v) {
   const s = String(v ?? "").trim();
   return s ? s : "Unknown";
-}
-
-function numberOrUnknown(v, suffix = "") {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return "Unknown";
-  return `${n}${suffix}`;
 }
 
 function chipClass(tone) {
@@ -193,7 +188,7 @@ export default function DogDetail() {
         if (!cancelled) setDog(data || null);
       } catch (e) {
         if (!cancelled) {
-          setError(e?.message || "Could not load dog.");
+          setError(e?.message || "Could notthat? Could not load dog.");
           setDog(null);
         }
       } finally {
@@ -297,7 +292,8 @@ export default function DogDetail() {
         : null;
 
     return [
-      { label: "Age", value: numberOrUnknown(dog.age_years, " yrs"), tone: "blue" },
+      // ✅ Age now uses formatAge (months if < 1 year)
+      { label: "Age", value: formatAge(dog.age_years), tone: "blue" },
       { label: "Size", value: textOrUnknown(dog.size), tone: "purple" },
       { label: "Energy level", value: textOrUnknown(dog.energy_level), tone: "pink" },
 
@@ -520,8 +516,9 @@ export default function DogDetail() {
                 {textOrUnknown(dog.name)}
               </h1>
 
+              {/* ✅ Age here also uses formatAge */}
               <div className="mt-2 text-slate-600">
-                {textOrUnknown(dog.breed)} • {numberOrUnknown(dog.age_years, " yrs")} •{" "}
+                {textOrUnknown(dog.breed)} • {formatAge(dog.age_years)} •{" "}
                 {textOrUnknown(dog.size)} • {textOrUnknown(dog.energy_level)}
               </div>
 
