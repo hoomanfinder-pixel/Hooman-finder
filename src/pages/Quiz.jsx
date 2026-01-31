@@ -6,7 +6,7 @@ import OptionSelect from "../components/OptionSelect";
 import AccordionSection from "../components/AccordionSection";
 import { rankDogs } from "../lib/matchingLogic";
 
-const STORAGE_KEY = "hooman_quiz_answers_v3";
+const STORAGE_KEY = "hooman_quiz_answers_v5";
 
 // Multi-select questions that contain exclusive values (e.g., "no_preference")
 const EXCLUSIVE_MULTI = {
@@ -99,11 +99,11 @@ export default function Quiz() {
   // Quick mode (expand all)
   const [quickMode, setQuickMode] = useState(false);
 
-  // Which accordion is open when not in quick mode
-  const [openId, setOpenId] = useState("sec_household");
+  // Which TIER accordion is open when not in quick mode
+  const [openTierId, setOpenTierId] = useState("tier_dealbreakers");
 
-  // Refs for scroll-to-section
-  const sectionRefs = useRef({});
+  // Refs for scroll-to-tier
+  const tierRefs = useRef({});
 
   const [answers, setAnswers] = useState({
     play_styles: Array.isArray(initial.play_styles) ? initial.play_styles : [],
@@ -146,6 +146,36 @@ export default function Quiz() {
   // Question definitions
   // --------------------------
   const questions = [
+    // ----------------
+    // Deal-breakers group
+    // ----------------
+    // Preferences
+    {
+      key: "size_preference",
+      section: "sec_preferences",
+      title: "What size dog are you open to?",
+      multiple: true,
+      options: [
+        { value: "small", label: "Small" },
+        { value: "medium", label: "Medium" },
+        { value: "large", label: "Large" },
+        { value: "xlarge", label: "Extra large" },
+        { value: "any", label: "Any size / flexible" },
+      ],
+    },
+    {
+      key: "age_preference",
+      section: "sec_preferences",
+      title: "What ages are you open to?",
+      multiple: true,
+      options: [
+        { value: "puppy", label: "Puppy (0–1)" },
+        { value: "adult", label: "Adult (2–6)" },
+        { value: "senior", label: "Senior (7+)" },
+        { value: "any", label: "Any age / flexible" },
+      ],
+    },
+
     // Household
     {
       key: "kids_in_home",
@@ -188,83 +218,22 @@ export default function Quiz() {
         { value: "not_sure", label: "Not sure / flexible" },
       ],
     },
-    {
-      key: "dog_social_preference",
-      section: "sec_household",
-      title: "How should your dog feel about other dogs?",
-      multiple: false,
-      options: [
-        { value: "must_love_dogs", label: "Must be very dog-friendly" },
-        { value: "selective_ok", label: "Selective is okay" },
-        { value: "prefer_only_dog", label: "Prefer a dog that can be the only dog" },
-        { value: "no_preference", label: "No preference / flexible" },
-      ],
-    },
-    {
-      key: "first_time_owner",
-      section: "sec_household",
-      title: "Are you a first-time dog owner?",
-      multiple: false,
-      options: [
-        { value: "yes", label: "Yes" },
-        { value: "no", label: "No" },
-        { value: "not_sure", label: "Not sure" },
-      ],
-    },
 
-    // Housing
+    // Potty + Alone-time deal breakers
     {
-      key: "housing_type",
-      section: "sec_housing",
-      title: "What best describes your home right now?",
+      key: "potty_requirement",
+      section: "sec_potty_alone",
+      title: "How important is potty training?",
       multiple: false,
       options: [
-        { value: "apartment", label: "Apartment" },
-        { value: "townhouse", label: "Townhouse / duplex" },
-        { value: "house", label: "House" },
-        { value: "other", label: "Other / not sure" },
+        { value: "must", label: "Must be potty trained" },
+        { value: "preferred", label: "Preferred" },
+        { value: "no_matter", label: "Doesn’t matter / I’m open to training" },
       ],
     },
-    {
-      key: "landlord_restrictions",
-      section: "sec_housing",
-      title: "Any landlord / HOA restrictions?",
-      multiple: false,
-      options: [
-        { value: "none", label: "None" },
-        { value: "weight_limit", label: "Weight limit" },
-        { value: "breed_restrictions", label: "Breed restrictions" },
-        { value: "unknown", label: "Not sure / unknown" },
-      ],
-    },
-    {
-      key: "yard",
-      section: "sec_housing",
-      title: "Do you have access to a yard or fenced outdoor space?",
-      multiple: false,
-      options: [
-        { key: "yard_yes", value: true, label: "Yes" },
-        { key: "yard_no", value: false, label: "No" },
-        { key: "yard_flex", value: null, label: "Not sure / doesn’t matter" },
-      ],
-    },
-    {
-      key: "stairs",
-      section: "sec_housing",
-      title: "Stairs situation?",
-      multiple: false,
-      options: [
-        { value: "none", label: "No stairs" },
-        { value: "some", label: "A few stairs" },
-        { value: "many", label: "Multiple flights" },
-        { value: "not_sure", label: "Not sure / varies" },
-      ],
-    },
-
-    // Schedule
     {
       key: "alone_time",
-      section: "sec_schedule",
+      section: "sec_potty_alone",
       title: "On a typical weekday, how long will the dog be alone?",
       multiple: false,
       options: [
@@ -276,20 +245,8 @@ export default function Quiz() {
       ],
     },
     {
-      key: "crate_ok",
-      section: "sec_schedule",
-      title: "Are you open to crate training (or using a crate when needed)?",
-      multiple: false,
-      options: [
-        { value: "yes", label: "Yes" },
-        { value: "maybe", label: "Maybe / depends" },
-        { value: "no", label: "No" },
-        { value: "not_sure", label: "Not sure" },
-      ],
-    },
-    {
       key: "separation_anxiety_willingness",
-      section: "sec_schedule",
+      section: "sec_potty_alone",
       title: "If a dog has separation anxiety, are you willing to work through it?",
       multiple: false,
       options: [
@@ -300,10 +257,77 @@ export default function Quiz() {
       ],
     },
 
+    // Housing hard constraints
+    {
+      key: "housing_type",
+      section: "sec_housing_constraints",
+      title: "What best describes your home right now?",
+      multiple: false,
+      options: [
+        { value: "apartment", label: "Apartment" },
+        { value: "townhouse", label: "Townhouse / duplex" },
+        { value: "house", label: "House" },
+        { value: "other", label: "Other / not sure" },
+      ],
+    },
+    {
+      key: "landlord_restrictions",
+      section: "sec_housing_constraints",
+      title: "Any landlord / HOA restrictions?",
+      multiple: false,
+      options: [
+        { value: "none", label: "None" },
+        { value: "weight_limit", label: "Weight limit" },
+        { value: "breed_restrictions", label: "Breed restrictions" },
+        { value: "unknown", label: "Not sure / unknown" },
+      ],
+    },
+
+    // ----------------
+    // Improve matches group
+    // ----------------
+    {
+      key: "dog_social_preference",
+      section: "sec_improve_social_owner",
+      title: "How should your dog feel about other dogs?",
+      multiple: false,
+      options: [
+        { value: "must_love_dogs", label: "Must be very dog-friendly" },
+        { value: "selective_ok", label: "Selective is okay" },
+        { value: "prefer_only_dog", label: "Prefer a dog that can be the only dog" },
+        { value: "no_preference", label: "No preference / flexible" },
+      ],
+    },
+    {
+      key: "first_time_owner",
+      section: "sec_improve_social_owner",
+      title: "Are you a first-time dog owner?",
+      multiple: false,
+      options: [
+        { value: "yes", label: "Yes" },
+        { value: "no", label: "No" },
+        { value: "not_sure", label: "Not sure" },
+      ],
+    },
+
+    // Crate (Improve Matches)
+    {
+      key: "crate_ok",
+      section: "sec_improve_crate",
+      title: "Are you open to crate training (or using a crate when needed)?",
+      multiple: false,
+      options: [
+        { value: "yes", label: "Yes" },
+        { value: "maybe", label: "Maybe / depends" },
+        { value: "no", label: "No" },
+        { value: "not_sure", label: "Not sure" },
+      ],
+    },
+
     // Activity
     {
       key: "daily_walk_minutes",
-      section: "sec_activity",
+      section: "sec_improve_activity",
       title: "On most days, how much walking/exercise can you realistically do?",
       multiple: false,
       options: [
@@ -316,7 +340,7 @@ export default function Quiz() {
     },
     {
       key: "weekend_activity_style",
-      section: "sec_activity",
+      section: "sec_improve_activity",
       title: "Weekends are usually…",
       multiple: false,
       options: [
@@ -328,7 +352,7 @@ export default function Quiz() {
     },
     {
       key: "energy_preference",
-      section: "sec_activity",
+      section: "sec_improve_activity",
       title: "What energy level fits your life right now?",
       multiple: false,
       options: [
@@ -340,7 +364,7 @@ export default function Quiz() {
     },
     {
       key: "play_styles",
-      section: "sec_activity",
+      section: "sec_improve_activity",
       title: "What play styles do you want in a dog?",
       multiple: true,
       options: [
@@ -353,37 +377,10 @@ export default function Quiz() {
       ],
     },
 
-    // Preferences
-    {
-      key: "size_preference",
-      section: "sec_preferences",
-      title: "What size dog are you open to?",
-      multiple: true,
-      options: [
-        { value: "small", label: "Small" },
-        { value: "medium", label: "Medium" },
-        { value: "large", label: "Large" },
-        { value: "xlarge", label: "Extra large" },
-        { value: "any", label: "Any size / flexible" },
-      ],
-    },
-    {
-      key: "age_preference",
-      section: "sec_preferences",
-      title: "What ages are you open to?",
-      multiple: true,
-      options: [
-        { value: "puppy", label: "Puppy (0–1)" },
-        { value: "adult", label: "Adult (2–6)" },
-        { value: "senior", label: "Senior (7+)" },
-        { value: "any", label: "Any age / flexible" },
-      ],
-    },
-
-    // Behavior
+    // Training & Behavior
     {
       key: "training_commitment_level",
-      section: "sec_behavior",
+      section: "sec_improve_behavior",
       title: "How much training time are you willing to put in (weekly)?",
       multiple: false,
       options: [
@@ -394,8 +391,20 @@ export default function Quiz() {
       ],
     },
     {
+      key: "reactivity_comfort",
+      section: "sec_improve_behavior",
+      title: "If a dog is reactive (barks/lunges on leash), are you comfortable working on it?",
+      multiple: false,
+      options: [
+        { value: "no", label: "No, I need a very easy dog" },
+        { value: "mild_ok", label: "Mild is okay" },
+        { value: "willing_to_work", label: "Yes, I can work on it" },
+        { value: "not_sure", label: "Not sure" },
+      ],
+    },
+    {
       key: "behavior_tolerance",
-      section: "sec_behavior",
+      section: "sec_improve_behavior",
       title: "What challenges are you okay working through?",
       multiple: true,
       options: [
@@ -407,34 +416,13 @@ export default function Quiz() {
         { value: "no_preference", label: "No preference / flexible" },
       ],
     },
-    {
-      key: "reactivity_comfort",
-      section: "sec_behavior",
-      title: "If a dog is reactive (barks/lunges on leash), are you comfortable working on it?",
-      multiple: false,
-      options: [
-        { value: "no", label: "No, I need a very easy dog" },
-        { value: "mild_ok", label: "Mild is okay" },
-        { value: "willing_to_work", label: "Yes, I can work on it" },
-        { value: "not_sure", label: "Not sure" },
-      ],
-    },
 
-    // Stress
-    {
-      key: "potty_requirement",
-      section: "sec_stress",
-      title: "How important is potty training?",
-      multiple: false,
-      options: [
-        { value: "must", label: "Must be potty trained" },
-        { value: "preferred", label: "Preferred" },
-        { value: "no_matter", label: "Doesn’t matter / I’m open to training" },
-      ],
-    },
+    // ----------------
+    // Fine-tune group
+    // ----------------
     {
       key: "noise_preference",
-      section: "sec_stress",
+      section: "sec_finetune_comfort",
       title: "How do you feel about barking?",
       multiple: false,
       options: [
@@ -446,10 +434,35 @@ export default function Quiz() {
       ],
     },
 
-    // Care
+    // Yard + Stairs (Fine-tune)
+    {
+      key: "yard",
+      section: "sec_finetune_home",
+      title: "Do you have access to a yard or fenced outdoor space?",
+      multiple: false,
+      options: [
+        { key: "yard_yes", value: true, label: "Yes" },
+        { key: "yard_no", value: false, label: "No" },
+        { key: "yard_flex", value: null, label: "Not sure / doesn’t matter" },
+      ],
+    },
+    {
+      key: "stairs",
+      section: "sec_finetune_home",
+      title: "Stairs situation?",
+      multiple: false,
+      options: [
+        { value: "none", label: "No stairs" },
+        { value: "some", label: "A few stairs" },
+        { value: "many", label: "Multiple flights" },
+        { value: "not_sure", label: "Not sure / varies" },
+      ],
+    },
+
+    // Allergies / shedding
     {
       key: "allergy_sensitivity",
-      section: "sec_care",
+      section: "sec_finetune_allergies",
       title: "Do you have allergies?",
       multiple: false,
       options: [
@@ -460,7 +473,7 @@ export default function Quiz() {
     },
     {
       key: "shedding_levels",
-      section: "sec_care",
+      section: "sec_finetune_allergies",
       title: "What shedding levels are you comfortable with?",
       multiple: true,
       options: [
@@ -470,9 +483,11 @@ export default function Quiz() {
         { value: "no_preference", label: "No preference / flexible" },
       ],
     },
+
+    // Budget & medical
     {
       key: "monthly_pet_budget_range",
-      section: "sec_care",
+      section: "sec_finetune_cost_medical",
       title: "Monthly pet budget comfort (roughly)?",
       multiple: false,
       options: [
@@ -484,7 +499,7 @@ export default function Quiz() {
     },
     {
       key: "medical_needs_ok",
-      section: "sec_care",
+      section: "sec_finetune_cost_medical",
       title: "Are you open to a dog with medical needs?",
       multiple: false,
       options: [
@@ -496,7 +511,7 @@ export default function Quiz() {
     },
     {
       key: "medication_comfort",
-      section: "sec_care",
+      section: "sec_finetune_cost_medical",
       title: "Are you comfortable giving medication if needed?",
       multiple: false,
       options: [
@@ -539,12 +554,12 @@ export default function Quiz() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
-  // ---- NEW: "answered count" for quality meter (no required gating) ----
+  // ---- "answered count" for quality meter (no required gating) ----
   function isAnswered(q, a) {
     if (q.isVisible && !q.isVisible(a)) return false; // if hidden, don't count
     const v = a[q.key];
     if (q.multiple) return Array.isArray(v) && v.length > 0;
-    if (typeof v === "boolean") return true; // yard boolean counts if set true/false
+    if (typeof v === "boolean") return true; // boolean counts if set true/false
     return v !== "" && v !== null && v !== undefined;
   }
 
@@ -553,7 +568,7 @@ export default function Quiz() {
   const totalCount = visibleQuestions.length;
   const answeredPct = totalCount ? Math.round((answeredCount / totalCount) * 100) : 0;
 
-  function sectionProgress(sectionId) {
+  function sectionStatus(sectionId) {
     const qs = visibleQuestions.filter((q) => q.section === sectionId);
     if (!qs.length) return "empty";
     const answered = qs.filter((q) => isAnswered(q, answers)).length;
@@ -562,16 +577,60 @@ export default function Quiz() {
     return "partial";
   }
 
-  const sections = [
+  function tierStatus(sectionIds) {
+    const qs = visibleQuestions.filter((q) => sectionIds.includes(q.section));
+    if (!qs.length) return "empty";
+    const answered = qs.filter((q) => isAnswered(q, answers)).length;
+    if (answered === 0) return "empty";
+    if (answered === qs.length) return "complete";
+    return "partial";
+  }
+
+  function openTier(id) {
+    setOpenTierId(id);
+    requestAnimationFrame(() => {
+      const el = tierRefs.current[id];
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+  }
+
+  // --------------------------
+  // Display blocks (subsections inside tiers)
+  // --------------------------
+  const SECTION_META = [
+    // Deal Breakers
+    { id: "sec_preferences", title: "Size & Age" },
+    { id: "sec_household", title: "Household Safety" },
+    { id: "sec_potty_alone", title: "Potty + Alone Time" },
+    { id: "sec_housing_constraints", title: "Housing Constraints" },
+
+    // Improve Matches
+    { id: "sec_improve_social_owner", title: "Dog Social + Owner Experience" },
+    { id: "sec_improve_crate", title: "Crate Training" },
+    { id: "sec_improve_activity", title: "Activity & Energy" },
+    { id: "sec_improve_behavior", title: "Training & Behavior" },
+
+    // Fine-Tune
+    { id: "sec_finetune_comfort", title: "Comfort & Noise" },
+    { id: "sec_finetune_home", title: "Home Logistics" },
+    { id: "sec_finetune_allergies", title: "Allergies & Shedding" },
+    { id: "sec_finetune_cost_medical", title: "Budget & Medical" },
+  ];
+
+  const tierDefs = [
     {
-      id: "sec_household",
-      title: "Household & Compatibility",
+      id: "tier_dealbreakers",
+      title: "Deal Breakers",
+      helper: "Hard filters. Answer a few here and you’ll get solid matches.",
+      sectionIds: ["sec_preferences", "sec_household", "sec_potty_alone", "sec_housing_constraints"],
       summary: (a) => {
         const parts = [];
-        if (a.kids_in_home) parts.push(`Kids: ${a.kids_in_home === "yes" ? "Yes" : "No"}`);
-        if (a.kids_in_home === "yes" && a.kids_age_band)
-          parts.push(`Kid ages: ${prettyValue(a.kids_age_band)}`);
+        parts.push(`Size: ${prettyArray(a.size_preference, { flexToken: "Any" }) || "—"}`);
+        parts.push(`Age: ${prettyArray(a.age_preference, { flexToken: "Any" }) || "—"}`);
 
+        if (a.kids_in_home) parts.push(`Kids: ${a.kids_in_home === "yes" ? "Yes" : "No"}`);
         const pets = Array.isArray(a.pets_in_home) ? a.pets_in_home : [];
         if (pets.length) {
           if (pets.includes("none")) parts.push("Pets: None");
@@ -579,30 +638,8 @@ export default function Quiz() {
           else parts.push(`Pets: ${pets.map(prettyValue).join(", ")}`);
         }
 
-        if (a.dog_social_preference) parts.push(`Dog-social: ${prettyValue(a.dog_social_preference)}`);
-        if (a.first_time_owner) parts.push(`First-time: ${prettyValue(a.first_time_owner)}`);
-        return parts.join(" • ");
-      },
-    },
-    {
-      id: "sec_housing",
-      title: "Housing & Setup",
-      summary: (a) => {
-        const parts = [];
-        if (a.housing_type) parts.push(prettyValue(a.housing_type));
-        if (a.landlord_restrictions) parts.push(`Restrictions: ${prettyValue(a.landlord_restrictions)}`);
-        if (a.yard === true) parts.push("Yard: Yes");
-        else if (a.yard === false) parts.push("Yard: No");
-        else if (a.yard === null) parts.push("Yard: Flexible");
-        if (a.stairs) parts.push(`Stairs: ${prettyValue(a.stairs)}`);
-        return parts.join(" • ");
-      },
-    },
-    {
-      id: "sec_schedule",
-      title: "Schedule & Separation",
-      summary: (a) => {
-        const parts = [];
+        if (a.potty_requirement) parts.push(`Potty: ${prettyValue(a.potty_requirement)}`);
+
         const aloneMap = {
           lt4: "<4 hrs",
           "4to6": "4–6 hrs",
@@ -611,81 +648,69 @@ export default function Quiz() {
           not_sure: "Varies",
         };
         if (a.alone_time) parts.push(`Alone: ${aloneMap[a.alone_time] ?? prettyValue(a.alone_time)}`);
-        if (a.crate_ok) parts.push(`Crate: ${prettyValue(a.crate_ok)}`);
-        if (a.separation_anxiety_willingness)
-          parts.push(`SA: ${prettyValue(a.separation_anxiety_willingness)}`);
-        return parts.join(" • ");
+
+        if (a.landlord_restrictions) parts.push(`Restrictions: ${prettyValue(a.landlord_restrictions)}`);
+        if (a.housing_type) parts.push(`Home: ${prettyValue(a.housing_type)}`);
+
+        return parts.filter(Boolean).join(" • ");
       },
     },
     {
-      id: "sec_activity",
-      title: "Activity & Energy",
+      id: "tier_improve",
+      title: "Improve Matches",
+      helper: "This is where results get noticeably smarter.",
+      sectionIds: [
+        "sec_improve_social_owner",
+        "sec_improve_crate",
+        "sec_improve_activity",
+        "sec_improve_behavior",
+      ],
       summary: (a) => {
         const parts = [];
-        if (a.daily_walk_minutes) parts.push(`Walks: ${prettyValue(a.daily_walk_minutes)}`);
-        if (a.weekend_activity_style) parts.push(`Weekends: ${prettyValue(a.weekend_activity_style)}`);
         if (a.energy_preference) parts.push(`Energy: ${prettyValue(a.energy_preference)}`);
         const ps = Array.isArray(a.play_styles) ? a.play_styles : [];
         if (ps.length) parts.push(`Play: ${prettyArray(ps, { flexToken: "Flexible" })}`);
-        return parts.join(" • ");
-      },
-    },
-    {
-      id: "sec_preferences",
-      title: "Size & Age Preferences",
-      summary: (a) => {
-        const parts = [];
-        parts.push(`Size: ${prettyArray(a.size_preference, { flexToken: "Any" }) || "—"}`);
-        parts.push(`Age: ${prettyArray(a.age_preference, { flexToken: "Any" }) || "—"}`);
-        return parts.join(" • ");
-      },
-    },
-    {
-      id: "sec_behavior",
-      title: "Training & Behavior Fit",
-      summary: (a) => {
-        const parts = [];
         if (a.training_commitment_level) parts.push(`Training: ${prettyValue(a.training_commitment_level)}`);
-        const bt = Array.isArray(a.behavior_tolerance) ? a.behavior_tolerance : [];
-        if (bt.length) parts.push(`Tolerate: ${prettyArray(bt, { flexToken: "Flexible" })}`);
         if (a.reactivity_comfort) parts.push(`Reactivity: ${prettyValue(a.reactivity_comfort)}`);
-        return parts.join(" • ");
+        if (a.crate_ok) parts.push(`Crate: ${prettyValue(a.crate_ok)}`);
+        if (a.dog_social_preference) parts.push(`Dog-social: ${prettyValue(a.dog_social_preference)}`);
+        return parts.filter(Boolean).join(" • ");
       },
     },
     {
-      id: "sec_stress",
-      title: "Home Stress Points",
+      id: "tier_finetune",
+      title: "Fine-Tune",
+      helper: "If you want to refine your matches even more.",
+      sectionIds: [
+        "sec_finetune_comfort",
+        "sec_finetune_home",
+        "sec_finetune_allergies",
+        "sec_finetune_cost_medical",
+      ],
       summary: (a) => {
         const parts = [];
-        if (a.potty_requirement) parts.push(`Potty: ${prettyValue(a.potty_requirement)}`);
         if (a.noise_preference) parts.push(`Barking: ${prettyValue(a.noise_preference)}`);
-        return parts.join(" • ");
-      },
-    },
-    {
-      id: "sec_care",
-      title: "Care, Allergies, Budget & Medical",
-      summary: (a) => {
-        const parts = [];
+
+        if (a.yard === true) parts.push("Yard: Yes");
+        else if (a.yard === false) parts.push("Yard: No");
+        else if (a.yard === null) parts.push("Yard: Flexible");
+
+        if (a.stairs) parts.push(`Stairs: ${prettyValue(a.stairs)}`);
+
         if (a.allergy_sensitivity) parts.push(`Allergies: ${prettyValue(a.allergy_sensitivity)}`);
         const shed = Array.isArray(a.shedding_levels) ? a.shedding_levels : [];
         if (shed.length) parts.push(`Shedding: ${prettyArray(shed, { flexToken: "Any" })}`);
+
         if (a.monthly_pet_budget_range) parts.push(`Budget: ${prettyValue(a.monthly_pet_budget_range)}`);
         if (a.medical_needs_ok) parts.push(`Medical: ${prettyValue(a.medical_needs_ok)}`);
-        if (a.medication_comfort) parts.push(`Meds: ${prettyValue(a.medication_comfort)}`);
-        return parts.join(" • ");
+
+        return parts.filter(Boolean).join(" • ");
       },
     },
   ];
 
-  function openSection(id) {
-    setOpenId(id);
-    requestAnimationFrame(() => {
-      const el = sectionRefs.current[id];
-      if (el && typeof el.scrollIntoView === "function") {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
+  function questionsForSection(sectionId) {
+    return questions.filter((q) => q.section === sectionId);
   }
 
   // --------------------------
@@ -796,13 +821,12 @@ export default function Quiz() {
 
         extra_answers: {},
 
-        // NEW: track completion quality for analytics
+        // completion quality for analytics
         completion_count: answeredCount,
         completion_total: totalCount,
         completion_pct: answeredPct,
       };
 
-      // If you don't have these columns yet, you can safely remove the 3 lines above.
       const res = await supabase.from("quiz_responses").insert([payload]);
       if (res.error) throw res.error;
 
@@ -812,10 +836,6 @@ export default function Quiz() {
     } finally {
       setSaving(false);
     }
-  }
-
-  function questionsForSection(sectionId) {
-    return questions.filter((q) => q.section === sectionId);
   }
 
   return (
@@ -837,10 +857,7 @@ export default function Quiz() {
               </div>
 
               <div className="h-2 w-44 overflow-hidden rounded-full bg-green-200">
-                <div
-                  className="h-full bg-green-600 transition-all"
-                  style={{ width: `${answeredPct}%` }}
-                />
+                <div className="h-full bg-green-600 transition-all" style={{ width: `${answeredPct}%` }} />
               </div>
 
               <button
@@ -890,153 +907,84 @@ export default function Quiz() {
       {/* Main content */}
       <div className="mx-auto max-w-3xl px-6 py-6">
         <div className="grid gap-4">
-          {[
-            {
-              id: "sec_household",
-              title: "Household & Compatibility",
-              summary:
-                (answers.kids_in_home ? `Kids: ${answers.kids_in_home === "yes" ? "Yes" : "No"}` : "") +
-                (answers.kids_in_home === "yes" && answers.kids_age_band
-                  ? ` • Kid ages: ${prettyValue(answers.kids_age_band)}`
-                  : "") +
-                (Array.isArray(answers.pets_in_home) && answers.pets_in_home.length
-                  ? ` • Pets: ${
-                      answers.pets_in_home.includes("none")
-                        ? "None"
-                        : answers.pets_in_home.includes("not_sure")
-                        ? "Flexible"
-                        : answers.pets_in_home.map(prettyValue).join(", ")
-                    }`
-                  : "") +
-                (answers.dog_social_preference ? ` • Dog-social: ${prettyValue(answers.dog_social_preference)}` : "") +
-                (answers.first_time_owner ? ` • First-time: ${prettyValue(answers.first_time_owner)}` : ""),
-            },
-            {
-              id: "sec_housing",
-              title: "Housing & Setup",
-              summary:
-                (answers.housing_type ? prettyValue(answers.housing_type) : "") +
-                (answers.landlord_restrictions ? ` • Restrictions: ${prettyValue(answers.landlord_restrictions)}` : "") +
-                (answers.yard === true ? " • Yard: Yes" : answers.yard === false ? " • Yard: No" : " • Yard: Flexible") +
-                (answers.stairs ? ` • Stairs: ${prettyValue(answers.stairs)}` : ""),
-            },
-            {
-              id: "sec_schedule",
-              title: "Schedule & Separation",
-              summary:
-                (answers.alone_time ? `Alone: ${answers.alone_time === "not_sure" ? "Varies" : prettyValue(answers.alone_time)}` : "") +
-                (answers.crate_ok ? ` • Crate: ${prettyValue(answers.crate_ok)}` : "") +
-                (answers.separation_anxiety_willingness ? ` • SA: ${prettyValue(answers.separation_anxiety_willingness)}` : ""),
-            },
-            {
-              id: "sec_activity",
-              title: "Activity & Energy",
-              summary:
-                (answers.daily_walk_minutes ? `Walks: ${prettyValue(answers.daily_walk_minutes)}` : "") +
-                (answers.weekend_activity_style ? ` • Weekends: ${prettyValue(answers.weekend_activity_style)}` : "") +
-                (answers.energy_preference ? ` • Energy: ${prettyValue(answers.energy_preference)}` : "") +
-                (Array.isArray(answers.play_styles) && answers.play_styles.length
-                  ? ` • Play: ${prettyArray(answers.play_styles, { flexToken: "Flexible" })}`
-                  : ""),
-            },
-            {
-              id: "sec_preferences",
-              title: "Size & Age Preferences",
-              summary: `Size: ${prettyArray(answers.size_preference, { flexToken: "Any" }) || "—"} • Age: ${
-                prettyArray(answers.age_preference, { flexToken: "Any" }) || "—"
-              }`,
-            },
-            {
-              id: "sec_behavior",
-              title: "Training & Behavior Fit",
-              summary:
-                (answers.training_commitment_level ? `Training: ${prettyValue(answers.training_commitment_level)}` : "") +
-                (Array.isArray(answers.behavior_tolerance) && answers.behavior_tolerance.length
-                  ? ` • Tolerate: ${prettyArray(answers.behavior_tolerance, { flexToken: "Flexible" })}`
-                  : "") +
-                (answers.reactivity_comfort ? ` • Reactivity: ${prettyValue(answers.reactivity_comfort)}` : ""),
-            },
-            {
-              id: "sec_stress",
-              title: "Home Stress Points",
-              summary:
-                (answers.potty_requirement ? `Potty: ${prettyValue(answers.potty_requirement)}` : "") +
-                (answers.noise_preference ? ` • Barking: ${prettyValue(answers.noise_preference)}` : ""),
-            },
-            {
-              id: "sec_care",
-              title: "Care, Allergies, Budget & Medical",
-              summary:
-                (answers.allergy_sensitivity ? `Allergies: ${prettyValue(answers.allergy_sensitivity)}` : "") +
-                (Array.isArray(answers.shedding_levels) && answers.shedding_levels.length
-                  ? ` • Shedding: ${prettyArray(answers.shedding_levels, { flexToken: "Any" })}`
-                  : "") +
-                (answers.monthly_pet_budget_range ? ` • Budget: ${prettyValue(answers.monthly_pet_budget_range)}` : "") +
-                (answers.medical_needs_ok ? ` • Medical: ${prettyValue(answers.medical_needs_ok)}` : "") +
-                (answers.medication_comfort ? ` • Meds: ${prettyValue(answers.medication_comfort)}` : ""),
-            },
-          ].map((section) => {
-            const status = sectionProgress(section.id);
-            const isOpen = quickMode ? true : openId === section.id;
+          {tierDefs.map((tier, tierIdx) => {
+            const isOpen = quickMode ? true : openTierId === tier.id;
+            const status = tierStatus(tier.sectionIds);
+
+            const tierSections = SECTION_META.filter((s) => tier.sectionIds.includes(s.id));
 
             return (
               <div
-                key={section.id}
+                key={tier.id}
                 ref={(el) => {
-                  sectionRefs.current[section.id] = el;
+                  tierRefs.current[tier.id] = el;
                 }}
               >
                 <AccordionSection
-                  id={section.id}
-                  title={section.title}
+                  id={tier.id}
+                  title={tier.title}
                   status={status}
-                  summary={section.summary}
+                  summary={tier.summary(answers)}
                   isOpen={isOpen}
                   onToggle={() => {
                     if (quickMode) return;
-                    setOpenId((curr) => (curr === section.id ? "" : section.id));
+                    setOpenTierId((curr) => (curr === tier.id ? "" : tier.id));
                   }}
                 >
-                  <div className="grid gap-4">
-                    {questionsForSection(section.id).map((q) => {
-                      const visible = q.isVisible ? q.isVisible(answers) : true;
-                      if (!visible) return null;
+                  <div className="grid gap-6">
+                    {/* helper line */}
+                    <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                      {tier.helper}
+                    </div>
 
-                      return (
-                        <OptionSelect
-                          key={q.key}
-                          title={q.title}
-                          description={q.description}
-                          options={q.options}
-                          multiple={q.multiple}
-                          value={answers[q.key]}
-                          onChange={(val) => updateAnswer(q.key, val)}
-                        />
-                      );
-                    })}
+                    {/* original subsections inside the tier */}
+                    <div className="grid gap-6">
+                      {tierSections.map((sec) => {
+                        const sStatus = sectionStatus(sec.id);
+                        const statusText =
+                          sStatus === "complete" ? "Complete" : sStatus === "partial" ? "In progress" : "Not started";
 
-                    {!quickMode && (
+                        return (
+                          <div key={sec.id} className="rounded-2xl border border-green-200 bg-white p-4 shadow-sm">
+                            <div className="flex items-center justify-between gap-3">
+                              <h3 className="text-base font-bold text-green-900">{sec.title}</h3>
+                              <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">
+                                {statusText}
+                              </span>
+                            </div>
+
+                            <div className="mt-4 grid gap-4">
+                              {questionsForSection(sec.id).map((q) => {
+                                const visible = q.isVisible ? q.isVisible(answers) : true;
+                                if (!visible) return null;
+
+                                return (
+                                  <OptionSelect
+                                    key={q.key}
+                                    title={q.title}
+                                    description={q.description}
+                                    options={q.options}
+                                    multiple={q.multiple}
+                                    value={answers[q.key]}
+                                    onChange={(val) => updateAnswer(q.key, val)}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* next tier button */}
+                    {!quickMode && tierIdx < tierDefs.length - 1 && (
                       <div className="flex justify-end">
                         <button
                           type="button"
-                          onClick={() => {
-                            const ids = [
-                              "sec_household",
-                              "sec_housing",
-                              "sec_schedule",
-                              "sec_activity",
-                              "sec_preferences",
-                              "sec_behavior",
-                              "sec_stress",
-                              "sec_care",
-                            ];
-                            const idx = ids.indexOf(section.id);
-                            const next = ids[idx + 1];
-                            if (next) openSection(next);
-                          }}
+                          onClick={() => openTier(tierDefs[tierIdx + 1].id)}
                           className="rounded-lg bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700"
                         >
-                          Next section →
+                          Next →
                         </button>
                       </div>
                     )}
@@ -1047,11 +995,7 @@ export default function Quiz() {
           })}
         </div>
 
-        {error && (
-          <div className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        {error && <div className="mt-4 rounded-xl bg-red-50 p-4 text-sm text-red-700">{error}</div>}
 
         {/* Sticky bottom submit bar */}
         <div className="sticky bottom-0 mt-6 pb-4">
@@ -1059,7 +1003,7 @@ export default function Quiz() {
             <div className="flex items-center justify-between gap-3">
               <div className="text-sm text-gray-700">
                 {answeredCount === 0
-                  ? "Answer a few questions for better matches — or tap “See my matches” to browse."
+                  ? "Answer what you want — more answers = better matches."
                   : `You’ve answered ${answeredCount}/${totalCount}. More answers = better matches.`}
               </div>
 
@@ -1078,7 +1022,7 @@ export default function Quiz() {
 
             {answeredCount > 0 && answeredCount < totalCount && (
               <div className="mt-2 text-xs text-gray-500">
-                Tip: answering “Household”, “Schedule”, and “Behavior” usually improves matches the most.
+                Tip: answering “Deal Breakers” + “Improve Matches” usually improves results the most.
               </div>
             )}
           </div>
