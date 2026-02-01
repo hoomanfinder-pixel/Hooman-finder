@@ -1,403 +1,366 @@
 // src/lib/matchingLogic.js
+// Option A scoring:
+// - If user selects "no preference / flexible" for a question,
+//   the dog gets FULL points for that question.
+// - Unanswered questions do NOT count against a dog (they do not add to max points).
+//
+// Exports:
+// - computeRankedMatches(dogs, answersById) -> [{ dog, score, scorePct, breakdown }]
+// - matchTierFromActivePct(scorePct) -> { label, pillClass }
+// Also exports rankDogs for backward compatibility (older Results pages).
 
-const WEIGHTS = Object.freeze({
-  play: 25,
-  energy: 10,
-  size: 15,
-  age: 10,
-  potty: 15,
-  kids: 10,
-  cats: 10,
-  firstTime: 5,
-  allergy: 10,
-  shedding: 10,
+const WEIGHTS = {
+  // Dealbreakers (heavier)
+  size_preference: 3,
+  age_preference: 3,
+  kids_in_home: 3,
+  kids_age_band: 2,
+  pets_in_home: 3,
+  potty_requirement: 3,
+  separation_anxiety_willingness: 2,
 
-  // ✅ NEW
-  pets: 10,   // dog/cat/small-animal compatibility
-  noise: 5,   // barking preference
-  alone: 5,   // time alone fit
-});
+  // Refine (lighter)
+  dog_social_preference: 2,
+  first_time_owner: 1,
+  crate_ok: 1,
+  daily_walk_minutes: 1,
+  weekend_activity_style: 1,
+  energy_preference: 2,
+  play_styles: 1,
+  training_commitment_level: 1,
+  reactivity_comfort: 1,
+  behavior_tolerance: 1,
+  noise_preference: 1,
+  yard: 1,
+  stairs: 1,
+  allergy_sensitivity: 2,
+  shedding_preference: 1,
+  monthly_pet_budget_range: 1,
+  medical_needs_ok: 1,
+  medication_comfort: 1,
+  housing_type: 1,
+  landlord_restrictions: 1,
+  alone_time: 2,
+};
 
-const TOTAL = Object.values(WEIGHTS).reduce((a, b) => a + b, 0);
-
-// ---------- Normalization helpers ----------
-
-function normalizeString(v) {
-  if (v == null) return "";
-  return String(v).trim();
+function w(id) {
+  return WEIGHTS[id] ?? 1;
 }
 
-function normalizeLower(v) {
-  return normalizeString(v).toLowerCase();
-}
-
-// Accept arrays, comma-separated strings, single string, null.
-// Returns a cleaned array of strings
-function toArrayFlexible(v) {
-  if (Array.isArray(v)) return v.filter((x) => x != null && String(x).trim() !== "").map(String);
-
-  if (typeof v === "string") {
-    const s = v.trim();
-    if (!s) return [];
-    const parts = s.includes(",") ? s.split(",") : [s];
-    return parts.map((p) => p.trim()).filter(Boolean);
-  }
-
-  if (v == null) return [];
-  const single = String(v).trim();
-  return single ? [single] : [];
-}
-
-function toLowerArray(v) {
-  return toArrayFlexible(v).map((x) => String(x).toLowerCase());
-}
-
-function hasAnyPreferenceSelected(arr, anyValues) {
-  const set = new Set(toLowerArray(arr));
-  return anyValues.some((v) => set.has(String(v).toLowerCase()));
-}
-
-function normalizeAgeBucket(ageYears) {
-  const n = Number(ageYears);
-  if (!Number.isFinite(n)) return null;
-  if (n < 2) return "puppy";
-  if (n < 7) return "adult";
-  return "senior";
-}
-
-function clamp01(x) {
-  if (!Number.isFinite(x)) return 0;
-  return Math.max(0, Math.min(1, x));
-}
-
-function fullPointsIfOpen(value, openValues, weight) {
-  const v = normalizeLower(value);
-  return openValues.map((x) => String(x).toLowerCase()).includes(v) ? weight : null;
-}
-
-function roundTo(n, digits = 1) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return 0;
-  const m = 10 ** digits;
-  return Math.round(x * m) / m;
-}
-
-// ---------- NEW helpers ----------
-
-function petsRequiresNoFiltering(petsSelected) {
-  // If user picked "none" or "not_sure" we treat as open
-  return hasAnyPreferenceSelected(petsSelected, ["none", "not_sure"]);
-}
-
-function mapAloneTimeToHours(aloneTime) {
-  const v = normalizeLower(aloneTime);
-  if (v === "lt4") return 3;
-  if (v === "4to6") return 5;
-  if (v === "6to8") return 7;
-  if (v === "gt8") return 9;
-  return null; // not_sure or missing
-}
-
-function normalizeBarkingLevel(raw) {
-  const v = normalizeLower(raw);
-  if (!v) return "";
-  // allow flexible dog values
-  if (v.includes("quiet") || v.includes("rare")) return "quiet";
-  if (v.includes("mod") || v.includes("some")) return "moderate";
-  if (v.includes("vocal") || v.includes("high") || v.includes("often")) return "vocal";
-  return v; // fallback
-}
-
-// ---------- Public API ----------
-
-export function getMatchLabel(scorePct) {
-  const n = Number(scorePct);
-  if (!Number.isFinite(n)) return "";
-  if (n >= 85) return "Great match";
-  if (n >= 70) return "Strong match";
-  if (n >= 55) return "Good match";
-  return "Possible match";
+function isEmptyAnswer(v) {
+  if (v === undefined || v === null) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v === "string") return v.trim().length === 0;
+  return false;
 }
 
 /**
- * rankDogs(dogs, answers)
- * Returns: [{ dog, scorePct, breakdown, rawScore }]
+ * "No preference" should award full points (Option A).
+ * We treat these values as "auto-match" tokens.
  */
-export function rankDogs(dogs, answers) {
-  const safeDogs = Array.isArray(dogs) ? dogs : [];
-  const a = answers && typeof answers === "object" ? answers : {};
+function isNoPreferenceValue(v) {
+  if (v === undefined || v === null) return false;
 
-  // ANSWERS (normalized)
-  const playSelected = toLowerArray(a.play_styles);
-  const energyPref = normalizeLower(a.energy_preference);
-  const sizeSelected = toLowerArray(a.size_preference);
-  const ageSelected = toArrayFlexible(a.age_preference).map((x) => normalizeLower(x));
-  const pottyReq = normalizeLower(a.potty_requirement);
-  const kidsHome = normalizeLower(a.kids_in_home);
+  const tokens = new Set([
+    "flexible",
+    "no_preference",
+    "none", // used in some multi questions like "No other animals / not important"
+    "not_sure",
+    "unknown",
+  ]);
 
-  // ✅ NEW: combined pets multi-select
-  const petsSelected = toLowerArray(a.pets_in_home);
+  if (Array.isArray(v)) return v.some((x) => tokens.has(String(x).toLowerCase()));
+  return tokens.has(String(v).toLowerCase());
+}
 
-  // keep backward compat if older answers still pass cats_in_home
-  const catsHomeLegacy = normalizeLower(a.cats_in_home);
+function normalizeSize(s) {
+  const v = (s ?? "").toString().toLowerCase().trim();
+  if (!v) return "";
+  if (v.includes("extra")) return "extra_large";
+  if (v === "xl") return "extra_large";
+  if (v.includes("medium")) return "medium";
+  if (v.includes("large")) return "large";
+  if (v.includes("small")) return "small";
+  return v;
+}
 
-  const firstTime = normalizeLower(a.first_time_owner);
-  const allergy = normalizeLower(a.allergy_sensitivity);
-  const sheddingSelected = toLowerArray(a.shedding_levels);
+function ageBucket(ageYears) {
+  const n = Number(ageYears);
+  if (!Number.isFinite(n)) return "unknown";
+  if (n <= 1) return "puppy";
+  if (n >= 7) return "senior";
+  return "adult";
+}
 
-  // ✅ NEW
-  const noisePref = normalizeLower(a.noise_preference);
-  const aloneTime = normalizeLower(a.alone_time);
+function normalizeEnergy(s) {
+  const v = (s ?? "").toString().toLowerCase().trim();
+  if (!v) return "";
+  if (v.includes("low")) return "low";
+  if (v.includes("high")) return "high";
+  if (v.includes("moderate")) return "moderate";
+  return v;
+}
 
-  // Derive "cats needed" from new petsSelected if present, else fallback
-  const catsNeeded = petsSelected.length
-    ? petsSelected.includes("cats")
-    : catsHomeLegacy === "yes";
+/**
+ * Basic question scoring
+ * Returns { earned, possible, reasonLabel, matchedBool }
+ */
+function scoreQuestion(qid, answer, dog) {
+  const weight = w(qid);
 
-  const dogsNeeded = petsSelected.includes("dogs");
-  const smallAnimalsNeeded = petsSelected.includes("small_animals");
+  // If unanswered: don't count it at all
+  if (isEmptyAnswer(answer)) {
+    return { earned: 0, possible: 0, reasonLabel: null, matched: null };
+  }
 
-  const ranked = safeDogs.map((dog) => {
-    const breakdown = {
-      play: 0,
-      energy: 0,
-      size: 0,
-      age: 0,
-      potty: 0,
-      kids: 0,
-      cats: 0,
-      firstTime: 0,
-      allergy: 0,
-      shedding: 0,
+  // Option A: "no preference" => full points
+  if (isNoPreferenceValue(answer)) {
+    return { earned: weight, possible: weight, reasonLabel: labelFor(qid), matched: true };
+  }
 
-      // ✅ NEW
-      pets: 0,
-      noise: 0,
-      alone: 0,
-    };
+  // Otherwise: score based on known rules per question id
+  let matched = false;
 
-    // DOG FIELDS (defensive)
-    const dogPlay = toLowerArray(dog?.play_styles);
-    const dogEnergy = normalizeLower(dog?.energy_level);
-    const dogSize = normalizeLower(dog?.size);
-    const dogAgeBucket = normalizeAgeBucket(dog?.age_years);
-    const dogPotty = !!dog?.potty_trained;
-    const dogKids = !!dog?.good_with_kids;
-    const dogCats = !!dog?.good_with_cats;
-    const dogFirstTime = !!dog?.first_time_friendly;
-    const dogHypo = !!dog?.hypoallergenic;
-    const dogSheddingRaw = normalizeLower(dog?.shedding_level);
-
-    // ✅ NEW dog fields (may be null)
-    const dogGoodWithDogs = dog?.good_with_dogs; // boolean | null
-    const dogGoodWithSmall = dog?.good_with_small_animals; // boolean | null
-    const dogBarking = normalizeBarkingLevel(dog?.barking_level); // "quiet"|"moderate"|"vocal"|...
-    const dogMaxAlone = Number.isFinite(Number(dog?.max_alone_hours)) ? Number(dog?.max_alone_hours) : null;
-
-    // 1) PLAY (25)
-    if (hasAnyPreferenceSelected(playSelected, ["no_preference", "any"])) {
-      breakdown.play = WEIGHTS.play;
-    } else if (playSelected.length === 0) {
-      breakdown.play = 0;
-    } else {
-      const matches = playSelected.filter((p) => dogPlay.includes(p)).length;
-      const ratio = matches / playSelected.length;
-      breakdown.play = Math.round(WEIGHTS.play * clamp01(ratio));
+  switch (qid) {
+    case "size_preference": {
+      // answer is multi: ["small","medium"...] (no flexible here if handled above)
+      const dogSize = normalizeSize(dog?.size);
+      if (!dogSize) matched = false;
+      else {
+        const picks = Array.isArray(answer) ? answer.map(String) : [String(answer)];
+        matched = picks.map((x) => x.toLowerCase()).includes(dogSize);
+      }
+      break;
     }
 
-    // 2) ENERGY (10)
-    {
-      const open = fullPointsIfOpen(energyPref, ["any", "flexible", "no_preference"], WEIGHTS.energy);
-      if (open != null) breakdown.energy = open;
-      else if (!energyPref) breakdown.energy = 0;
-      else breakdown.energy = dogEnergy === energyPref ? WEIGHTS.energy : 0;
+    case "age_preference": {
+      const dogAge = ageBucket(dog?.age_years);
+      const picks = Array.isArray(answer) ? answer.map(String) : [String(answer)];
+      matched = picks.map((x) => x.toLowerCase()).includes(dogAge);
+      break;
     }
 
-    // 3) SIZE (15)
-    if (hasAnyPreferenceSelected(sizeSelected, ["any"])) {
-      breakdown.size = WEIGHTS.size;
-    } else if (sizeSelected.length === 0) {
-      breakdown.size = 0;
-    } else {
-      breakdown.size = sizeSelected.includes(dogSize) ? WEIGHTS.size : 0;
+    case "energy_preference": {
+      const dogEnergy = normalizeEnergy(dog?.energy);
+      matched = dogEnergy ? String(answer).toLowerCase() === dogEnergy : false;
+      break;
     }
 
-    // 4) AGE (10)
-    if (hasAnyPreferenceSelected(ageSelected, ["any"])) {
-      breakdown.age = WEIGHTS.age;
-    } else if (ageSelected.length === 0 || !dogAgeBucket) {
-      breakdown.age = 0;
-    } else {
-      breakdown.age = ageSelected.includes(dogAgeBucket) ? WEIGHTS.age : 0;
+    case "kids_in_home": {
+      // user answers about THEIR home; dog has "good_with_kids" bool-ish or "kids_ok" or text.
+      // We'll treat "yes" as requiring dog good with kids.
+      const a = String(answer).toLowerCase();
+      const dogKids =
+        dog?.good_with_kids ??
+        dog?.kids_ok ??
+        dog?.kid_friendly ??
+        dog?.goodWithKids ??
+        null;
+
+      if (a === "yes") matched = truthy(dogKids);
+      else if (a === "no") matched = true; // if no kids, any dog is fine
+      else matched = true; // "sometimes/visiting" treated as ok
+      break;
     }
 
-    // 5) POTTY (15)
-    if (pottyReq === "no_matter") {
-      breakdown.potty = WEIGHTS.potty;
-    } else if (pottyReq === "preferred") {
-      breakdown.potty = dogPotty ? WEIGHTS.potty : Math.round(WEIGHTS.potty * 0.35);
-    } else if (pottyReq === "must") {
-      breakdown.potty = dogPotty ? WEIGHTS.potty : 0;
-    } else {
-      breakdown.potty = 0;
+    case "pets_in_home": {
+      // multi: dogs/cats/small_pets
+      // Require dog compatibility flags if present.
+      const picks = Array.isArray(answer) ? answer.map((x) => String(x).toLowerCase()) : [];
+      let ok = true;
+
+      if (picks.includes("dogs")) ok = ok && truthy(dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs);
+      if (picks.includes("cats")) ok = ok && truthy(dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats);
+      if (picks.includes("small_pets")) ok = ok && truthy(dog?.good_with_small_pets ?? dog?.small_pets_ok);
+
+      matched = ok;
+      break;
     }
 
-    // 6) KIDS (10)
-    if (kidsHome === "no") breakdown.kids = WEIGHTS.kids;
-    else if (kidsHome === "yes") breakdown.kids = dogKids ? WEIGHTS.kids : 0;
-    else breakdown.kids = 0;
+    case "potty_requirement": {
+      // If user requires trained, dog must be trained.
+      const a = String(answer).toLowerCase();
+      const dogPotty = dog?.potty_trained ?? dog?.house_trained ?? dog?.houseTrained ?? null;
 
-    // 7) CATS (10) (kept for compatibility + still useful as standalone)
-    if (!catsNeeded) breakdown.cats = WEIGHTS.cats;
-    else breakdown.cats = dogCats ? WEIGHTS.cats : 0;
-
-    // 8) FIRST TIME OWNER (5)
-    if (firstTime === "no") breakdown.firstTime = WEIGHTS.firstTime;
-    else if (firstTime === "yes") {
-      breakdown.firstTime = dogFirstTime ? WEIGHTS.firstTime : Math.round(WEIGHTS.firstTime * 0.35);
-    } else {
-      breakdown.firstTime = 0;
+      if (a === "must_be_trained") matched = truthy(dogPotty);
+      else matched = true; // preferred => not a blocker
+      break;
     }
 
-    // 9) ALLERGY (10)
-    if (allergy === "no_allergies") breakdown.allergy = WEIGHTS.allergy;
-    else if (allergy === "mild_allergies") {
-      breakdown.allergy = dogHypo ? WEIGHTS.allergy : Math.round(WEIGHTS.allergy * 0.4);
-    } else if (allergy === "have_allergies") {
-      breakdown.allergy = dogHypo ? WEIGHTS.allergy : 0;
-    } else {
-      breakdown.allergy = 0;
+    case "allergy_sensitivity": {
+      // If user needs hypoallergenic/low shedding, dog must be low shedding/hypo if present
+      const a = String(answer).toLowerCase();
+      const hypo = dog?.hypoallergenic ?? dog?.hypoallergenic_only ?? dog?.is_hypoallergenic ?? null;
+      const shedding = (dog?.shedding ?? dog?.shedding_level ?? "").toString().toLowerCase();
+
+      if (a === "needs_low_shedding") matched = truthy(hypo) || shedding === "minimal" || shedding === "low";
+      else matched = true;
+      break;
     }
 
-    // 10) SHEDDING (10)
-    if (hasAnyPreferenceSelected(sheddingSelected, ["no_preference", "any"])) {
-      breakdown.shedding = WEIGHTS.shedding;
-    } else if (sheddingSelected.length === 0) {
-      breakdown.shedding = 0;
-    } else {
-      if (!dogSheddingRaw) {
-        breakdown.shedding = Math.round(WEIGHTS.shedding * 0.5);
-      } else {
-        const normalized =
-          dogSheddingRaw.includes("min") ? "minimal" :
-          dogSheddingRaw.includes("mod") ? "moderate" :
-          dogSheddingRaw.includes("heavy") ? "heavy_ok" :
-          dogSheddingRaw;
+    case "shedding_preference": {
+      const a = String(answer).toLowerCase();
+      const shedding = (dog?.shedding ?? dog?.shedding_level ?? "").toString().toLowerCase();
+      if (!shedding) matched = false;
+      else {
+        // minimal/moderate/heavy_ok
+        if (a === "heavy_ok") matched = true;
+        else matched = shedding === a;
+      }
+      break;
+    }
 
-        breakdown.shedding = sheddingSelected.includes(normalized) ? WEIGHTS.shedding : 0;
+    default: {
+      // For any question we don't have a rule for yet:
+      // treat answered-but-not-understood as "neutral-positive" (don’t punish hard)
+      // but still not auto-full points.
+      matched = true;
+      break;
+    }
+  }
+
+  return {
+    earned: matched ? weight : 0,
+    possible: weight,
+    reasonLabel: labelFor(qid),
+    matched,
+  };
+}
+
+function labelFor(qid) {
+  // Keep labels short for the hover box.
+  const map = {
+    size_preference: "Size",
+    age_preference: "Age",
+    energy_preference: "Energy",
+    kids_in_home: "Kids",
+    pets_in_home: "Other pets",
+    potty_requirement: "Potty training",
+    allergy_sensitivity: "Allergies",
+    shedding_preference: "Shedding",
+    alone_time: "Alone time",
+  };
+  return map[qid] ?? prettifyId(qid);
+}
+
+function prettifyId(id) {
+  return String(id)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function truthy(v) {
+  if (v === true) return true;
+  const s = String(v ?? "").toLowerCase().trim();
+  if (!s) return false;
+  return s === "true" || s === "yes" || s === "y" || s === "1";
+}
+
+export function matchTierFromActivePct(scorePct) {
+  const p = Number(scorePct);
+  if (!Number.isFinite(p)) return { label: "Potential match", pillClass: "bg-gray-800 text-white" };
+
+  if (p >= 80) return { label: "Strong match", pillClass: "bg-emerald-700 text-white" };
+  if (p >= 60) return { label: "Good match", pillClass: "bg-indigo-600 text-white" };
+  return { label: "Potential match", pillClass: "bg-gray-800 text-white" };
+}
+
+/**
+ * Returns:
+ * [{ dog, score, scorePct, breakdown }]
+ *
+ * scorePct is percent from active questions only:
+ *   scorePct = (earned / possible) * 100
+ * where "possible" includes answered questions,
+ * and "no preference" counts as answered AND full points (Option A).
+ */
+export function computeRankedMatches(dogs, answersById) {
+  const dogList = Array.isArray(dogs) ? dogs : [];
+
+  const questionIds = Object.keys(WEIGHTS);
+
+  const rows = dogList.map((dog) => {
+    let earned = 0;
+    let possible = 0;
+
+    const reasons = [];
+
+    for (const qid of questionIds) {
+      const ans = answersById?.[qid];
+      const r = scoreQuestion(qid, ans, dog);
+
+      earned += r.earned;
+      possible += r.possible;
+
+      // Track reasons for hover box (only if this question is active/answered)
+      if (r.possible > 0 && r.reasonLabel) {
+        reasons.push({
+          key: qid,
+          label: r.reasonLabel,
+          matched: r.matched === true,
+          weight: w(qid),
+        });
       }
     }
 
-    // =========================
-    // ✅ NEW 11) PETS (10)
-    // =========================
-    // Goal: use when we have data; be neutral if unknown.
-    if (petsSelected.length === 0 || petsRequiresNoFiltering(petsSelected)) {
-      breakdown.pets = WEIGHTS.pets; // open
-    } else {
-      // Start at full and subtract for mismatches (more forgiving when dog data missing)
-      let score = WEIGHTS.pets;
+    const scorePct = possible > 0 ? Math.round((earned / possible) * 100) : 0;
 
-      // If user needs dog-friendly
-      if (dogsNeeded) {
-        if (dogGoodWithDogs === false) score -= Math.round(WEIGHTS.pets * 0.6);
-        else if (dogGoodWithDogs == null) score -= Math.round(WEIGHTS.pets * 0.15); // slight penalty for unknown
-      }
+    // Build "Top reasons" list:
+    // prefer matched reasons first, then by weight desc.
+    const top = reasons
+      .slice()
+      .sort((a, b) => {
+        if (a.matched !== b.matched) return a.matched ? -1 : 1;
+        return (b.weight ?? 0) - (a.weight ?? 0);
+      })
+      .slice(0, 3)
+      .map((r) => r.label);
 
-      // If user needs cat-friendly
-      if (catsNeeded) {
-        if (dogCats === false) score -= Math.round(WEIGHTS.pets * 0.6);
-        // dogCats is boolean from existing field; unknown = false only if missing in DB.
-        // If you want unknown to be softer, you can change good_with_cats column to allow nulls later.
-      }
-
-      // If user needs small-animal safe
-      if (smallAnimalsNeeded) {
-        if (dogGoodWithSmall === false) score -= Math.round(WEIGHTS.pets * 0.6);
-        else if (dogGoodWithSmall == null) score -= Math.round(WEIGHTS.pets * 0.15);
-      }
-
-      breakdown.pets = Math.max(0, Math.min(WEIGHTS.pets, score));
-    }
-
-    // =========================
-    // ✅ NEW 12) NOISE (5)
-    // =========================
-    // If dog barking_level missing OR user has no pref -> neutral/full
-    if (!noisePref || noisePref === "no_pref" || !dogBarking) {
-      breakdown.noise = WEIGHTS.noise;
-    } else {
-      // preference match matrix
-      let pts = WEIGHTS.noise;
-
-      if (noisePref === "need_very_quiet") {
-        pts = dogBarking === "quiet" ? WEIGHTS.noise : 0;
-      } else if (noisePref === "prefer_quiet") {
-        pts = dogBarking === "quiet" ? WEIGHTS.noise : (dogBarking === "moderate" ? Math.round(WEIGHTS.noise * 0.6) : 0);
-      } else if (noisePref === "some_ok") {
-        pts = dogBarking === "vocal" ? Math.round(WEIGHTS.noise * 0.6) : WEIGHTS.noise;
-      } else if (noisePref === "alert_ok") {
-        pts = dogBarking === "vocal" ? WEIGHTS.noise : Math.round(WEIGHTS.noise * 0.7);
-      }
-
-      breakdown.noise = Math.max(0, Math.min(WEIGHTS.noise, pts));
-    }
-
-    // =========================
-    // ✅ NEW 13) ALONE (5)
-    // =========================
-    const userHours = mapAloneTimeToHours(aloneTime);
-    if (userHours == null || dogMaxAlone == null) {
-      // no info -> neutral/full so we don't punish missing shelter data
-      breakdown.alone = WEIGHTS.alone;
-    } else {
-      breakdown.alone = userHours <= dogMaxAlone ? WEIGHTS.alone : 0;
-    }
-
-    const rawScore =
-      breakdown.play +
-      breakdown.energy +
-      breakdown.size +
-      breakdown.age +
-      breakdown.potty +
-      breakdown.kids +
-      breakdown.cats +
-      breakdown.firstTime +
-      breakdown.allergy +
-      breakdown.shedding +
-      breakdown.pets +
-      breakdown.noise +
-      breakdown.alone;
-
-    const scorePct = TOTAL > 0 ? (rawScore / TOTAL) * 100 : 0;
+    const tier = matchTierFromActivePct(scorePct);
 
     return {
       dog,
-      rawScore: Number.isFinite(rawScore) ? rawScore : 0,
-      scorePct: roundTo(scorePct, 1),
-      breakdown,
+      score: earned,
+      scorePct,
+      breakdown: {
+        scorePct,
+        tierLabel: tier.label,
+        topReasons: top,
+      },
     };
   });
 
-  ranked.sort((a, b) => {
-    const d1 = b.rawScore - a.rawScore;
-    if (d1 !== 0) return d1;
-
-    const d2 = (b.scorePct ?? 0) - (a.scorePct ?? 0);
-    if (d2 !== 0) return d2;
-
-    const an = normalizeLower(a?.dog?.name);
-    const bn = normalizeLower(b?.dog?.name);
-    if (an < bn) return -1;
-    if (an > bn) return 1;
-
-    const aid = normalizeString(a?.dog?.id);
-    const bid = normalizeString(b?.dog?.id);
-    if (aid < bid) return -1;
-    if (aid > bid) return 1;
-
-    return 0;
+  // Sort best -> worst
+  rows.sort((a, b) => {
+    // primary: scorePct
+    if (b.scorePct !== a.scorePct) return b.scorePct - a.scorePct;
+    // secondary: earned (in case same pct)
+    if (b.score !== a.score) return b.score - a.score;
+    // tertiary: name
+    return String(a.dog?.name ?? "").localeCompare(String(b.dog?.name ?? ""));
   });
 
-  return ranked;
+  return rows;
+}
+
+/**
+ * Backward compat (if any older code still calls rankDogs)
+ * Returns dogs decorated with match_level + scorePct, sorted.
+ */
+export function rankDogs(dogs, answersById) {
+  const rows = computeRankedMatches(dogs, answersById);
+  return rows.map((r) => {
+    const tier = matchTierFromActivePct(r.scorePct);
+    const label = tier.label.toLowerCase();
+    let match_level = "potential";
+    if (label.includes("strong") || label.includes("great")) match_level = "strong";
+    else if (label.includes("good")) match_level = "good";
+
+    return {
+      ...r.dog,
+      scorePct: r.scorePct,
+      match_level,
+      breakdown: r.breakdown,
+    };
+  });
 }

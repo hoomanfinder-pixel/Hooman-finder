@@ -1,4 +1,32 @@
-import React from "react";
+import React, { useMemo } from "react";
+
+/**
+ * Multi-select rules:
+ * - If user clicks an exclusive option (e.g. "no_preference"), it becomes the ONLY selection.
+ * - If user selects any normal option, it auto-removes exclusive options.
+ */
+function toggleMultiWithExclusive(currentValue, clickedValue, exclusiveValues = []) {
+  const current = Array.isArray(currentValue)
+    ? currentValue.map(String)
+    : currentValue
+      ? [String(currentValue)]
+      : [];
+
+  const v = String(clickedValue);
+  const exclusiveSet = new Set((exclusiveValues || []).map(String));
+
+  // Clicked an exclusive option → it becomes the only selection
+  if (exclusiveSet.has(v)) return [v];
+
+  // Otherwise remove any exclusive options first
+  let next = current.filter((x) => !exclusiveSet.has(String(x)));
+
+  // Toggle clicked
+  if (next.includes(v)) next = next.filter((x) => x !== v);
+  else next = [...next, v];
+
+  return next;
+}
 
 export default function OptionSelect({
   title,
@@ -7,17 +35,22 @@ export default function OptionSelect({
   multiple = false,
   value,
   onChange,
+  exclusiveValues = [], // ✅ NEW
 }) {
+  const normalizedExclusive = useMemo(
+    () => (exclusiveValues || []).map(String),
+    [exclusiveValues]
+  );
+
   const isSelected = (optValue) => {
-    if (multiple) return Array.isArray(value) && value.includes(optValue);
-    return value === optValue;
+    if (multiple) return Array.isArray(value) && value.map(String).includes(String(optValue));
+    return String(value) === String(optValue);
   };
 
   const toggle = (optValue) => {
     if (multiple) {
-      const arr = Array.isArray(value) ? value : [];
-      if (arr.includes(optValue)) onChange(arr.filter((x) => x !== optValue));
-      else onChange([...arr, optValue]);
+      const next = toggleMultiWithExclusive(value, optValue, normalizedExclusive);
+      onChange(next);
     } else {
       onChange(optValue);
     }
@@ -50,9 +83,7 @@ export default function OptionSelect({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="font-semibold">{opt.label}</div>
-                  {opt.help && (
-                    <div className="mt-1 text-sm text-gray-600">{opt.help}</div>
-                  )}
+                  {opt.help && <div className="mt-1 text-sm text-gray-600">{opt.help}</div>}
                 </div>
 
                 <div

@@ -1,200 +1,299 @@
 // src/pages/Results.jsx
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
-import { rankDogs } from "../lib/matchingLogic";
-import DogCard from "../components/DogCard";
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
-function getParam(search, key) {
-  const params = new URLSearchParams(search);
-  return params.get(key);
+import DogCard from "../components/DogCard";
+import { loadQuizResponses } from "../lib/quizStorage";
+import {
+  computeRankedMatches,
+  matchTierFromActivePct,
+} from "../lib/matchingLogic";
+import { supabase } from "../lib/supabase";
+import { QUIZ_MODES } from "../lib/quizQuestions";
+
+function ageBucket(ageYears) {
+  const n = Number(ageYears);
+  if (!Number.isFinite(n)) return "unknown";
+  if (n <= 1) return "puppy";
+  if (n >= 7) return "senior";
+  return "adult";
 }
 
-function normalizeAgeBucket(ageYears) {
-  const n = Number(ageYears);
-  if (!Number.isFinite(n)) return "";
-  if (n < 2) return "puppy";
-  if (n < 7) return "adult";
-  return "senior";
+function normalizeSize(s) {
+  const v = (s ?? "").toString().toLowerCase().trim();
+  if (!v) return "";
+  if (v.includes("extra")) return "extra large";
+  if (v === "xl") return "extra large";
+  return v;
+}
+
+/**
+ * IMPORTANT:
+ * - matchTierFromActivePct(scorePct) is the source of truth for tiers.
+ * - Filters should match whatever labels that function returns.
+ * - Previously you mapped "Strong/Good/Potential" to values,
+ *   but your older Results.jsx used "great/good/ok/low", which caused "Showing 0 of N".
+ */
+function normalizeMatchLevel(scorePct) {
+  const tier = matchTierFromActivePct(scorePct);
+  const label = (tier?.label ?? "").toString().toLowerCase();
+
+  // Support a few possible label wordings without breaking filtering.
+  if (label.includes("strong") || label.includes("great")) return "strong";
+  if (label.includes("good")) return "good";
+  if (label.includes("potential") || label.includes("ok") || label.includes("decent"))
+    return "potential";
+  return "unknown";
 }
 
 export default function Results() {
-  const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get("session") || "";
 
-  const sessionParam = useMemo(
-    () => new URLSearchParams(location.search).has("session"),
-    [location.search]
-  );
-  const sessionId = useMemo(() => getParam(location.search, "session"), [location.search]);
-
-  const [loading, setLoading] = useState(true);
+  const [answersById, setAnswersById] = useState({});
   const [dogs, setDogs] = useState([]);
-  const [quizRow, setQuizRow] = useState(null);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  const [ageFilter, setAgeFilter] = useState("all");
-  const [sizeFilter, setSizeFilter] = useState("all");
-  const [energyFilter, setEnergyFilter] = useState("all");
-
-  const [hypoOnly, setHypoOnly] = useState(false);
-  const [pottyOnly, setPottyOnly] = useState(false);
-  const [kidsOnly, setKidsOnly] = useState(false);
-  const [catsOnly, setCatsOnly] = useState(false);
-  const [dogsOnly, setDogsOnly] = useState(false);
+  // Filters
+  const [q, setQ] = useState("");
+  const [matchLevel, setMatchLevel] = useState("all"); // all | strong | good | potential
+  const [size, setSize] = useState("all");
+  const [age, setAge] = useState("all"); // all | puppy | adult | senior | unknown
+  const [sort, setSort] = useState("ranked"); // ranked | name | age
 
   useEffect(() => {
-    let cancelled = false;
+    let mounted = true;
 
-    async function load() {
-      setLoading(true);
-      setError("");
-
+    async function run() {
       try {
-        const dogsRes = await supabase.from("dogs").select("*");
-        if (dogsRes.error) throw dogsRes.error;
+        setLoading(true);
+        setErr("");
 
-        let quiz = null;
-        if (sessionId) {
-          const quizRes = await supabase
-            .from("quiz_responses")
-            .select("*")
-            .eq("session_id", sessionId)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
+        const { answersById: loadedAnswers } = await loadQuizResponses(sessionId);
 
-          if (quizRes.error) throw quizRes.error;
-          quiz = quizRes.data || null;
-        }
+        const { data: dogsData, error: dogsErr } = await supabase.from("dogs").select("*");
+        if (dogsErr) throw dogsErr;
 
-        if (!cancelled) {
-          setDogs(dogsRes.data || []);
-          setQuizRow(quiz);
-        }
+        if (!mounted) return;
+        setAnswersById(loadedAnswers || {});
+        setDogs(dogsData || []);
       } catch (e) {
-        if (!cancelled) setError("Something went wrong loading dogs.");
+        if (!mounted) return;
+        setErr(e?.message || String(e));
       } finally {
-        if (!cancelled) setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
 
-    load();
+    if (sessionId) run();
+    else {
+      setErr("Missing session id. Please return to the quiz.");
+      setLoading(false);
+    }
+
     return () => {
-      cancelled = true;
+      mounted = false;
     };
   }, [sessionId]);
 
-  const rankedDogs = useMemo(() => {
-    if (!dogs.length) return [];
-    if (!quizRow) {
-      return dogs.map((d) => ({
-        dog: d,
-        scorePct: null,
-        breakdown: null,
-      }));
-    }
-    return rankDogs(dogs, quizRow);
-  }, [dogs, quizRow]);
+  // Rows: { dog, score, scorePct, breakdown }
+  const rankedRows = useMemo(
+    () => computeRankedMatches(dogs, answersById),
+    [dogs, answersById]
+  );
 
-  const filteredDogs = useMemo(() => {
-    return rankedDogs.filter(({ dog }) => {
-      if (ageFilter !== "all") {
-        const bucket = normalizeAgeBucket(dog.age_years);
-        if (bucket !== ageFilter) return false;
+  const filterOptions = useMemo(() => {
+    const sizes = new Set();
+    const ages = new Set();
+
+    rankedRows.forEach((row) => {
+      const d = row.dog;
+      const s = normalizeSize(d?.size);
+      if (s) sizes.add(s);
+
+      const a = ageBucket(d?.age_years);
+      if (a) ages.add(a);
+    });
+
+    const ageOrder = ["puppy", "adult", "senior", "unknown"];
+    const sortedAges = Array.from(ages).sort(
+      (a, b) => ageOrder.indexOf(a) - ageOrder.indexOf(b)
+    );
+
+    return {
+      sizes: ["all", ...Array.from(sizes).sort()],
+      ages: ["all", ...sortedAges],
+    };
+  }, [rankedRows]);
+
+  const filteredRows = useMemo(() => {
+    const query = q.trim().toLowerCase();
+
+    let out = rankedRows.filter((row) => {
+      const d = row.dog;
+
+      if (matchLevel !== "all") {
+        const lvl = normalizeMatchLevel(row.scorePct);
+        if (lvl !== matchLevel) return false;
       }
-      if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
-      if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
 
-      if (hypoOnly && !dog.hypoallergenic) return false;
-      if (pottyOnly && !dog.potty_trained) return false;
-      if (kidsOnly && !dog.good_with_kids) return false;
-      if (catsOnly && !dog.good_with_cats) return false;
-      if (dogsOnly && dog.good_with_dogs === false) return false;
+      if (size !== "all") {
+        const s = normalizeSize(d?.size);
+        if (s !== size) return false;
+      }
+
+      if (age !== "all") {
+        const a = ageBucket(d?.age_years);
+        if (a !== age) return false;
+      }
+
+      if (query) {
+        const name = (d?.name ?? "").toString().toLowerCase();
+        const breed = (d?.breed ?? "").toString().toLowerCase();
+        if (!name.includes(query) && !breed.includes(query)) return false;
+      }
 
       return true;
     });
-  }, [
-    rankedDogs,
-    ageFilter,
-    sizeFilter,
-    energyFilter,
-    hypoOnly,
-    pottyOnly,
-    kidsOnly,
-    catsOnly,
-    dogsOnly,
-  ]);
 
-  const hasQuiz = !!quizRow;
+    if (sort === "name") {
+      out = [...out].sort((a, b) =>
+        String(a.dog?.name ?? "").localeCompare(String(b.dog?.name ?? ""))
+      );
+    } else if (sort === "age") {
+      out = [...out].sort(
+        (a, b) => Number(a.dog?.age_years ?? 999) - Number(b.dog?.age_years ?? 999)
+      );
+    } else {
+      out = [...out]; // already ranked
+    }
+
+    return out;
+  }, [rankedRows, q, matchLevel, size, age, sort]);
+
+  function goRefine() {
+    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}`);
+  }
+
+  function goDealbreakers() {
+    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}`);
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="mx-auto max-w-6xl px-6 py-10">
-        {/* Header */}
-        <div className="grid grid-cols-3 items-center">
-          <div>
-            <button
-              onClick={() => navigate(-1)}
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              ← Back
-            </button>
-          </div>
+    <div className="min-h-screen bg-[#EAF7F0]">
+      <div className="max-w-5xl mx-auto px-4 py-10">
+        <div className="flex items-center justify-between gap-3">
+          <button className="text-sm text-gray-600" onClick={() => navigate("/dogs")}>
+            ← Back to dogs
+          </button>
 
-          <div className="flex justify-center">
-            <button onClick={() => navigate("/")}>
-              <img src="/logo.png" alt="Hooman Finder" className="h-24 w-auto" />
-            </button>
-          </div>
-
-          <div className="flex justify-end">
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate("/quiz")}
-              className="text-sm text-slate-600 hover:text-slate-900"
+              className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-900"
+              onClick={goDealbreakers}
             >
-              Retake quiz
+              Edit Deal Breakers
+            </button>
+            <button className="px-4 py-2 rounded-xl bg-green-700 text-white" onClick={goRefine}>
+              Refine matches
             </button>
           </div>
         </div>
 
-        <h1 className="mt-6 text-2xl font-semibold text-slate-900">
-          {hasQuiz ? "Ranked matches" : "Browse dogs"}
-        </h1>
+        <h1 className="text-3xl font-semibold mt-4">Your matches</h1>
+        <p className="text-gray-600 mt-1">Refine anytime to improve ranking.</p>
 
-        <p className="mt-1 text-sm text-slate-600">
-          {hasQuiz
-            ? "These are ranked matches from your quiz. You can still filter below."
-            : "Browse adoptable dogs. Take the quiz to see ranked matches."}
-        </p>
+        {err ? <div className="mt-4 text-sm text-red-600">{err}</div> : null}
 
-        {/* only show warning if session param exists but quiz didn't load */}
-        {sessionParam && !hasQuiz && (
-          <p className="mt-2 text-sm text-amber-700">
-            Couldn’t load your quiz session. Retake the quiz to see match percentages.
-          </p>
-        )}
-
-        {/* Results */}
         {loading ? (
-          <div className="mt-10 text-slate-600">Loading…</div>
-        ) : filteredDogs.length === 0 ? (
-          <div className="mt-10 rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-700">
-            No dogs match your current filters.
-          </div>
+          <div className="mt-8 text-gray-600">Loading…</div>
         ) : (
-          <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {filteredDogs.map(({ dog, scorePct, breakdown }, idx) => (
-              <DogCard
-                key={dog.id || idx}
-                dog={dog}
-                scorePct={scorePct}
-                breakdown={breakdown}
-                showMatch={hasQuiz}
-                sessionId={hasQuiz ? sessionId : null}
-              />
-            ))}
-          </div>
+          <>
+            {/* Standard filters box (keep for consistency) */}
+            <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-4">
+              <div className="flex flex-wrap gap-3 items-center">
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search dogs…"
+                  className="flex-1 min-w-[220px] px-4 py-2 rounded-xl border border-gray-300"
+                />
+
+                <select
+                  value={matchLevel}
+                  onChange={(e) => setMatchLevel(e.target.value)}
+                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
+                >
+                  <option value="all">All match levels</option>
+                  <option value="strong">Strong match</option>
+                  <option value="good">Good match</option>
+                  <option value="potential">Potential match</option>
+                </select>
+
+                <select
+                  value={size}
+                  onChange={(e) => setSize(e.target.value)}
+                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
+                >
+                  {filterOptions.sizes.map((s) => (
+                    <option key={s} value={s}>
+                      {s === "all" ? "All sizes" : s}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={age}
+                  onChange={(e) => setAge(e.target.value)}
+                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
+                >
+                  {filterOptions.ages.map((a) => (
+                    <option key={a} value={a}>
+                      {a === "all"
+                        ? "All ages"
+                        : a === "puppy"
+                        ? "Puppy (0–1)"
+                        : a === "adult"
+                        ? "Adult (2–6)"
+                        : a === "senior"
+                        ? "Senior (7+)"
+                        : "Unknown"}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
+                >
+                  <option value="ranked">Sort: Ranked</option>
+                  <option value="name">Sort: Name</option>
+                  <option value="age">Sort: Age</option>
+                </select>
+              </div>
+
+              <div className="mt-2 text-sm text-gray-600">
+                Showing {filteredRows.length} of {rankedRows.length}
+              </div>
+            </div>
+
+            {/* Cards (old ranked-matches look + hover why matched + click to profile) */}
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredRows.map((row, idx) => (
+                <DogCard
+                  key={row.dog?.id ?? idx}
+                  dog={row.dog}
+                  showMatch
+                  scorePct={row.scorePct}
+                  breakdown={row.breakdown}
+                  sessionId={sessionId}
+                />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </div>

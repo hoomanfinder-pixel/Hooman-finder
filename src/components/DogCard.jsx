@@ -42,46 +42,70 @@ function matchTier(scorePct) {
   const n = Number(scorePct);
   if (!Number.isFinite(n)) return null;
 
-  // Strong match now teal (not black, not red)
   if (n >= 85) return { label: "Strong match", pillClass: "bg-teal-700 text-white" };
   if (n >= 70) return { label: "Good match", pillClass: "bg-indigo-600 text-white" };
   return { label: "Potential match", pillClass: "bg-slate-600 text-white" };
 }
 
+/**
+ * ✅ CHANGE: Use a stable, human-friendly list of "reasons"
+ * - DO NOT show internal keys like "scorePct"
+ * - Prefer breakdown keys -> pretty labels
+ * - If breakdown is missing/useless, fall back to dog fields
+ * - If still nothing, fall back to "overall fit"
+ */
 function buildTopReasons({ dog, breakdown }) {
-  // Prefer breakdown if we have it
-  if (breakdown && typeof breakdown === "object") {
-    const pretty = {
-      play: "play style",
-      energy: "energy",
-      size: "size",
-      age: "age",
-      potty: "potty training",
-      kids: "kids",
-      cats: "cats",
-      firstTime: "first-time owner",
-      allergy: "allergies",
-      shedding: "shedding",
-      pets: "pets",
-      noise: "noise",
-      alone: "alone time",
-    };
+  const pretty = {
+    play: "play style",
+    energy: "energy level",
+    size: "size",
+    age: "age",
+    potty: "potty training",
+    kids: "kids compatibility",
+    cats: "cats compatibility",
+    pets: "pets compatibility",
+    firstTime: "first-time owner friendly",
+    allergy: "allergies / hypoallergenic",
+    shedding: "shedding",
+    noise: "barking / noise",
+    alone: "alone time",
+    yard: "yard / outdoor access",
+    stairs: "stairs",
+    budget: "budget fit",
+    medical: "medical needs",
+    meds: "medication comfort",
+    reactivity: "reactivity comfort",
+    training: "training commitment",
+    behavior: "behavior tolerance",
+  };
 
+  // 1) Prefer breakdown if it looks like: { key: points, ... }
+  if (breakdown && typeof breakdown === "object" && !Array.isArray(breakdown)) {
     const top = Object.entries(breakdown)
-      .filter(([, v]) => Number(v) > 0)
-      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([k, v]) => [k, Number(v)])
+      .filter(([, v]) => Number.isFinite(v) && v > 0)
+      .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([k]) => pretty[k] || k);
 
     if (top.length) return top;
   }
 
-  // Fallback if no breakdown
+  // 2) Fallback: infer from dog fields (safe + meaningful)
   const reasons = [];
+
   if (dog?.size) reasons.push("size");
-  if (dog?.energy_level) reasons.push("energy");
+  if (dog?.energy_level) reasons.push("energy level");
   if (dog?.age_years !== null && dog?.age_years !== undefined) reasons.push("age");
-  return reasons.slice(0, 3);
+  if (dog?.good_with_kids !== null && dog?.good_with_kids !== undefined) reasons.push("kids");
+  if (dog?.good_with_dogs !== null && dog?.good_with_dogs !== undefined) reasons.push("dogs");
+  if (dog?.good_with_cats !== null && dog?.good_with_cats !== undefined) reasons.push("cats");
+  if (dog?.potty_trained !== null && dog?.potty_trained !== undefined) reasons.push("potty training");
+
+  if (reasons.length) return reasons.slice(0, 3);
+
+  // 3) Last resort
+  return ["overall fit"];
 }
 
 function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
@@ -125,7 +149,6 @@ export default function DogCard({
   const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
 
   const ageLabel = useMemo(() => {
-    // formatAge already returns "Unknown" for non-numbers — for the small subtitle, we hide Unknown.
     const v = formatAge(dog?.age_years);
     return v === "Unknown" ? "" : v;
   }, [dog?.age_years]);
@@ -203,14 +226,12 @@ export default function DogCard({
     setSaved(nextSaved);
   }
 
-  // ✅ Build link that ALWAYS includes session when we have it (so refresh/new tab still works)
   const dogLink = useMemo(() => {
     const base = `/dog/${dog?.id}`;
     const search = sessionId ? `?session=${encodeURIComponent(sessionId)}` : "";
     return `${base}${search}`;
   }, [dog?.id, sessionId]);
 
-  // ✅ Pass match info through router state for instant render (no extra fetch needed)
   const linkState = useMemo(() => {
     if (!showMatch) return null;
     return {
@@ -352,7 +373,7 @@ export default function DogCard({
                   </li>
                 ))
               ) : (
-                <li>general fit</li>
+                <li>overall fit</li>
               )}
             </ul>
 
@@ -404,7 +425,7 @@ export default function DogCard({
                     </li>
                   ))
                 ) : (
-                  <li>general fit</li>
+                  <li>overall fit</li>
                 )}
               </ul>
               <div className="mt-3 text-xs text-slate-500">
