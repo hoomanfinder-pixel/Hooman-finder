@@ -13,7 +13,7 @@ export const QUESTION_TYPES = {
 // These MUST match Supabase column names.
 export const ALL_QUESTIONS = [
   // ============================================================
-  // DEAL BREAKERS (7)
+  // DEAL BREAKERS (6)
   // ============================================================
 
   {
@@ -75,6 +75,12 @@ export const ALL_QUESTIONS = [
       { value: "not_sure", label: "Not sure / varies" },
       { value: "flexible", label: "No preference / flexible" },
     ],
+
+    // ✅ Only show if kids are present (i.e., dog needs to be kid-compatible)
+    showIf: (answersById) => {
+      const v = (answersById?.kids_in_home ?? "").toString().trim().toLowerCase();
+      return v === "yes" || v === "sometimes";
+    },
   },
 
   {
@@ -103,19 +109,6 @@ export const ALL_QUESTIONS = [
       { value: "must_be_trained", label: "Must be potty trained" },
       { value: "preferred", label: "Preferred" },
       { value: "flexible", label: "Doesn’t matter / I’m open to training" },
-    ],
-  },
-
-  {
-    id: "separation_anxiety_willingness",
-    mode: QUIZ_MODES.DEALBREAKERS,
-    type: QUESTION_TYPES.SINGLE,
-    title: "If a dog has separation anxiety, are you willing to work through it?",
-    options: [
-      { value: "yes", label: "Yes, I’m willing" },
-      { value: "maybe", label: "Maybe (depends)" },
-      { value: "no", label: "No, I need a dog that can be alone" },
-      { value: "not_sure", label: "Not sure" },
     ],
   },
 
@@ -189,6 +182,21 @@ export const ALL_QUESTIONS = [
   // -------------------------
   // Behavior & Training
   // -------------------------
+
+  // ✅ MOVED HERE from Deal Breakers
+  {
+    id: "separation_anxiety_willingness",
+    mode: QUIZ_MODES.REFINE,
+    refineSection: "Behavior & Training",
+    type: QUESTION_TYPES.SINGLE,
+    title: "If a dog has separation anxiety, are you willing to work through it?",
+    options: [
+      { value: "yes", label: "Yes, I’m willing" },
+      { value: "maybe", label: "Maybe (depends)" },
+      { value: "no", label: "No, I need a dog that can be alone" },
+      { value: "not_sure", label: "Not sure" },
+    ],
+  },
 
   {
     id: "crate_ok",
@@ -448,13 +456,30 @@ export const ALL_QUESTIONS = [
   },
 ];
 
-export function getQuestionsForMode(mode) {
-  const m = mode === QUIZ_MODES.REFINE ? QUIZ_MODES.REFINE : QUIZ_MODES.DEALBREAKERS;
-  return ALL_QUESTIONS.filter((q) => q.mode === m);
+function isQuestionVisible(question, answersById) {
+  if (!question || typeof question.showIf !== "function") return true;
+  try {
+    return !!question.showIf(answersById || {});
+  } catch {
+    // fail open so you never brick the quiz
+    return true;
+  }
 }
 
+// ✅ Now supports conditionals:
+// - getQuestionsForMode(mode) works like before
+// - getQuestionsForMode(mode, answersById) hides questions with showIf false
+export function getQuestionsForMode(mode, answersById = null) {
+  const m = mode === QUIZ_MODES.REFINE ? QUIZ_MODES.REFINE : QUIZ_MODES.DEALBREAKERS;
+  const base = ALL_QUESTIONS.filter((q) => q.mode === m);
+
+  if (!answersById) return base;
+  return base.filter((q) => isQuestionVisible(q, answersById));
+}
+
+// ✅ Completion counts should use ONLY visible questions
 export function getCompletionCounts(mode, answersById) {
-  const qs = getQuestionsForMode(mode);
+  const qs = getQuestionsForMode(mode, answersById);
 
   let answered = 0;
   for (const q of qs) {

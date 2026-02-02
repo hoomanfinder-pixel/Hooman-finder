@@ -12,18 +12,20 @@ function ensureSessionId(existing) {
   return String(Date.now());
 }
 
-const REFINE_SECTIONS = [
-  "Household & Compatibility",
-  "Behavior & Training",
-  "Care & Lifestyle",
-];
+const REFINE_SECTIONS = ["Household & Compatibility", "Behavior & Training", "Care & Lifestyle"];
 
 // fallback: if a refine question doesn’t have refineSection set in quizQuestions.js
 function fallbackRefineSection(question) {
   const id = String(question?.id || "").toLowerCase();
 
   // household-ish
-  if (id.includes("kids") || id.includes("cats") || id.includes("dogs") || id.includes("pets") || id.includes("first")) {
+  if (
+    id.includes("kids") ||
+    id.includes("cats") ||
+    id.includes("dogs") ||
+    id.includes("pets") ||
+    id.includes("first")
+  ) {
     return "Household & Compatibility";
   }
 
@@ -64,8 +66,14 @@ export default function Quiz() {
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState("");
 
-  const questions = useMemo(() => getQuestionsForMode(mode), [mode]);
-  const completion = useMemo(() => getCompletionCounts(mode, answersById), [mode, answersById]);
+  // ✅ Visible questions only (kids_age_band hides unless kids_in_home is yes/sometimes)
+  const questions = useMemo(() => getQuestionsForMode(mode, answersById), [mode, answersById]);
+
+  // ✅ Completion matches visible questions only
+  const completion = useMemo(
+    () => getCompletionCounts(mode, answersById),
+    [mode, answersById]
+  );
 
   // ✅ Refine accordion open state (default first section open)
   const [openRefineSection, setOpenRefineSection] = useState(REFINE_SECTIONS[0]);
@@ -112,7 +120,19 @@ export default function Quiz() {
   }, [sessionId]);
 
   async function updateAnswer(questionId, nextValue) {
-    const nextAnswers = { ...answersById, [questionId]: nextValue };
+    let nextAnswers = { ...answersById, [questionId]: nextValue };
+
+    // ✅ If kids are NOT in the home, hide the follow-up question AND clear its value
+    if (questionId === "kids_in_home") {
+      const v = (nextValue ?? "").toString().trim().toLowerCase();
+      if (v === "no" || v === "") {
+        // Remove the dependent answer so it can't affect matching or "answered" counts
+        const cleaned = { ...nextAnswers };
+        delete cleaned.kids_age_band;
+        nextAnswers = cleaned;
+      }
+    }
+
     setAnswersById(nextAnswers);
 
     try {

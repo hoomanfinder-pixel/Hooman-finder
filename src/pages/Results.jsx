@@ -1,49 +1,42 @@
 // src/pages/Results.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import DogCard from "../components/DogCard";
+import SiteFooter from "../components/SiteFooter";
+
 import { loadQuizResponses } from "../lib/quizStorage";
-import {
-  computeRankedMatches,
-  matchTierFromActivePct,
-} from "../lib/matchingLogic";
+import { computeRankedMatches } from "../lib/matchingLogic";
 import { supabase } from "../lib/supabase";
 import { QUIZ_MODES } from "../lib/quizQuestions";
 
-function ageBucket(ageYears) {
+const AGE_OPTIONS = [
+  { label: "All ages", value: "all" },
+  { label: "Puppy (<2)", value: "puppy" },
+  { label: "Adult (2–6)", value: "adult" },
+  { label: "Senior (7+)", value: "senior" },
+];
+
+const SIZE_OPTIONS = [
+  { label: "All sizes", value: "all" },
+  { label: "Small", value: "Small" },
+  { label: "Medium", value: "Medium" },
+  { label: "Large", value: "Large" },
+];
+
+const ENERGY_OPTIONS = [
+  { label: "All energy", value: "all" },
+  { label: "Low", value: "Low" },
+  { label: "Moderate", value: "Moderate" },
+  { label: "High", value: "High" },
+];
+
+function normalizeAgeBucket(ageYears) {
   const n = Number(ageYears);
-  if (!Number.isFinite(n)) return "unknown";
-  if (n <= 1) return "puppy";
-  if (n >= 7) return "senior";
-  return "adult";
-}
-
-function normalizeSize(s) {
-  const v = (s ?? "").toString().toLowerCase().trim();
-  if (!v) return "";
-  if (v.includes("extra")) return "extra large";
-  if (v === "xl") return "extra large";
-  return v;
-}
-
-/**
- * IMPORTANT:
- * - matchTierFromActivePct(scorePct) is the source of truth for tiers.
- * - Filters should match whatever labels that function returns.
- * - Previously you mapped "Strong/Good/Potential" to values,
- *   but your older Results.jsx used "great/good/ok/low", which caused "Showing 0 of N".
- */
-function normalizeMatchLevel(scorePct) {
-  const tier = matchTierFromActivePct(scorePct);
-  const label = (tier?.label ?? "").toString().toLowerCase();
-
-  // Support a few possible label wordings without breaking filtering.
-  if (label.includes("strong") || label.includes("great")) return "strong";
-  if (label.includes("good")) return "good";
-  if (label.includes("potential") || label.includes("ok") || label.includes("decent"))
-    return "potential";
-  return "unknown";
+  if (!Number.isFinite(n)) return null;
+  if (n < 2) return "puppy";
+  if (n < 7) return "adult";
+  return "senior";
 }
 
 export default function Results() {
@@ -56,12 +49,16 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Filters
-  const [q, setQ] = useState("");
-  const [matchLevel, setMatchLevel] = useState("all"); // all | strong | good | potential
-  const [size, setSize] = useState("all");
-  const [age, setAge] = useState("all"); // all | puppy | adult | senior | unknown
-  const [sort, setSort] = useState("ranked"); // ranked | name | age
+  // Match the Dogs.jsx filter UI exactly
+  const [ageFilter, setAgeFilter] = useState("all");
+  const [sizeFilter, setSizeFilter] = useState("all");
+  const [energyFilter, setEnergyFilter] = useState("all");
+
+  const [hypoOnly, setHypoOnly] = useState(false);
+  const [pottyOnly, setPottyOnly] = useState(false);
+  const [kidsOnly, setKidsOnly] = useState(false);
+  const [catsOnly, setCatsOnly] = useState(false);
+  const [dogsOnly, setDogsOnly] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -71,14 +68,23 @@ export default function Results() {
         setLoading(true);
         setErr("");
 
+        if (!sessionId) {
+          setErr("Missing session id. Please return to the quiz.");
+          return;
+        }
+
         const { answersById: loadedAnswers } = await loadQuizResponses(sessionId);
 
-        const { data: dogsData, error: dogsErr } = await supabase.from("dogs").select("*");
-        if (dogsErr) throw dogsErr;
+        const { data, error } = await supabase
+          .from("dogs")
+          .select("*")
+          .order("created_at", { ascending: false });
 
+        if (error) throw error;
         if (!mounted) return;
+
         setAnswersById(loadedAnswers || {});
-        setDogs(dogsData || []);
+        setDogs(Array.isArray(data) ? data : []);
       } catch (e) {
         if (!mounted) return;
         setErr(e?.message || String(e));
@@ -87,12 +93,7 @@ export default function Results() {
       }
     }
 
-    if (sessionId) run();
-    else {
-      setErr("Missing session id. Please return to the quiz.");
-      setLoading(false);
-    }
-
+    run();
     return () => {
       mounted = false;
     };
@@ -104,198 +105,217 @@ export default function Results() {
     [dogs, answersById]
   );
 
-  const filterOptions = useMemo(() => {
-    const sizes = new Set();
-    const ages = new Set();
-
-    rankedRows.forEach((row) => {
-      const d = row.dog;
-      const s = normalizeSize(d?.size);
-      if (s) sizes.add(s);
-
-      const a = ageBucket(d?.age_years);
-      if (a) ages.add(a);
-    });
-
-    const ageOrder = ["puppy", "adult", "senior", "unknown"];
-    const sortedAges = Array.from(ages).sort(
-      (a, b) => ageOrder.indexOf(a) - ageOrder.indexOf(b)
-    );
-
-    return {
-      sizes: ["all", ...Array.from(sizes).sort()],
-      ages: ["all", ...sortedAges],
-    };
-  }, [rankedRows]);
-
   const filteredRows = useMemo(() => {
-    const query = q.trim().toLowerCase();
+    return rankedRows.filter((row) => {
+      const dog = row.dog;
 
-    let out = rankedRows.filter((row) => {
-      const d = row.dog;
-
-      if (matchLevel !== "all") {
-        const lvl = normalizeMatchLevel(row.scorePct);
-        if (lvl !== matchLevel) return false;
+      if (ageFilter !== "all") {
+        const bucket = normalizeAgeBucket(dog?.age_years);
+        if (bucket !== ageFilter) return false;
       }
 
-      if (size !== "all") {
-        const s = normalizeSize(d?.size);
-        if (s !== size) return false;
-      }
+      if (sizeFilter !== "all" && dog?.size !== sizeFilter) return false;
+      if (energyFilter !== "all" && dog?.energy_level !== energyFilter) return false;
 
-      if (age !== "all") {
-        const a = ageBucket(d?.age_years);
-        if (a !== age) return false;
-      }
+      if (hypoOnly && !dog?.hypoallergenic) return false;
+      if (pottyOnly && !dog?.potty_trained) return false;
+      if (kidsOnly && !dog?.good_with_kids) return false;
+      if (catsOnly && !dog?.good_with_cats) return false;
 
-      if (query) {
-        const name = (d?.name ?? "").toString().toLowerCase();
-        const breed = (d?.breed ?? "").toString().toLowerCase();
-        if (!name.includes(query) && !breed.includes(query)) return false;
-      }
+      // If toggled on: exclude only explicit false. Allow true OR null/unknown.
+      if (dogsOnly && dog?.good_with_dogs === false) return false;
 
       return true;
     });
+  }, [
+    rankedRows,
+    ageFilter,
+    sizeFilter,
+    energyFilter,
+    hypoOnly,
+    pottyOnly,
+    kidsOnly,
+    catsOnly,
+    dogsOnly,
+  ]);
 
-    if (sort === "name") {
-      out = [...out].sort((a, b) =>
-        String(a.dog?.name ?? "").localeCompare(String(b.dog?.name ?? ""))
-      );
-    } else if (sort === "age") {
-      out = [...out].sort(
-        (a, b) => Number(a.dog?.age_years ?? 999) - Number(b.dog?.age_years ?? 999)
-      );
-    } else {
-      out = [...out]; // already ranked
-    }
-
-    return out;
-  }, [rankedRows, q, matchLevel, size, age, sort]);
+  function resetFilters() {
+    setAgeFilter("all");
+    setSizeFilter("all");
+    setEnergyFilter("all");
+    setHypoOnly(false);
+    setPottyOnly(false);
+    setKidsOnly(false);
+    setCatsOnly(false);
+    setDogsOnly(false);
+  }
 
   function goRefine() {
     navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}`);
   }
 
   function goDealbreakers() {
-    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}`);
+    navigate(
+      `/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}`
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[#EAF7F0]">
-      <div className="max-w-5xl mx-auto px-4 py-10">
-        <div className="flex items-center justify-between gap-3">
-          <button className="text-sm text-gray-600" onClick={() => navigate("/dogs")}>
-            ← Back to dogs
-          </button>
+    <div className="min-h-screen bg-slate-50 flex flex-col">
+      {/* Match Dogs.jsx header exactly (logo goes home) */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-3" aria-label="Go home">
+            <img src="/logo.png" alt="Hooman Finder" className="h-24 w-24 object-contain" />
+          </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
-              className="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-900"
               onClick={goDealbreakers}
+              className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
             >
-              Edit Deal Breakers
+              Edit deal breakers
             </button>
-            <button className="px-4 py-2 rounded-xl bg-green-700 text-white" onClick={goRefine}>
+
+            <button
+              onClick={goRefine}
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
               Refine matches
             </button>
           </div>
         </div>
+      </header>
 
-        <h1 className="text-3xl font-semibold mt-4">Your matches</h1>
-        <p className="text-gray-600 mt-1">Refine anytime to improve ranking.</p>
+      <main className="mx-auto max-w-6xl px-4 py-10 flex-1">
+        <div className="flex items-start justify-between gap-6 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-extrabold text-slate-900">Your matches</h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Refine anytime to improve ranking.
+            </p>
 
-        {err ? <div className="mt-4 text-sm text-red-600">{err}</div> : null}
+            <div className="mt-2">
+              <Link to="/dogs" className="text-sm font-semibold text-slate-800 hover:underline">
+                ← Back to dogs
+              </Link>
+            </div>
+
+            {err ? <div className="mt-3 text-sm text-red-600">{err}</div> : null}
+          </div>
+
+          <button
+            onClick={resetFilters}
+            className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+          >
+            Reset filters
+          </button>
+        </div>
+
+        {/* Match Dogs.jsx filter card exactly */}
+        <div className="mt-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="text-sm font-semibold text-slate-800">
+              Age
+              <select
+                value={ageFilter}
+                onChange={(e) => setAgeFilter(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+                {AGE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm font-semibold text-slate-800">
+              Size
+              <select
+                value={sizeFilter}
+                onChange={(e) => setSizeFilter(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+                {SIZE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm font-semibold text-slate-800">
+              Energy
+              <select
+                value={energyFilter}
+                onChange={(e) => setEnergyFilter(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+                {ENERGY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={hypoOnly} onChange={(e) => setHypoOnly(e.target.checked)} />
+              Hypoallergenic only
+            </label>
+
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={pottyOnly} onChange={(e) => setPottyOnly(e.target.checked)} />
+              Potty trained only
+            </label>
+
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={kidsOnly} onChange={(e) => setKidsOnly(e.target.checked)} />
+              Good with kids
+            </label>
+
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={catsOnly} onChange={(e) => setCatsOnly(e.target.checked)} />
+              Good with cats
+            </label>
+
+            <label className="inline-flex items-center gap-2">
+              <input type="checkbox" checked={dogsOnly} onChange={(e) => setDogsOnly(e.target.checked)} />
+              Good with other dogs
+            </label>
+          </div>
+
+          <div className="mt-3 text-sm text-slate-600">
+            Showing {filteredRows.length} of {rankedRows.length || 0}
+          </div>
+        </div>
 
         {loading ? (
-          <div className="mt-8 text-gray-600">Loading…</div>
+          <div className="mt-8 text-slate-600">Loading…</div>
+        ) : filteredRows.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 text-slate-700 shadow-sm">
+            No dogs match your current filters.
+          </div>
         ) : (
-          <>
-            {/* Standard filters box (keep for consistency) */}
-            <div className="mt-6 bg-white rounded-2xl border border-gray-200 p-4">
-              <div className="flex flex-wrap gap-3 items-center">
-                <input
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  placeholder="Search dogs…"
-                  className="flex-1 min-w-[220px] px-4 py-2 rounded-xl border border-gray-300"
-                />
-
-                <select
-                  value={matchLevel}
-                  onChange={(e) => setMatchLevel(e.target.value)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
-                >
-                  <option value="all">All match levels</option>
-                  <option value="strong">Strong match</option>
-                  <option value="good">Good match</option>
-                  <option value="potential">Potential match</option>
-                </select>
-
-                <select
-                  value={size}
-                  onChange={(e) => setSize(e.target.value)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
-                >
-                  {filterOptions.sizes.map((s) => (
-                    <option key={s} value={s}>
-                      {s === "all" ? "All sizes" : s}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={age}
-                  onChange={(e) => setAge(e.target.value)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
-                >
-                  {filterOptions.ages.map((a) => (
-                    <option key={a} value={a}>
-                      {a === "all"
-                        ? "All ages"
-                        : a === "puppy"
-                        ? "Puppy (0–1)"
-                        : a === "adult"
-                        ? "Adult (2–6)"
-                        : a === "senior"
-                        ? "Senior (7+)"
-                        : "Unknown"}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 bg-white"
-                >
-                  <option value="ranked">Sort: Ranked</option>
-                  <option value="name">Sort: Name</option>
-                  <option value="age">Sort: Age</option>
-                </select>
-              </div>
-
-              <div className="mt-2 text-sm text-gray-600">
-                Showing {filteredRows.length} of {rankedRows.length}
-              </div>
-            </div>
-
-            {/* Cards (old ranked-matches look + hover why matched + click to profile) */}
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredRows.map((row, idx) => (
-                <DogCard
-                  key={row.dog?.id ?? idx}
-                  dog={row.dog}
-                  showMatch
-                  scorePct={row.scorePct}
-                  breakdown={row.breakdown}
-                  sessionId={sessionId}
-                />
-              ))}
-            </div>
-          </>
+          <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRows.map((row, idx) => (
+              <DogCard
+                key={row.dog?.id ?? idx}
+                dog={row.dog}
+                showMatch
+                scorePct={row.scorePct}
+                breakdown={row.breakdown}
+                sessionId={sessionId}
+              />
+            ))}
+          </div>
         )}
-      </div>
+      </main>
+
+      <SiteFooter />
     </div>
   );
 }

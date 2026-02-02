@@ -48,8 +48,9 @@ function matchTier(scorePct) {
 }
 
 /**
- * ✅ CHANGE: Use a stable, human-friendly list of "reasons"
- * - DO NOT show internal keys like "scorePct"
+ * ✅ CHANGE:
+ * Stable, human-friendly list of "reasons"
+ * - DO NOT show internal keys like "ScorePct", "scorePct", "activePct", etc.
  * - Prefer breakdown keys -> pretty labels
  * - If breakdown is missing/useless, fall back to dog fields
  * - If still nothing, fall back to "overall fit"
@@ -64,6 +65,7 @@ function buildTopReasons({ dog, breakdown }) {
     kids: "kids compatibility",
     cats: "cats compatibility",
     pets: "pets compatibility",
+    dogs: "dogs compatibility",
     firstTime: "first-time owner friendly",
     allergy: "allergies / hypoallergenic",
     shedding: "shedding",
@@ -79,11 +81,27 @@ function buildTopReasons({ dog, breakdown }) {
     behavior: "behavior tolerance",
   };
 
+  // Keys that should never show up as "reasons"
+  const EXCLUDE = new Set([
+    "ScorePct",
+    "scorePct",
+    "activePct",
+    "matchPct",
+    "score",
+    "total",
+    "totalScore",
+    "points",
+    "weighted",
+    "weightedScore",
+  ]);
+
+  const isPlainObject = (v) => v && typeof v === "object" && !Array.isArray(v);
+
   // 1) Prefer breakdown if it looks like: { key: points, ... }
-  if (breakdown && typeof breakdown === "object" && !Array.isArray(breakdown)) {
+  if (isPlainObject(breakdown)) {
     const top = Object.entries(breakdown)
       .map(([k, v]) => [k, Number(v)])
-      .filter(([, v]) => Number.isFinite(v) && v > 0)
+      .filter(([k, v]) => !EXCLUDE.has(k) && Number.isFinite(v) && v > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3)
       .map(([k]) => pretty[k] || k);
@@ -97,10 +115,12 @@ function buildTopReasons({ dog, breakdown }) {
   if (dog?.size) reasons.push("size");
   if (dog?.energy_level) reasons.push("energy level");
   if (dog?.age_years !== null && dog?.age_years !== undefined) reasons.push("age");
-  if (dog?.good_with_kids !== null && dog?.good_with_kids !== undefined) reasons.push("kids");
-  if (dog?.good_with_dogs !== null && dog?.good_with_dogs !== undefined) reasons.push("dogs");
-  if (dog?.good_with_cats !== null && dog?.good_with_cats !== undefined) reasons.push("cats");
-  if (dog?.potty_trained !== null && dog?.potty_trained !== undefined) reasons.push("potty training");
+
+  if (dog?.good_with_kids === true) reasons.push("good with kids");
+  if (dog?.good_with_dogs === true) reasons.push("good with other dogs");
+  if (dog?.good_with_cats === true) reasons.push("good with cats");
+  if (dog?.potty_trained === true) reasons.push("potty trained");
+  if (dog?.hypoallergenic === true) reasons.push("hypoallergenic");
 
   if (reasons.length) return reasons.slice(0, 3);
 
