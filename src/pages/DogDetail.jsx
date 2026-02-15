@@ -1,574 +1,226 @@
 // src/pages/DogDetail.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
-import { rankDogs } from "../lib/matchingLogic";
-import { formatAge } from "../utils/formatAge";
 
-const SAVED_KEY = "hooman_saved_dog_ids_v1";
+// Simple inline fallback (no new image file required)
+const FALLBACK_IMG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(`
+  <svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">
+    <rect width="100%" height="100%" fill="#F1F5F9"/>
+    <circle cx="210" cy="200" r="60" fill="#CBD5E1"/>
+    <circle cx="390" cy="200" r="60" fill="#CBD5E1"/>
+    <rect x="250" y="220" width="100" height="80" rx="28" fill="#CBD5E1"/>
+    <text x="50%" y="70%" text-anchor="middle" font-family="Arial" font-size="20" fill="#475569">
+      Photo unavailable
+    </text>
+  </svg>
+`);
 
-function getParam(search, key) {
-  const params = new URLSearchParams(search);
-  return params.get(key);
+function normalizeImageUrl(raw) {
+  if (!raw || typeof raw !== "string") return "";
+
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+
+  // If it's protocol-relative (//example.com/img.jpg)
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+
+  // If it's http, try to upgrade to https (prevents mixed-content issues)
+  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
+
+  // If it's already https or a data uri
+  if (trimmed.startsWith("https://") || trimmed.startsWith("data:")) return trimmed;
+
+  // If it's a local/public path like "/dogs/nala.jpg"
+  if (trimmed.startsWith("/")) return trimmed;
+
+  // If it's something like "dogs/nala.jpg" assume public
+  return `/${trimmed}`;
 }
 
-function readSavedIds() {
-  try {
-    const raw = localStorage.getItem(SAVED_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
-}
+function pickDogImage(dog) {
+  if (!dog) return "";
 
-function writeSavedIds(ids) {
-  try {
-    localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
-  } catch {
-    // ignore
-  }
-}
-
-function boolLabel(v) {
-  if (v === true) return "Yes";
-  if (v === false) return "No";
-  return "Unknown";
-}
-
-function textOrUnknown(v) {
-  const s = String(v ?? "").trim();
-  return s ? s : "Unknown";
-}
-
-function chipClass(tone) {
-  const base =
-    "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold border";
-  switch (tone) {
-    case "blue":
-      return `${base} bg-blue-50 text-blue-700 border-blue-200`;
-    case "green":
-      return `${base} bg-emerald-50 text-emerald-700 border-emerald-200`;
-    case "amber":
-      return `${base} bg-amber-50 text-amber-800 border-amber-200`;
-    case "purple":
-      return `${base} bg-violet-50 text-violet-700 border-violet-200`;
-    case "pink":
-      return `${base} bg-pink-50 text-pink-700 border-pink-200`;
-    case "teal":
-      return `${base} bg-teal-50 text-teal-700 border-teal-200`;
-    case "slate":
-    default:
-      return `${base} bg-slate-50 text-slate-700 border-slate-200`;
-  }
-}
-
-function traitRow(label, value, tone = "slate") {
-  return (
-    <div className="flex items-start justify-between gap-3 py-2">
-      <div className="text-sm font-semibold text-slate-800">{label}</div>
-      <div className={chipClass(tone)}>{value}</div>
-    </div>
-  );
-}
-
-// Mirrors weights in matchingLogic.js (used only for display labels)
-const MATCH_MAX = Object.freeze({
-  play: 25,
-  energy: 10,
-  size: 15,
-  age: 10,
-  potty: 15,
-  kids: 10,
-  cats: 10,
-  firstTime: 5,
-  allergy: 10,
-  shedding: 10,
-  pets: 10,
-  noise: 5,
-  alone: 5,
-});
-
-function statusForPoints(points, maxPoints) {
-  const p = Number(points);
-  const m = Number(maxPoints);
-
-  if (!Number.isFinite(p) || !Number.isFinite(m) || m <= 0) {
-    return { label: "Match", tone: "slate" };
-  }
-
-  if (p >= m) return { label: "Matched", tone: "teal" };
-  if (p >= m * 0.6) return { label: "Close match", tone: "purple" };
-  if (p > 0) return { label: "Some match", tone: "slate" };
-  return { label: "Not a match", tone: "slate" };
-}
-
-function topMatchRows(breakdown) {
-  if (!breakdown || typeof breakdown !== "object") return [];
-
-  const map = [
-    { key: "play", label: "Play style" },
-    { key: "energy", label: "Energy" },
-    { key: "size", label: "Size" },
-    { key: "age", label: "Age" },
-    { key: "potty", label: "Potty training" },
-    { key: "kids", label: "Kids" },
-    { key: "cats", label: "Cats" },
-    { key: "pets", label: "Other pets" },
-    { key: "allergy", label: "Allergies" },
-    { key: "shedding", label: "Shedding" },
-    { key: "noise", label: "Noise" },
-    { key: "alone", label: "Alone time" },
-    { key: "firstTime", label: "First-time owner" },
+  // Try common field names first
+  const candidates = [
+    dog.photo_url,
+    dog.image_url,
+    dog.photo,
+    dog.image,
+    dog.primary_photo_url,
+    dog.profile_photo_url,
+    dog.img,
+    dog.picture,
   ];
 
-  return map
-    .map((m) => {
-      const pts = Number(breakdown[m.key] ?? 0);
-      const maxPts = Number(MATCH_MAX[m.key] ?? 0);
-      const safePts = Number.isFinite(pts) ? pts : 0;
-      const safeMax = Number.isFinite(maxPts) ? maxPts : 0;
+  // If you store an array of photos
+  if (Array.isArray(dog.photos) && dog.photos.length) candidates.unshift(dog.photos[0]);
+  if (Array.isArray(dog.images) && dog.images.length) candidates.unshift(dog.images[0]);
 
-      const status = statusForPoints(safePts, safeMax);
+  // If you store JSON like { photos: [{url: "..."}] }
+  if (Array.isArray(dog.photos) && dog.photos[0] && typeof dog.photos[0] === "object") {
+    candidates.unshift(dog.photos[0].url, dog.photos[0].src);
+  }
+  if (Array.isArray(dog.images) && dog.images[0] && typeof dog.images[0] === "object") {
+    candidates.unshift(dog.images[0].url, dog.images[0].src);
+  }
 
-      return {
-        key: m.key,
-        traitLabel: m.label,
-        statusLabel: status.label,
-        tone: status.tone,
-        points: safePts,
-      };
-    })
-    .filter((x) => x.points > 0)
-    .sort((a, b) => b.points - a.points)
-    .slice(0, 6);
+  // First usable URL wins
+  for (const c of candidates) {
+    const url = normalizeImageUrl(c);
+    if (url) return url;
+  }
+
+  return "";
 }
 
 export default function DogDetail() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const { id } = useParams();
 
-  const sessionId = useMemo(
-    () => getParam(location.search, "session"),
-    [location.search]
-  );
-
-  const [loading, setLoading] = useState(true);
   const [dog, setDog] = useState(null);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
-  const [savedIds, setSavedIds] = useState(() => readSavedIds());
-  const isSaved = useMemo(() => savedIds.includes(String(id)), [savedIds, id]);
-
-  const [matchInfo, setMatchInfo] = useState(() => {
-    const st = location.state;
-    if (st?.fromQuiz && st?.match) return st.match; // { scorePct, breakdown }
-    return null;
-  });
-  const [matchLoading, setMatchLoading] = useState(false);
+  // Image state so we can swap to fallback on error
+  const [imgSrc, setImgSrc] = useState(FALLBACK_IMG);
 
   useEffect(() => {
-    let cancelled = false;
+    let isMounted = true;
 
-    async function loadDog() {
+    async function fetchDog() {
       setLoading(true);
-      setError("");
+      setLoadError("");
 
       try {
-        const { data, error: e } = await supabase
+        // Adjust table name/columns if yours differ
+        const { data, error } = await supabase
           .from("dogs")
-          .select(
-            "*, shelters ( id, name, city, state, apply_url, website, contact_email, logo_url )"
-          )
+          .select("*")
           .eq("id", id)
-          .maybeSingle();
+          .single();
 
-        if (e) throw e;
-        if (!cancelled) setDog(data || null);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e?.message || "Could notthat? Could not load dog.");
-          setDog(null);
-        }
+        if (error) throw error;
+
+        if (!isMounted) return;
+        setDog(data || null);
+      } catch (err) {
+        if (!isMounted) return;
+        setLoadError(err?.message || "Failed to load dog.");
+        setDog(null);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!isMounted) return;
+        setLoading(false);
       }
     }
 
-    if (id) loadDog();
+    fetchDog();
     return () => {
-      cancelled = true;
+      isMounted = false;
     };
   }, [id]);
 
+  const resolvedImage = useMemo(() => pickDogImage(dog), [dog]);
+
+  // Whenever the dog changes, set image to resolved or fallback
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadMatch() {
-      if (!sessionId) return;
-      if (!dog) return;
-      if (matchInfo) return;
-
-      setMatchLoading(true);
-      try {
-        const quizRes = await supabase
-          .from("quiz_responses")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (quizRes.error) throw quizRes.error;
-        const quizRow = quizRes.data || null;
-        if (!quizRow) return;
-
-        const ranked = rankDogs([dog], quizRow);
-        const first = ranked?.[0] || null;
-
-        if (!cancelled && first) {
-          setMatchInfo({
-            scorePct: first.scorePct ?? null,
-            breakdown: first.breakdown ?? null,
-          });
-        }
-      } catch {
-        // ignore
-      } finally {
-        if (!cancelled) setMatchLoading(false);
-      }
-    }
-
-    loadMatch();
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionId, dog, matchInfo]);
-
-  function toggleSaved() {
-    const sid = String(id);
-    const next = isSaved ? savedIds.filter((x) => x !== sid) : [...savedIds, sid];
-    setSavedIds(next);
-    writeSavedIds(next);
-  }
-
-  const shelter = dog?.shelters || null;
-  const applyUrl =
-    shelter?.apply_url || dog?.apply_url || dog?.application_url || "";
-
-  const heroImg =
-    dog?.photo_url ||
-    dog?.image_url ||
-    (Array.isArray(dog?.photos) && dog.photos[0]) ||
-    "";
-
-  const aboutText = useMemo(() => {
-    const s = String(dog?.description ?? "").trim();
-    return s ? s : "";
-  }, [dog?.description]);
-
-  const traits = useMemo(() => {
-    if (!dog) return [];
-
-    const playStyles = Array.isArray(dog.play_styles)
-      ? dog.play_styles
-      : dog.play_styles
-      ? [dog.play_styles]
-      : [];
-
-    const aloneTime =
-      dog?.alone_time ??
-      dog?.alone_time_hours ??
-      dog?.max_alone_hours ??
-      dog?.max_alone_time ??
-      null;
-
-    const yardRequired =
-      typeof dog?.yard_required === "boolean"
-        ? dog.yard_required
-        : typeof dog?.yard === "boolean"
-        ? dog.yard
-        : null;
-
-    return [
-      // ✅ Age now uses formatAge (months if < 1 year)
-      { label: "Age", value: formatAge(dog.age_years), tone: "blue" },
-      { label: "Size", value: textOrUnknown(dog.size), tone: "purple" },
-      { label: "Energy level", value: textOrUnknown(dog.energy_level), tone: "pink" },
-
-      { label: "Hypoallergenic", value: boolLabel(dog.hypoallergenic), tone: "green" },
-      { label: "Potty trained", value: boolLabel(dog.potty_trained), tone: "green" },
-
-      { label: "Good with kids", value: boolLabel(dog.good_with_kids), tone: "amber" },
-      { label: "Good with cats", value: boolLabel(dog.good_with_cats), tone: "amber" },
-      { label: "Good with other dogs", value: boolLabel(dog.good_with_dogs), tone: "amber" },
-
-      { label: "Shedding", value: textOrUnknown(dog.shedding_level), tone: "slate" },
-      { label: "Grooming", value: textOrUnknown(dog.grooming_level), tone: "slate" },
-
-      {
-        label: "Play style",
-        value: playStyles.length ? playStyles.join(", ") : "Unknown",
-        tone: "blue",
-      },
-
-      // Your schema has barking_level (not noise_level)
-      { label: "Noise level", value: textOrUnknown(dog.barking_level), tone: "purple" },
-
-      {
-        label: "Alone time",
-        value:
-          Number.isFinite(Number(aloneTime)) && Number(aloneTime) >= 0
-            ? `${Number(aloneTime)} hrs`
-            : textOrUnknown(aloneTime),
-        tone: "purple",
-      },
-
-      { label: "Yard needed", value: boolLabel(yardRequired), tone: "pink" },
-    ];
-  }, [dog]);
-
-  const showHowMatched = !!sessionId && (matchLoading || !!matchInfo);
-
-  const scoreLabel =
-    matchInfo && Number.isFinite(Number(matchInfo.scorePct))
-      ? `${Math.round(matchInfo.scorePct)}% match`
-      : null;
-
-  const topRows = useMemo(
-    () => topMatchRows(matchInfo?.breakdown),
-    [matchInfo?.breakdown]
-  );
+    setImgSrc(resolvedImage || FALLBACK_IMG);
+  }, [resolvedImage]);
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-6 py-10 text-slate-600">Loading…</div>
-      </div>
-    );
-  }
-
-  if (error || !dog) {
-    return (
-      <div className="min-h-screen bg-slate-50">
-        {/* Keep header even on error so nobody gets “stuck” */}
-        <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
-          <div className="mx-auto max-w-6xl px-4 py-4 grid grid-cols-3 items-center">
-            <div>
-              <button
-                onClick={() => navigate(-1)}
-                className="text-sm text-slate-600 hover:text-slate-900"
-              >
-                ← Back
-              </button>
-            </div>
-
-            <div className="flex justify-center">
-              <button onClick={() => navigate("/")} aria-label="Go home">
-                <img src="/logo.png" alt="Hooman Finder" className="h-14 w-auto" />
-              </button>
-            </div>
-
-            <div className="flex justify-end">
-              <Link to="/saved" className="text-sm text-slate-600 hover:text-slate-900">
-                Saved
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
-            {error || "Dog not found."}
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <div className="h-6 w-40 rounded bg-slate-200 animate-pulse" />
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="h-80 rounded-2xl bg-slate-200 animate-pulse" />
+            <div className="h-80 rounded-2xl bg-slate-200 animate-pulse" />
           </div>
         </div>
       </div>
     );
   }
+
+  if (loadError || !dog) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            ← Back to dogs
+          </Link>
+          <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
+            <h1 className="text-xl font-extrabold text-slate-900">Dog not found</h1>
+            <p className="mt-2 text-slate-600">{loadError || "This dog may have been removed."}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const name = dog.name || "Unnamed dog";
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* ONE header only */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-4 py-4 grid grid-cols-3 items-center">
-          <div>
-            <button
-              onClick={() => navigate(-1)}
-              className="text-sm text-slate-600 hover:text-slate-900"
-            >
-              ← Back
-            </button>
-          </div>
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        <div className="flex items-center justify-between">
+          <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            ← Back
+          </Link>
 
-          <div className="flex justify-center">
-            <button onClick={() => navigate("/")} aria-label="Go home">
-              <img src="/logo.png" alt="Hooman Finder" className="h-14 w-auto" />
-            </button>
-          </div>
-
-          <div className="flex justify-end">
-            <Link to="/saved" className="text-sm text-slate-600 hover:text-slate-900">
-              Saved
-            </Link>
-          </div>
+          <Link to="/saved" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            Saved
+          </Link>
         </div>
-      </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-          {/* LEFT column */}
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* LEFT: PHOTO + ABOUT */}
           <div className="space-y-6">
-            {/* Photo card */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              <div className="relative">
-                {heroImg ? (
-                  <img
-                    src={heroImg}
-                    alt={dog.name || "Dog"}
-                    className="block w-full h-auto"
-                  />
-                ) : (
-                  <div className="w-full bg-slate-100 flex items-center justify-center py-24 text-slate-500">
-                    No photo
-                  </div>
-                )}
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              {/* Use aspect ratio so it behaves on mobile and never “collapses” */}
+              <div className="relative w-full aspect-[4/3] bg-slate-100">
+                <img
+                  src={imgSrc}
+                  alt={name}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  loading="eager"
+                  onError={() => setImgSrc(FALLBACK_IMG)}
+                />
+              </div>
 
-                <button
-                  onClick={toggleSaved}
-                  className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-200 shadow-sm hover:bg-white"
-                >
-                  <span aria-hidden="true">{isSaved ? "♥" : "♡"}</span>
-                  {isSaved ? "Saved" : "Save"}
-                </button>
+              {/* Name row (optional) */}
+              <div className="px-5 py-4 border-t border-slate-200">
+                <div className="text-lg font-extrabold text-slate-900">{name}</div>
+                <div className="mt-1 text-sm text-slate-600">
+                  {(dog.breed || "Unknown")} • {(dog.age || "Unknown")} • {(dog.size || "Unknown")}
+                </div>
               </div>
             </div>
 
-            {/* About */}
-            {aboutText ? (
-              <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
-                <div className="text-sm font-extrabold text-slate-900">About</div>
-                <p className="mt-2 text-sm text-slate-700 leading-relaxed">{aboutText}</p>
-              </div>
-            ) : null}
-
-            {/* Things to know */}
-            <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <summary className="cursor-pointer list-none px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center rounded-full bg-slate-900 text-white px-3 py-1 text-xs font-extrabold">
-                    Things to know
-                  </span>
-                  <span className="text-sm text-slate-600">Tap to expand</span>
-                </div>
-
-                <span className="text-slate-500 group-open:rotate-180 transition-transform">
-                  ▼
-                </span>
-              </summary>
-
-              <div className="px-6 pb-6">
-                <div className="space-y-3">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      Shelter behavior can look different at home
-                    </div>
-                    <p className="mt-1 text-sm text-slate-700">
-                      Stress, noise, and routine changes can affect how a dog acts in a shelter
-                      versus a home.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      Traits aren’t guaranteed
-                    </div>
-                    <p className="mt-1 text-sm text-slate-700">
-                      These details are based on what the shelter knows today — dogs keep learning
-                      and adjusting.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      Accidents can happen in new spaces
-                    </div>
-                    <p className="mt-1 text-sm text-slate-700">
-                      Even potty-trained dogs may have accidents during the first days in a new
-                      home.
-                    </p>
-                  </div>
-
-                  <div className="text-sm text-slate-500 pt-2">
-                    Tip: Meeting the dog (and asking the shelter about routines) is always the best
-                    next step.
-                  </div>
-                </div>
-              </div>
-            </details>
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
+              <div className="text-sm font-extrabold text-slate-900">About</div>
+              <p className="mt-2 text-sm text-slate-700 leading-relaxed">
+                {dog.about || dog.description || "No description provided yet."}
+              </p>
+            </div>
           </div>
 
-          {/* RIGHT column */}
+          {/* RIGHT: DETAILS */}
           <div className="space-y-6">
-            {/* Top info card */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
-              <h1 className="text-3xl font-extrabold text-slate-900">
-                {textOrUnknown(dog.name)}
-              </h1>
-
-              {/* ✅ Age here also uses formatAge */}
-              <div className="mt-2 text-slate-600">
-                {textOrUnknown(dog.breed)} • {formatAge(dog.age_years)} •{" "}
-                {textOrUnknown(dog.size)} • {textOrUnknown(dog.energy_level)}
-              </div>
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
+              <h1 className="text-3xl font-extrabold text-slate-900">{name}</h1>
+              <p className="mt-2 text-slate-600">
+                {(dog.breed || "Unknown")} • {(dog.age || "Unknown")} • {(dog.size || "Unknown")} •{" "}
+                {(dog.energy || "Unknown")}
+              </p>
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-sm font-extrabold text-slate-900">
-                  Hooman Finder’s role
-                </div>
-                <p className="mt-1 text-sm text-slate-700">
-                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t process
-                  adoptions — when you’re ready, you’ll apply directly with the shelter or rescue.
+                <div className="text-sm font-extrabold text-slate-900">Hooman Finder’s role</div>
+                <p className="mt-2 text-sm text-slate-700">
+                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t process adoptions —
+                  when you’re ready, you’ll apply directly with the shelter or rescue.
                 </p>
               </div>
-
-              {showHowMatched && (
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-extrabold text-slate-900">
-                      How you matched
-                    </div>
-
-                    {matchLoading ? (
-                      <span className={chipClass("slate")}>Loading…</span>
-                    ) : scoreLabel ? (
-                      <span className={chipClass("teal")}>{scoreLabel}</span>
-                    ) : (
-                      <span className={chipClass("slate")}>Match info unavailable</span>
-                    )}
-                  </div>
-
-                  {topRows.length > 0 ? (
-                    <div className="mt-3 divide-y divide-slate-100">
-                      {topRows.map((row) => (
-                        <div
-                          key={row.key}
-                          className="flex items-center justify-between py-2"
-                        >
-                          <div className="text-sm font-semibold text-slate-800">
-                            {row.traitLabel}
-                          </div>
-                          <span className={chipClass(row.tone)}>{row.statusLabel}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-sm text-slate-600">
-                      We’ll show more detail as shelters provide more trait info.
-                    </div>
-                  )}
-                </div>
-              )}
 
               <div className="mt-5">
                 <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
@@ -576,82 +228,67 @@ export default function DogDetail() {
                   You’ll be redirected to the shelter’s official application page.
                 </p>
 
-                <button
-                  onClick={() => {
-                    if (!applyUrl) return;
-                    window.open(applyUrl, "_blank", "noopener,noreferrer");
+                <a
+                  href={normalizeImageUrl(dog.apply_url) || dog.apply_url || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                  onClick={(e) => {
+                    const url = dog.apply_url;
+                    if (!url) e.preventDefault();
                   }}
-                  disabled={!applyUrl}
-                  className={`mt-3 w-full rounded-full px-6 py-3 text-sm font-semibold text-white ${
-                    applyUrl
-                      ? "bg-slate-900 hover:bg-slate-800"
-                      : "bg-slate-300 cursor-not-allowed"
-                  }`}
                 >
                   Apply on shelter site
-                </button>
+                </a>
               </div>
 
-              <div className="mt-6 pt-5 border-t border-slate-200">
+              <div className="mt-6 border-t border-slate-200 pt-5">
                 <div className="text-sm font-extrabold text-slate-900">Listed by</div>
-
                 <div className="mt-3 flex items-center gap-3">
-                  {shelter?.logo_url ? (
-                    <img
-                      src={shelter.logo_url}
-                      alt={shelter?.name || "Shelter"}
-                      className="h-10 w-10 rounded-full object-cover border border-slate-200"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200" />
-                  )}
-
-                  <div className="min-w-0">
-                    <div className="font-semibold text-slate-900 truncate">
-                      {textOrUnknown(shelter?.name)}
+                  <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200" />
+                  <div>
+                    <div className="font-semibold text-slate-900">
+                      {dog.shelter_name || "Shelter/Rescue"}
                     </div>
-                    <div className="text-sm text-slate-600">
-                      {[shelter?.city, shelter?.state].filter(Boolean).join(", ") || "Unknown"}
-                    </div>
+                    <div className="text-sm text-slate-600">{dog.location || "Location unknown"}</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Traits card */}
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6">
+            {/* Traits / any extras */}
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-extrabold text-slate-900">Traits</h2>
-                <span className="text-xs text-slate-500">
-                  Unknown means the shelter hasn’t provided it yet.
-                </span>
+                <div className="text-lg font-extrabold text-slate-900">Traits</div>
+                <div className="text-xs text-slate-500">Unknown means the shelter hasn’t provided it yet.</div>
               </div>
 
-              <div className="mt-4 divide-y divide-slate-100">
-                {traits.map((t) => (
-                  <div key={t.label}>{traitRow(t.label, t.value, t.tone)}</div>
-                ))}
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <Trait label="Age" value={dog.age} />
+                <Trait label="Size" value={dog.size} />
+                <Trait label="Energy" value={dog.energy} />
+                <Trait label="Good with dogs" value={dog.good_with_dogs} />
+                <Trait label="Good with cats" value={dog.good_with_cats} />
+                <Trait label="Good with kids" value={dog.good_with_kids} />
               </div>
-            </div>
-
-            {/* Bottom actions */}
-            <div className="flex items-center gap-4">
-              <Link
-                to="/saved"
-                className="flex-1 inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
-              >
-                View saved dogs
-              </Link>
-              <Link
-                to="/quiz"
-                className="flex-1 inline-flex items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-              >
-                Retake quiz
-              </Link>
             </div>
           </div>
         </div>
-      </main>
+      </div>
+    </div>
+  );
+}
+
+function Trait({ label, value }) {
+  const v =
+    value === true ? "Yes" : value === false ? "No" : value === null || value === undefined || value === ""
+      ? "Unknown"
+      : String(value);
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <div className="text-xs font-semibold text-slate-500">{label}</div>
+      <div className="mt-1 text-sm font-extrabold text-slate-900">{v}</div>
     </div>
   );
 }
