@@ -1,1 +1,29 @@
 @import "tailwindcss";
+
+/* --- Global sanity for mobile --- */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden; /* prevents any accidental horizontal scroll */
+}
+
+body {
+  margin: 0;
+}
+
+/* Make media not overflow their containers */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Optional: nicer tap behavior */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
