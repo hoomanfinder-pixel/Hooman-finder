@@ -42,14 +42,14 @@ export default function Contact() {
 
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <a
-              href="mailto:hoomanfinder@gmail.com"
+              href="mailto:info@hoomanfinder.com"
               className="text-lg font-bold text-slate-900 underline-offset-4 hover:underline"
             >
-              hoomanfinder@gmail.com
+              info@hoomanfinder.com
             </a>
 
             <button
-              onClick={() => navigator.clipboard?.writeText("hoomanfinder@gmail.com")}
+              onClick={() => navigator.clipboard?.writeText("info@hoomanfinder.com")}
               className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
             >
               Copy email

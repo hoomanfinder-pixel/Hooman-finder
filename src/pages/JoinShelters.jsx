@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const CONTACT_EMAIL = "hoomanfinder@gmail.com";
+const CONTACT_EMAIL = "info@hoomanfinder.com";
 
 function Card({ title, id, children }) {
   return (
