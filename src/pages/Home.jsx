@@ -8,64 +8,65 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Top bar (mobile-first, desktop-safe) */}
-      <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          {/* Logo (hard-capped so it can’t blow up) */}
+      {/* Top bar */}
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
+          {/* Logo */}
           <Link
             to="/"
-            className="flex items-center shrink-0"
+            className="flex items-center gap-3 flex-shrink-0"
             aria-label="Go home"
           >
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="block object-contain h-12 max-h-12 w-auto md:h-16 md:max-h-16 lg:h-20 lg:max-h-20"
+              className="h-10 w-auto sm:h-12 md:h-14 object-contain"
             />
           </Link>
 
-          {/* Actions */}
-          <nav className="flex items-center gap-2 sm:gap-3">
-            {/* Hide About on mobile to reduce clutter */}
+          {/* Nav buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Hide About on tiny screens to prevent header squeeze */}
             <Link
               to="/about"
-              className="hidden md:inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+              className="hidden sm:inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
             >
               About
             </Link>
 
             <Link
               to="/saved"
-              className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center justify-center rounded-full bg-white px-4 sm:px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50 whitespace-nowrap"
             >
               Saved
             </Link>
 
-            <Link
-              to="/quiz"
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            <button
+              type="button"
+              onClick={() => navigate("/quiz")}
+              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-4 sm:px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
             >
               Take the quiz
-            </Link>
-          </nav>
+            </button>
+          </div>
         </div>
       </header>
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 py-8 md:py-10">
+        <section className="mx-auto max-w-6xl px-4 py-10">
           <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             {/* Background image */}
             <div className="absolute inset-0">
               <img
                 src="/hero-dog.jpg"
                 alt=""
-                className="h-full w-full object-cover opacity-30"
+                className="h-full w-full object-cover object-center opacity-30"
               />
               <div className="absolute inset-0 bg-white/30" />
             </div>
 
-            <div className="relative px-5 py-10 md:px-12 md:py-16 text-center">
+            <div className="relative px-6 py-12 sm:py-14 md:px-12 md:py-16 text-center">
               {/* Demo pill */}
               <div className="mb-4 flex justify-center">
                 <span className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-800 backdrop-blur">
@@ -83,7 +84,7 @@ export default function Home() {
                 adopt with confidence (not endless scrolling).
               </p>
 
-              <div className="mt-7 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <div className="mt-7 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
                 <button
                   onClick={() => navigate("/quiz")}
                   className="w-full sm:w-auto inline-flex items-center justify-center rounded-full bg-slate-900 px-7 py-3 text-sm font-semibold text-white hover:bg-slate-800"
@@ -107,37 +108,29 @@ export default function Home() {
               </div>
 
               <p className="mt-4 text-xs text-slate-600">
-                This is an early demo — dogs shown may be sample/test profiles
-                while we onboard shelters.
+                This is an early demo — dogs shown may be sample/test profiles while we onboard shelters.
               </p>
             </div>
           </div>
 
           {/* 3 feature cards */}
           <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-extrabold text-slate-900">
-                Quick quiz
-              </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm text-left">
+              <div className="text-sm font-extrabold text-slate-900">Quick quiz</div>
               <p className="mt-2 text-sm text-slate-600">
-                Answer a few questions about your lifestyle, home, and
-                preferences.
+                Answer a few questions about your lifestyle, home, and preferences.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-extrabold text-slate-900">
-                Ranked matches
-              </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm text-left">
+              <div className="text-sm font-extrabold text-slate-900">Ranked matches</div>
               <p className="mt-2 text-sm text-slate-600">
                 Get a ranked list with match % so you know who fits best.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-sm font-extrabold text-slate-900">
-                Apply to shelters
-              </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm text-left">
+              <div className="text-sm font-extrabold text-slate-900">Apply to shelters</div>
               <p className="mt-2 text-sm text-slate-600">
                 When you’re ready, apply directly through the shelter.
               </p>
