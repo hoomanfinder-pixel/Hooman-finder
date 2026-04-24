@@ -34,6 +34,21 @@ function normalizeAgeBucket(ageYears) {
   return "senior";
 }
 
+function urgencyRank(level) {
+  switch (level) {
+    case "Critical":
+      return 1;
+    case "High":
+      return 2;
+    case "Standard":
+      return 3;
+    case "Adopted":
+      return 4;
+    default:
+      return 5;
+  }
+}
+
 export default function Dogs() {
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
@@ -56,7 +71,17 @@ export default function Dogs() {
 
       const { data, error } = await supabase
         .from("dogs")
-        .select("*")
+        .select(`
+          *,
+          shelters (
+            name,
+            website,
+            apply_url,
+            logo_url,
+            city,
+            state
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (!mounted) return;
@@ -79,25 +104,32 @@ export default function Dogs() {
   }, []);
 
   const filteredDogs = useMemo(() => {
-    return dogs.filter((dog) => {
-      if (ageFilter !== "all") {
-        const bucket = normalizeAgeBucket(dog.age_years);
-        if (bucket !== ageFilter) return false;
-      }
+    return dogs
+      .filter((dog) => {
+        if (dog.urgency_level === "Adopted") return false;
 
-      if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
-      if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
+        if (ageFilter !== "all") {
+          const bucket = normalizeAgeBucket(dog.age_years);
+          if (bucket !== ageFilter) return false;
+        }
 
-      if (hypoOnly && !dog.hypoallergenic) return false;
-      if (pottyOnly && !dog.potty_trained) return false;
-      if (kidsOnly && !dog.good_with_kids) return false;
-      if (catsOnly && !dog.good_with_cats) return false;
+        if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
+        if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
 
-      // If toggled on: exclude only explicit false. Allow true OR null/unknown.
-      if (dogsOnly && dog.good_with_dogs === false) return false;
+        if (hypoOnly && !dog.hypoallergenic) return false;
+        if (pottyOnly && !dog.potty_trained) return false;
+        if (kidsOnly && !dog.good_with_kids) return false;
+        if (catsOnly && !dog.good_with_cats) return false;
+        if (dogsOnly && dog.good_with_dogs === false) return false;
 
-      return true;
-    });
+        return true;
+      })
+      .sort((a, b) => {
+        const urgencyDiff = urgencyRank(a.urgency_level) - urgencyRank(b.urgency_level);
+        if (urgencyDiff !== 0) return urgencyDiff;
+
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
   }, [
     dogs,
     ageFilter,
@@ -129,11 +161,18 @@ export default function Dogs() {
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-24 w-24 object-contain"
+              className="h-16 w-16 object-contain"
             />
           </Link>
 
           <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="hidden sm:inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            >
+              Home
+            </Link>
+
             <Link
               to="/quiz"
               className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
@@ -144,14 +183,16 @@ export default function Dogs() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-10 flex-1">
+      <main className="mx-auto max-w-6xl px-4 py-10 flex-1 w-full">
         <div className="flex items-start justify-between gap-6 flex-wrap">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">
-              Browse example dogs
+            <h1 className="text-3xl font-extrabold text-slate-900">
+              Adoptable dogs
             </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Take the quiz to see ranked matches. This page is for browsing.
+
+            <p className="mt-2 text-sm text-slate-600 max-w-2xl">
+              Browse dogs by lifestyle fit, personality, and urgency. Hooman Finder does
+              not process adoptions directly — apply through the shelter or rescue.
             </p>
           </div>
 
@@ -259,12 +300,13 @@ export default function Dogs() {
           </div>
 
           <div className="mt-3 text-sm text-slate-600">
-            Showing {filteredDogs.length} of {dogs.length || 0}
+            Showing {filteredDogs.length} of{" "}
+            {dogs.filter((dog) => dog.urgency_level !== "Adopted").length || 0}
           </div>
         </div>
 
         {loading ? (
-          <div className="mt-8 text-slate-600">Loading…</div>
+          <div className="mt-8 text-slate-600">Loading dogs…</div>
         ) : filteredDogs.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 text-slate-700 shadow-sm">
             No dogs match your current filters.
@@ -272,7 +314,12 @@ export default function Dogs() {
         ) : (
           <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredDogs.map((dog) => (
-              <DogCard key={dog.id} dog={dog} scorePct={null} showMatch={false} />
+              <DogCard
+                key={dog.id}
+                dog={dog}
+                scorePct={null}
+                showMatch={false}
+              />
             ))}
           </div>
         )}

@@ -20,14 +20,11 @@ function writeSavedIds(ids) {
   try {
     localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
     window.dispatchEvent(new Event("hooman:saved_changed"));
-  } catch {
-    // ignore
-  }
+  } catch {}
 }
 
 function isSavedId(id) {
-  const ids = readSavedIds();
-  return ids.includes(String(id));
+  return readSavedIds().includes(String(id));
 }
 
 function toggleSavedId(id) {
@@ -41,20 +38,24 @@ function toggleSavedId(id) {
 function matchTier(scorePct) {
   const n = Number(scorePct);
   if (!Number.isFinite(n)) return null;
-
   if (n >= 85) return { label: "Strong match", pillClass: "bg-teal-700 text-white" };
   if (n >= 70) return { label: "Good match", pillClass: "bg-indigo-600 text-white" };
   return { label: "Potential match", pillClass: "bg-slate-600 text-white" };
 }
 
-/**
- * ✅ CHANGE:
- * Stable, human-friendly list of "reasons"
- * - DO NOT show internal keys like "ScorePct", "scorePct", "activePct", etc.
- * - Prefer breakdown keys -> pretty labels
- * - If breakdown is missing/useless, fall back to dog fields
- * - If still nothing, fall back to "overall fit"
- */
+function urgencyStyle(level) {
+  switch (level) {
+    case "Critical":
+      return "bg-red-600 text-white border-red-600";
+    case "High":
+      return "bg-orange-500 text-white border-orange-500";
+    case "Adopted":
+      return "bg-emerald-600 text-white border-emerald-600";
+    default:
+      return "bg-slate-100 text-slate-700 border-slate-200";
+  }
+}
+
 function buildTopReasons({ dog, breakdown }) {
   const pretty = {
     play: "play style",
@@ -81,7 +82,6 @@ function buildTopReasons({ dog, breakdown }) {
     behavior: "behavior tolerance",
   };
 
-  // Keys that should never show up as "reasons"
   const EXCLUDE = new Set([
     "ScorePct",
     "scorePct",
@@ -97,7 +97,6 @@ function buildTopReasons({ dog, breakdown }) {
 
   const isPlainObject = (v) => v && typeof v === "object" && !Array.isArray(v);
 
-  // 1) Prefer breakdown if it looks like: { key: points, ... }
   if (isPlainObject(breakdown)) {
     const top = Object.entries(breakdown)
       .map(([k, v]) => [k, Number(v)])
@@ -109,23 +108,18 @@ function buildTopReasons({ dog, breakdown }) {
     if (top.length) return top;
   }
 
-  // 2) Fallback: infer from dog fields (safe + meaningful)
   const reasons = [];
 
   if (dog?.size) reasons.push("size");
   if (dog?.energy_level) reasons.push("energy level");
   if (dog?.age_years !== null && dog?.age_years !== undefined) reasons.push("age");
-
   if (dog?.good_with_kids === true) reasons.push("good with kids");
   if (dog?.good_with_dogs === true) reasons.push("good with other dogs");
   if (dog?.good_with_cats === true) reasons.push("good with cats");
   if (dog?.potty_trained === true) reasons.push("potty trained");
   if (dog?.hypoallergenic === true) reasons.push("hypoallergenic");
 
-  if (reasons.length) return reasons.slice(0, 3);
-
-  // 3) Last resort
-  return ["overall fit"];
+  return reasons.length ? reasons.slice(0, 3) : ["overall fit"];
 }
 
 function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
@@ -156,14 +150,18 @@ export default function DogCard({
   showMatch = false,
   sessionId = null,
 }) {
-  const [openModal, setOpenModal] = useState(false); // click modal
-  const [showHover, setShowHover] = useState(false); // hover popover
+  const [openModal, setOpenModal] = useState(false);
+  const [showHover, setShowHover] = useState(false);
   const [hoverPos, setHoverPos] = useState({ left: 0, top: 0 });
-
   const [saved, setSaved] = useState(() => isSavedId(dog?.id));
 
   const whyBtnRef = useRef(null);
   const hoverPanelRef = useRef(null);
+  const closeTimer = useRef(null);
+
+  const shelter = dog?.shelters || {};
+  const urgency = dog?.urgency_level || "Standard";
+  const applyLink = shelter?.apply_url || shelter?.website || "";
 
   const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
   const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
@@ -174,6 +172,21 @@ export default function DogCard({
   }, [dog?.age_years]);
 
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
+
+  const dogLink = useMemo(() => {
+    const base = `/dog/${dog?.id}`;
+    const search = sessionId ? `?session=${encodeURIComponent(sessionId)}` : "";
+    return `${base}${search}`;
+  }, [dog?.id, sessionId]);
+
+  const linkState = useMemo(() => {
+    if (!showMatch) return null;
+    return {
+      fromQuiz: true,
+      sessionId: sessionId || null,
+      match: { scorePct, breakdown },
+    };
+  }, [showMatch, sessionId, scorePct, breakdown]);
 
   useEffect(() => {
     const sync = () => setSaved(isSavedId(dog?.id));
@@ -192,38 +205,37 @@ export default function DogCard({
     const pop = hoverPanelRef.current;
     if (!anchor || !pop) return;
 
-    const anchorRect = anchor.getBoundingClientRect();
-    const popRect = pop.getBoundingClientRect();
-    setHoverPos(
-      computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10)
-    );
-
-    const onScrollOrResize = () => {
-      const a = anchor.getBoundingClientRect();
-      const p = pop.getBoundingClientRect();
-      setHoverPos(computePopoverPosition(a, { width: p.width, height: p.height }, 10));
+    const updatePosition = () => {
+      const anchorRect = anchor.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      setHoverPos(
+        computePopoverPosition(anchorRect, { width: popRect.width, height: popRect.height }, 10)
+      );
     };
 
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    updatePosition();
+
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
 
     return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
     };
   }, [showHover]);
 
-  const closeTimer = useRef(null);
   function clearCloseTimer() {
     if (closeTimer.current) {
       window.clearTimeout(closeTimer.current);
       closeTimer.current = null;
     }
   }
+
   function openHover() {
     clearCloseTimer();
     setShowHover(true);
   }
+
   function scheduleCloseHover() {
     clearCloseTimer();
     closeTimer.current = window.setTimeout(() => setShowHover(false), 120);
@@ -246,23 +258,14 @@ export default function DogCard({
     setSaved(nextSaved);
   }
 
-  const dogLink = useMemo(() => {
-    const base = `/dog/${dog?.id}`;
-    const search = sessionId ? `?session=${encodeURIComponent(sessionId)}` : "";
-    return `${base}${search}`;
-  }, [dog?.id, sessionId]);
+  function onApplyClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
 
-  const linkState = useMemo(() => {
-    if (!showMatch) return null;
-    return {
-      fromQuiz: true,
-      sessionId: sessionId || null,
-      match: {
-        scorePct,
-        breakdown,
-      },
-    };
-  }, [showMatch, sessionId, scorePct, breakdown]);
+    if (!applyLink) return;
+
+    window.open(applyLink, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <>
@@ -271,7 +274,6 @@ export default function DogCard({
         state={linkState}
         className="group block overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
       >
-        {/* Image */}
         <div className="relative aspect-[4/3] w-full bg-slate-100">
           {imgSrc ? (
             <img
@@ -286,7 +288,35 @@ export default function DogCard({
             </div>
           )}
 
-          {/* Save button */}
+          <div className="absolute left-3 top-3 flex flex-wrap gap-2">
+            {showMatch && tier ? (
+              <span
+                className={[
+                  "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold shadow-sm",
+                  tier.pillClass,
+                ].join(" ")}
+                title={Number.isFinite(Number(scorePct)) ? `${Math.round(scorePct)}% match` : ""}
+              >
+                {tier.label}
+              </span>
+            ) : null}
+
+            <span
+              className={[
+                "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold shadow-sm",
+                urgencyStyle(urgency),
+              ].join(" ")}
+            >
+              {urgency}
+            </span>
+          </div>
+
+          <div className="absolute right-3 top-3">
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100 shadow-sm">
+              Adoptable
+            </span>
+          </div>
+
           <button
             type="button"
             onClick={onToggleSaved}
@@ -301,34 +331,11 @@ export default function DogCard({
           >
             {saved ? "♥ Saved" : "♡ Save"}
           </button>
-
-          {/* Match pill */}
-          {showMatch && tier && (
-            <div className="absolute left-3 top-3 flex items-center gap-2">
-              <span
-                className={[
-                  "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold shadow-sm",
-                  tier.pillClass,
-                ].join(" ")}
-                title={Number.isFinite(Number(scorePct)) ? `${Math.round(scorePct)}% match` : ""}
-              >
-                {tier.label}
-              </span>
-            </div>
-          )}
-
-          {/* Adoptable badge */}
-          <div className="absolute right-3 top-3">
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-100 shadow-sm">
-              Adoptable
-            </span>
-          </div>
         </div>
 
-        {/* Body */}
         <div className="p-5">
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <div className="text-lg font-extrabold text-slate-900">{dog?.name || "Unnamed"}</div>
 
               <div className="mt-1 text-sm text-slate-600">
@@ -343,9 +350,32 @@ export default function DogCard({
                 {dog?.size ? <span> • Size: {dog.size}</span> : null}
                 {dog?.energy_level ? <span> • Energy: {dog.energy_level}</span> : null}
               </div>
+
+              <div className="mt-4 flex items-center gap-3">
+                {shelter?.logo_url ? (
+                  <img
+                    src={shelter.logo_url}
+                    alt={shelter?.name || "Shelter logo"}
+                    className="h-9 w-9 rounded-full border border-slate-200 object-cover bg-white"
+                    loading="lazy"
+                  />
+                ) : (
+                  <div className="h-9 w-9 rounded-full border border-slate-200 bg-slate-100" />
+                )}
+
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-slate-900">
+                    {shelter?.name || "Shelter/Rescue"}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {dog?.placement_city && dog?.placement_state
+                      ? `${dog.placement_city}, ${dog.placement_state}`
+                      : "Apply through shelter"}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Why matched */}
             {showMatch && (
               <div className="shrink-0">
                 <button
@@ -363,10 +393,23 @@ export default function DogCard({
               </div>
             )}
           </div>
+
+          <button
+            type="button"
+            onClick={onApplyClick}
+            disabled={!applyLink}
+            className={[
+              "mt-5 inline-flex w-full items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition",
+              applyLink
+                ? "bg-slate-900 text-white hover:bg-slate-800"
+                : "bg-slate-200 text-slate-500 cursor-not-allowed",
+            ].join(" ")}
+          >
+            {applyLink ? "Apply on shelter site" : "Application link unavailable"}
+          </button>
         </div>
       </Link>
 
-      {/* Hover popover */}
       {showMatch &&
         showHover &&
         createPortal(
@@ -404,7 +447,6 @@ export default function DogCard({
           document.body
         )}
 
-      {/* Click modal */}
       {openModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"

@@ -3,73 +3,64 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
-// Simple inline fallback (no new image file required)
+const SAVED_KEY = "hooman_saved_dog_ids_v1";
+
 const FALLBACK_IMG =
   "data:image/svg+xml;utf8," +
   encodeURIComponent(`
   <svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">
     <rect width="100%" height="100%" fill="#F1F5F9"/>
-    <circle cx="210" cy="200" r="60" fill="#CBD5E1"/>
-    <circle cx="390" cy="200" r="60" fill="#CBD5E1"/>
-    <rect x="250" y="220" width="100" height="80" rx="28" fill="#CBD5E1"/>
-    <text x="50%" y="70%" text-anchor="middle" font-family="Arial" font-size="20" fill="#475569">
+    <text x="50%" y="50%" text-anchor="middle" font-family="Arial" font-size="22" fill="#475569">
       Photo unavailable
     </text>
   </svg>
 `);
 
+function readSavedIds() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedIds(ids) {
+  try {
+    localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
+    window.dispatchEvent(new Event("hooman:saved_changed"));
+  } catch {}
+}
+
+function isSavedId(id) {
+  return readSavedIds().includes(String(id));
+}
+
+function toggleSavedId(id) {
+  const sid = String(id);
+  const ids = readSavedIds();
+  const next = ids.includes(sid) ? ids.filter((x) => x !== sid) : [sid, ...ids];
+  writeSavedIds(next);
+  return next.includes(sid);
+}
+
 function normalizeImageUrl(raw) {
   if (!raw || typeof raw !== "string") return "";
-
   const trimmed = raw.trim();
   if (!trimmed) return "";
-
-  // If it's protocol-relative (//example.com/img.jpg)
   if (trimmed.startsWith("//")) return `https:${trimmed}`;
-
-  // If it's http, try to upgrade to https (prevents mixed-content issues)
   if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
-
-  // If it's already https or a data uri
   if (trimmed.startsWith("https://") || trimmed.startsWith("data:")) return trimmed;
-
-  // If it's a local/public path like "/dogs/nala.jpg"
   if (trimmed.startsWith("/")) return trimmed;
-
-  // If it's something like "dogs/nala.jpg" assume public
   return `/${trimmed}`;
 }
 
 function pickDogImage(dog) {
-  if (!dog) return "";
+  const candidates = [dog?.photo_url, dog?.image_url, dog?.photo, dog?.image, dog?.primary_photo_url];
 
-  // Try common field names first
-  const candidates = [
-    dog.photo_url,
-    dog.image_url,
-    dog.photo,
-    dog.image,
-    dog.primary_photo_url,
-    dog.profile_photo_url,
-    dog.img,
-    dog.picture,
-  ];
-
-  // If you store an array of photos
-  if (Array.isArray(dog.photos) && dog.photos.length) candidates.unshift(dog.photos[0]);
-  if (Array.isArray(dog.images) && dog.images.length) candidates.unshift(dog.images[0]);
-
-  // If you store JSON like { photos: [{url: "..."}] }
-  if (Array.isArray(dog.photos) && dog.photos[0] && typeof dog.photos[0] === "object") {
-    candidates.unshift(dog.photos[0].url, dog.photos[0].src);
-  }
-  if (Array.isArray(dog.images) && dog.images[0] && typeof dog.images[0] === "object") {
-    candidates.unshift(dog.images[0].url, dog.images[0].src);
-  }
-
-  // First usable URL wins
-  for (const c of candidates) {
-    const url = normalizeImageUrl(c);
+  for (const item of candidates) {
+    const url = normalizeImageUrl(item);
     if (url) return url;
   }
 
@@ -82,9 +73,19 @@ export default function DogDetail() {
   const [dog, setDog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-
-  // Image state so we can swap to fallback on error
   const [imgSrc, setImgSrc] = useState(FALLBACK_IMG);
+  const [saved, setSaved] = useState(() => isSavedId(id));
+
+  useEffect(() => {
+    const sync = () => setSaved(isSavedId(id));
+    window.addEventListener("storage", sync);
+    window.addEventListener("hooman:saved_changed", sync);
+
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("hooman:saved_changed", sync);
+    };
+  }, [id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -93,29 +94,36 @@ export default function DogDetail() {
       setLoading(true);
       setLoadError("");
 
-      try {
-        // Adjust table name/columns if yours differ
-        const { data, error } = await supabase
-          .from("dogs")
-          .select("*")
-          .eq("id", id)
-          .single();
+      const { data, error } = await supabase
+        .from("dogs")
+        .select(`
+          *,
+          shelters (
+            name,
+            website,
+            apply_url,
+            logo_url,
+            city,
+            state
+          )
+        `)
+        .eq("id", id)
+        .single();
 
-        if (error) throw error;
+      if (!isMounted) return;
 
-        if (!isMounted) return;
-        setDog(data || null);
-      } catch (err) {
-        if (!isMounted) return;
-        setLoadError(err?.message || "Failed to load dog.");
+      if (error) {
+        setLoadError(error.message || "Failed to load dog.");
         setDog(null);
-      } finally {
-        if (!isMounted) return;
-        setLoading(false);
+      } else {
+        setDog(data);
       }
+
+      setLoading(false);
     }
 
     fetchDog();
+
     return () => {
       isMounted = false;
     };
@@ -123,20 +131,20 @@ export default function DogDetail() {
 
   const resolvedImage = useMemo(() => pickDogImage(dog), [dog]);
 
-  // Whenever the dog changes, set image to resolved or fallback
   useEffect(() => {
     setImgSrc(resolvedImage || FALLBACK_IMG);
   }, [resolvedImage]);
 
+  function onToggleSaved() {
+    const nextSaved = toggleSavedId(id);
+    setSaved(nextSaved);
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="h-6 w-40 rounded bg-slate-200 animate-pulse" />
-          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-80 rounded-2xl bg-slate-200 animate-pulse" />
-            <div className="h-80 rounded-2xl bg-slate-200 animate-pulse" />
-          </div>
+        <div className="mx-auto max-w-6xl px-4 py-8 text-slate-600">
+          Loading dog…
         </div>
       </div>
     );
@@ -146,12 +154,15 @@ export default function DogDetail() {
     return (
       <div className="min-h-screen bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-8">
-          <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+          <Link to="/dogs" className="text-sm font-semibold text-slate-700">
             ← Back to dogs
           </Link>
+
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
             <h1 className="text-xl font-extrabold text-slate-900">Dog not found</h1>
-            <p className="mt-2 text-slate-600">{loadError || "This dog may have been removed."}</p>
+            <p className="mt-2 text-slate-600">
+              {loadError || "This dog may have been removed."}
+            </p>
           </div>
         </div>
       </div>
@@ -159,40 +170,60 @@ export default function DogDetail() {
   }
 
   const name = dog.name || "Unnamed dog";
+  const shelterName = dog.shelters?.name || "Shelter/Rescue";
+  const shelterLogo = dog.shelters?.logo_url || "";
+  const location =
+    dog.shelters?.city && dog.shelters?.state
+      ? `${dog.shelters.city}, ${dog.shelters.state}`
+      : dog.placement_city && dog.placement_state
+        ? `${dog.placement_city}, ${dog.placement_state}`
+        : "Location unknown";
+
+  const applyLink = dog.shelters?.apply_url || dog.shelters?.website || "";
 
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-6xl px-4 py-6">
         <div className="flex items-center justify-between">
           <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            ← Back
+            ← Back to dogs
           </Link>
 
           <Link to="/saved" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            Saved
+            View saved dogs
           </Link>
         </div>
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LEFT: PHOTO + ABOUT */}
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-              {/* Use aspect ratio so it behaves on mobile and never “collapses” */}
               <div className="relative w-full aspect-[4/3] bg-slate-100">
                 <img
                   src={imgSrc}
                   alt={name}
                   className="absolute inset-0 h-full w-full object-cover"
-                  loading="eager"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />
+
+                <button
+                  type="button"
+                  onClick={onToggleSaved}
+                  className={[
+                    "absolute right-4 bottom-4 inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
+                    saved
+                      ? "bg-rose-600 text-white border-rose-600"
+                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {saved ? "♥ Saved" : "♡ Save"}
+                </button>
               </div>
 
-              {/* Name row (optional) */}
               <div className="px-5 py-4 border-t border-slate-200">
                 <div className="text-lg font-extrabold text-slate-900">{name}</div>
                 <div className="mt-1 text-sm text-slate-600">
-                  {(dog.breed || "Unknown")} • {(dog.age || "Unknown")} • {(dog.size || "Unknown")}
+                  {dog.age_years ? `${dog.age_years} years` : "Age unknown"} •{" "}
+                  {dog.size || "Size unknown"} • {dog.energy_level || "Energy unknown"}
                 </div>
               </div>
             </div>
@@ -200,73 +231,96 @@ export default function DogDetail() {
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
               <div className="text-sm font-extrabold text-slate-900">About</div>
               <p className="mt-2 text-sm text-slate-700 leading-relaxed">
-                {dog.about || dog.description || "No description provided yet."}
+                {dog.description || "No description provided yet."}
               </p>
             </div>
           </div>
 
-          {/* RIGHT: DETAILS */}
           <div className="space-y-6">
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
-              <h1 className="text-3xl font-extrabold text-slate-900">{name}</h1>
-              <p className="mt-2 text-slate-600">
-                {(dog.breed || "Unknown")} • {(dog.age || "Unknown")} • {(dog.size || "Unknown")} •{" "}
-                {(dog.energy || "Unknown")}
-              </p>
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl font-extrabold text-slate-900">{name}</h1>
+
+                  <p className="mt-2 text-slate-600">
+                    {dog.age_years ? `${dog.age_years} years` : "Age unknown"} •{" "}
+                    {dog.size || "Size unknown"} • {dog.energy_level || "Energy unknown"}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onToggleSaved}
+                  className={[
+                    "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
+                    saved
+                      ? "bg-rose-600 text-white border-rose-600"
+                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-50",
+                  ].join(" ")}
+                >
+                  {saved ? "♥ Saved" : "♡ Save"}
+                </button>
+              </div>
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="text-sm font-extrabold text-slate-900">Hooman Finder’s role</div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Hooman Finder helps you find dogs that fit your lifestyle. We don’t process adoptions —
-                  when you’re ready, you’ll apply directly with the shelter or rescue.
+                  Hooman Finder helps you discover dogs that may fit your lifestyle. We do not
+                  process adoptions directly — when you’re ready, apply through the shelter or rescue.
                 </p>
               </div>
 
               <div className="mt-5">
                 <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  You’ll be redirected to the shelter’s official application page.
+                  You’ll be redirected to the shelter’s official website or application page.
                 </p>
 
                 <a
-                  href={normalizeImageUrl(dog.apply_url) || dog.apply_url || "#"}
+                  href={applyLink || "#"}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-3 inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                  className={`mt-3 inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold ${
+                    applyLink
+                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                  }`}
                   onClick={(e) => {
-                    const url = dog.apply_url;
-                    if (!url) e.preventDefault();
+                    if (!applyLink) e.preventDefault();
                   }}
                 >
-                  Apply on shelter site
+                  {applyLink ? "Apply on shelter site" : "Application link unavailable"}
                 </a>
               </div>
 
               <div className="mt-6 border-t border-slate-200 pt-5">
                 <div className="text-sm font-extrabold text-slate-900">Listed by</div>
                 <div className="mt-3 flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200" />
+                  {shelterLogo ? (
+                    <img
+                      src={shelterLogo}
+                      alt={`${shelterName} logo`}
+                      className="h-12 w-12 rounded-full border border-slate-200 object-cover bg-white"
+                    />
+                  ) : (
+                    <div className="h-12 w-12 rounded-full bg-slate-100 border border-slate-200" />
+                  )}
+
                   <div>
-                    <div className="font-semibold text-slate-900">
-                      {dog.shelter_name || "Shelter/Rescue"}
-                    </div>
-                    <div className="text-sm text-slate-600">{dog.location || "Location unknown"}</div>
+                    <div className="font-semibold text-slate-900">{shelterName}</div>
+                    <div className="text-sm text-slate-600">{location}</div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Traits / any extras */}
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-extrabold text-slate-900">Traits</div>
-                <div className="text-xs text-slate-500">Unknown means the shelter hasn’t provided it yet.</div>
-              </div>
+              <div className="text-lg font-extrabold text-slate-900">Traits</div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <Trait label="Age" value={dog.age} />
                 <Trait label="Size" value={dog.size} />
-                <Trait label="Energy" value={dog.energy} />
+                <Trait label="Energy" value={dog.energy_level} />
+                <Trait label="Potty trained" value={dog.potty_trained} />
                 <Trait label="Good with dogs" value={dog.good_with_dogs} />
                 <Trait label="Good with cats" value={dog.good_with_cats} />
                 <Trait label="Good with kids" value={dog.good_with_kids} />
@@ -280,15 +334,19 @@ export default function DogDetail() {
 }
 
 function Trait({ label, value }) {
-  const v =
-    value === true ? "Yes" : value === false ? "No" : value === null || value === undefined || value === ""
-      ? "Unknown"
-      : String(value);
+  const display =
+    value === true
+      ? "Yes"
+      : value === false
+        ? "No"
+        : value === null || value === undefined || value === ""
+          ? "Unknown"
+          : String(value);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className="mt-1 text-sm font-extrabold text-slate-900">{v}</div>
+      <div className="mt-1 text-sm font-extrabold text-slate-900">{display}</div>
     </div>
   );
 }
