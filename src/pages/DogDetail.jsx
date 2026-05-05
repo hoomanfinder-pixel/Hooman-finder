@@ -57,7 +57,13 @@ function normalizeImageUrl(raw) {
 }
 
 function pickDogImage(dog) {
-  const candidates = [dog?.photo_url, dog?.image_url, dog?.photo, dog?.image, dog?.primary_photo_url];
+  const candidates = [
+    dog?.photo_url,
+    dog?.image_url,
+    dog?.photo,
+    dog?.image,
+    dog?.primary_photo_url,
+  ];
 
   for (const item of candidates) {
     const url = normalizeImageUrl(item);
@@ -65,6 +71,78 @@ function pickDogImage(dog) {
   }
 
   return "";
+}
+
+function cleanText(value) {
+  if (!value) return "";
+
+  if (typeof document !== "undefined") {
+    const textarea = document.createElement("textarea");
+    textarea.innerHTML = value;
+
+    return textarea.value
+      .replace(/&nbsp;/g, " ")
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  return String(value)
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&nbsp;/g, " ")
+    .replace(/&mdash;/g, "—")
+    .replace(/&ndash;/g, "–")
+    .replace(/&hellip;/g, "…")
+    .replace(/&rsquo;/g, "’")
+    .replace(/&lsquo;/g, "‘")
+    .replace(/&amp;/g, "&")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function displayAge(dog) {
+  if (dog?.age_text) return dog.age_text;
+  if (dog?.age_years !== null && dog?.age_years !== undefined) {
+    return `${dog.age_years} years`;
+  }
+  return "Age unknown";
+}
+
+function displayBreed(dog) {
+  return dog?.breed || "Mixed breed";
+}
+
+function displayShelterName(dog) {
+  return dog?.shelters?.name || dog?.shelter_name || "Shelter/Rescue";
+}
+
+function displayShelterLogo(dog) {
+  return dog?.shelters?.logo_url || "";
+}
+
+function displayLocation(dog) {
+  if (dog?.shelters?.city && dog?.shelters?.state) {
+    return `${dog.shelters.city}, ${dog.shelters.state}`;
+  }
+
+  if (dog?.placement_location) return dog.placement_location;
+
+  if (dog?.placement_city && dog?.placement_state) {
+    return `${dog.placement_city}, ${dog.placement_state}`;
+  }
+
+  return "Location unknown";
+}
+
+function displayApplyLink(dog) {
+  return (
+    dog?.shelters?.apply_url ||
+    dog?.shelters?.website ||
+    dog?.source_url ||
+    dog?.shelter_website ||
+    ""
+  );
 }
 
 export default function DogDetail() {
@@ -170,16 +248,13 @@ export default function DogDetail() {
   }
 
   const name = dog.name || "Unnamed dog";
-  const shelterName = dog.shelters?.name || "Shelter/Rescue";
-  const shelterLogo = dog.shelters?.logo_url || "";
-  const location =
-    dog.shelters?.city && dog.shelters?.state
-      ? `${dog.shelters.city}, ${dog.shelters.state}`
-      : dog.placement_city && dog.placement_state
-        ? `${dog.placement_city}, ${dog.placement_state}`
-        : "Location unknown";
-
-  const applyLink = dog.shelters?.apply_url || dog.shelters?.website || "";
+  const age = displayAge(dog);
+  const breed = displayBreed(dog);
+  const shelterName = displayShelterName(dog);
+  const shelterLogo = displayShelterLogo(dog);
+  const location = displayLocation(dog);
+  const applyLink = displayApplyLink(dog);
+  const description = cleanText(dog.description) || "No description provided yet.";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -222,17 +297,15 @@ export default function DogDetail() {
               <div className="px-5 py-4 border-t border-slate-200">
                 <div className="text-lg font-extrabold text-slate-900">{name}</div>
                 <div className="mt-1 text-sm text-slate-600">
-                  {dog.age_years ? `${dog.age_years} years` : "Age unknown"} •{" "}
-                  {dog.size || "Size unknown"} • {dog.energy_level || "Energy unknown"}
+                  {breed} • {age} • {dog.size || "Size unknown"} •{" "}
+                  {dog.energy_level || "Energy unknown"}
                 </div>
               </div>
             </div>
 
             <div className="rounded-3xl border border-slate-200 bg-white shadow-sm p-6">
               <div className="text-sm font-extrabold text-slate-900">About</div>
-              <p className="mt-2 text-sm text-slate-700 leading-relaxed">
-                {dog.description || "No description provided yet."}
-              </p>
+              <p className="mt-2 text-sm text-slate-700 leading-relaxed">{description}</p>
             </div>
           </div>
 
@@ -243,8 +316,8 @@ export default function DogDetail() {
                   <h1 className="text-3xl font-extrabold text-slate-900">{name}</h1>
 
                   <p className="mt-2 text-slate-600">
-                    {dog.age_years ? `${dog.age_years} years` : "Age unknown"} •{" "}
-                    {dog.size || "Size unknown"} • {dog.energy_level || "Energy unknown"}
+                    {breed} • {age} • {dog.size || "Size unknown"} •{" "}
+                    {dog.energy_level || "Energy unknown"}
                   </p>
                 </div>
 

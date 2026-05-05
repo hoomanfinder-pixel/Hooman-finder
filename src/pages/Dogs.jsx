@@ -17,6 +17,7 @@ const SIZE_OPTIONS = [
   { label: "Small", value: "Small" },
   { label: "Medium", value: "Medium" },
   { label: "Large", value: "Large" },
+  { label: "X-Large", value: "X-Large" },
 ];
 
 const ENERGY_OPTIONS = [
@@ -26,12 +27,29 @@ const ENERGY_OPTIONS = [
   { label: "High", value: "High" },
 ];
 
-function normalizeAgeBucket(ageYears) {
+function normalizeAgeBucket(ageYears, ageText) {
   const n = Number(ageYears);
-  if (!Number.isFinite(n)) return null;
-  if (n < 2) return "puppy";
-  if (n < 7) return "adult";
-  return "senior";
+
+  if (Number.isFinite(n)) {
+    if (n < 2) return "puppy";
+    if (n < 7) return "adult";
+    return "senior";
+  }
+
+  const text = String(ageText || "").toLowerCase();
+
+  if (text.includes("puppy")) return "puppy";
+  if (text.includes("senior")) return "senior";
+
+  const yearMatch = text.match(/(\d+)\s*year/);
+  if (yearMatch) {
+    const years = Number(yearMatch[1]);
+    if (years < 2) return "puppy";
+    if (years < 7) return "adult";
+    return "senior";
+  }
+
+  return null;
 }
 
 function urgencyRank(level) {
@@ -47,6 +65,33 @@ function urgencyRank(level) {
     default:
       return 5;
   }
+}
+
+function normalizeDog(dog) {
+  return {
+    ...dog,
+
+    // Keep old dogs working, but support RescueGroups dogs too
+    age_years: dog.age_years,
+    display_age: dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
+
+    // DogCard likely already uses photo_url, so keep that
+    photo_url: dog.photo_url,
+
+    // If the old shelter join is missing, create a fallback shelter object
+    shelters:
+      dog.shelters ||
+      (dog.shelter_name || dog.shelter_website || dog.placement_city || dog.placement_state
+        ? {
+            name: dog.shelter_name || "Shelter or rescue",
+            website: dog.shelter_website || dog.source_url || null,
+            apply_url: dog.source_url || dog.shelter_website || null,
+            logo_url: null,
+            city: dog.placement_city || null,
+            state: dog.placement_state || null,
+          }
+        : null),
+  };
 }
 
 export default function Dogs() {
@@ -71,18 +116,12 @@ export default function Dogs() {
 
       const { data, error } = await supabase
         .from("dogs")
-        .select(`
-          *,
-          shelters (
-            name,
-            website,
-            apply_url,
-            logo_url,
-            city,
-            state
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
+
+      console.log("Fetched dogs:", data);
+      console.log("Dog count:", data?.length);
+      console.log("Supabase error:", error);
 
       if (!mounted) return;
 
@@ -90,7 +129,8 @@ export default function Dogs() {
         console.error("Error fetching dogs:", error);
         setDogs([]);
       } else {
-        setDogs(Array.isArray(data) ? data : []);
+        const normalizedDogs = Array.isArray(data) ? data.map(normalizeDog) : [];
+        setDogs(normalizedDogs);
       }
 
       setLoading(false);
@@ -109,7 +149,7 @@ export default function Dogs() {
         if (dog.urgency_level === "Adopted") return false;
 
         if (ageFilter !== "all") {
-          const bucket = normalizeAgeBucket(dog.age_years);
+          const bucket = normalizeAgeBucket(dog.age_years, dog.age_text);
           if (bucket !== ageFilter) return false;
         }
 
@@ -120,7 +160,7 @@ export default function Dogs() {
         if (pottyOnly && !dog.potty_trained) return false;
         if (kidsOnly && !dog.good_with_kids) return false;
         if (catsOnly && !dog.good_with_cats) return false;
-        if (dogsOnly && dog.good_with_dogs === false) return false;
+        if (dogsOnly && dog.good_with_dogs !== true) return false;
 
         return true;
       })
@@ -152,6 +192,8 @@ export default function Dogs() {
     setCatsOnly(false);
     setDogsOnly(false);
   }
+
+  const visibleTotal = dogs.filter((dog) => dog.urgency_level !== "Adopted").length || 0;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -300,8 +342,7 @@ export default function Dogs() {
           </div>
 
           <div className="mt-3 text-sm text-slate-600">
-            Showing {filteredDogs.length} of{" "}
-            {dogs.filter((dog) => dog.urgency_level !== "Adopted").length || 0}
+            Showing {filteredDogs.length} of {visibleTotal}
           </div>
         </div>
 
