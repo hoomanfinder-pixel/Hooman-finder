@@ -68,29 +68,34 @@ function urgencyRank(level) {
 }
 
 function normalizeDog(dog) {
+  const joinedShelter = dog?.shelters || null;
+
+  const fallbackShelter =
+    dog?.shelter_name ||
+    dog?.shelter_website ||
+    dog?.placement_city ||
+    dog?.placement_state ||
+    dog?.source_url
+      ? {
+          name: dog.shelter_name || "Shelter or rescue",
+          website: dog.shelter_website || dog.source_url || null,
+          apply_url: dog.source_url || dog.shelter_website || null,
+          logo_url: null,
+          city: dog.placement_city || null,
+          state: dog.placement_state || null,
+        }
+      : null;
+
   return {
     ...dog,
 
-    // Keep old dogs working, but support RescueGroups dogs too
     age_years: dog.age_years,
     display_age: dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
-
-    // DogCard likely already uses photo_url, so keep that
     photo_url: dog.photo_url,
 
-    // If the old shelter join is missing, create a fallback shelter object
-    shelters:
-      dog.shelters ||
-      (dog.shelter_name || dog.shelter_website || dog.placement_city || dog.placement_state
-        ? {
-            name: dog.shelter_name || "Shelter or rescue",
-            website: dog.shelter_website || dog.source_url || null,
-            apply_url: dog.source_url || dog.shelter_website || null,
-            logo_url: null,
-            city: dog.placement_city || null,
-            state: dog.placement_state || null,
-          }
-        : null),
+    // This is the important part:
+    // DogCard expects dog.shelters.logo_url / dog.shelters.name / dog.shelters.apply_url.
+    shelters: joinedShelter || fallbackShelter,
   };
 }
 
@@ -116,10 +121,21 @@ export default function Dogs() {
 
       const { data, error } = await supabase
         .from("dogs")
-        .select("*")
+        .select(`
+          *,
+          shelters (
+            id,
+            name,
+            city,
+            state,
+            website,
+            apply_url,
+            logo_url
+          )
+        `)
         .order("created_at", { ascending: false });
 
-      console.log("Fetched dogs:", data);
+      console.log("Fetched dogs with shelters:", data);
       console.log("Dog count:", data?.length);
       console.log("Supabase error:", error);
 
