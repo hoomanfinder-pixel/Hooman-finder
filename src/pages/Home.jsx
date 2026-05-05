@@ -11,7 +11,7 @@ export default function Home() {
       <header className="bg-white border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
           <Link to="/" aria-label="Go to Hooman Finder homepage">
-            <img src="/logo.png" alt="Hooman Finder" className="h-12 w-auto" />
+            <img src="/logo.png" alt="Hooman Finder" className="h-16 w-auto" />
           </Link>
 
           <div className="flex items-center gap-3">

@@ -73,39 +73,40 @@ function pickDogImage(dog) {
   return "";
 }
 
+function decodeHtmlOnce(value) {
+  if (!value) return "";
+
+  const textarea = document.createElement("textarea");
+  textarea.innerHTML = value;
+  return textarea.value;
+}
+
 function cleanText(value) {
   if (!value) return "";
 
-  if (typeof document !== "undefined") {
-    const textarea = document.createElement("textarea");
-    textarea.innerHTML = value;
+  let text = String(value);
 
-    return textarea.value
-      .replace(/&nbsp;/g, " ")
-      .replace(/\u00a0/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  // RescueGroups descriptions can be escaped more than once, so decode repeatedly.
+  for (let i = 0; i < 4; i += 1) {
+    const decoded = decodeHtmlOnce(text);
+    if (decoded === text) break;
+    text = decoded;
   }
 
-  return String(value)
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&nbsp;/g, " ")
-    .replace(/&mdash;/g, "—")
-    .replace(/&ndash;/g, "–")
-    .replace(/&hellip;/g, "…")
-    .replace(/&rsquo;/g, "’")
-    .replace(/&lsquo;/g, "‘")
-    .replace(/&amp;/g, "&")
+  return text
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
 function displayAge(dog) {
   if (dog?.age_text) return dog.age_text;
-  if (dog?.age_years !== null && dog?.age_years !== undefined) {
+
+  if (dog?.age_years !== null && dog?.age_years !== undefined && dog?.age_years !== "") {
     return `${dog.age_years} years`;
   }
+
   return "Age unknown";
 }
 
