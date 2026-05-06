@@ -86,7 +86,6 @@ function cleanText(value) {
 
   let text = String(value);
 
-  // RescueGroups descriptions can be escaped more than once, so decode repeatedly.
   for (let i = 0; i < 4; i += 1) {
     const decoded = decodeHtmlOnce(text);
     if (decoded === text) break;
@@ -277,7 +276,7 @@ export default function DogDetail() {
                 <img
                   src={imgSrc}
                   alt={name}
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-contain bg-slate-100"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />
 
