@@ -6,6 +6,21 @@ import DogCard from "../components/DogCard";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
+// Important: this is what lets DogCard show the real shelter/rescue name.
+// It fetches the dog row PLUS the related shelter row.
+const DOG_SELECT = `
+  *,
+  shelters (
+    id,
+    name,
+    city,
+    state,
+    logo_url,
+    website_url,
+    adoption_url
+  )
+`;
+
 function readSavedIds() {
   try {
     const raw = localStorage.getItem(SAVED_KEY);
@@ -24,11 +39,11 @@ export default function Saved() {
   const [dogs, setDogs] = useState([]);
   const [error, setError] = useState("");
 
-  // Listen for storage changes + our custom event
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === SAVED_KEY) setSavedIds(readSavedIds());
     };
+
     const onCustom = () => setSavedIds(readSavedIds());
 
     window.addEventListener("storage", onStorage);
@@ -57,24 +72,31 @@ export default function Saved() {
           return;
         }
 
-        const res = await supabase.from("dogs").select("*").in("id", savedIds);
+        const { data, error: fetchError } = await supabase
+          .from("dogs")
+          .select(DOG_SELECT)
+          .in("id", savedIds);
 
-        if (res.error) throw res.error;
+        if (fetchError) throw fetchError;
 
-        const rows = Array.isArray(res.data) ? res.data : [];
-        // keep same order as savedIds
-        const map = new Map(rows.map((d) => [String(d.id), d]));
+        const rows = Array.isArray(data) ? data : [];
+
+        // Keep the same order as savedIds.
+        const map = new Map(rows.map((dog) => [String(dog.id), dog]));
         const ordered = savedIds.map((id) => map.get(String(id))).filter(Boolean);
 
         if (!cancelled) setDogs(ordered);
       } catch (e) {
-        if (!cancelled) setError(e?.message || "Something went wrong loading saved dogs.");
+        if (!cancelled) {
+          setError(e?.message || "Something went wrong loading saved dogs.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     load();
+
     return () => {
       cancelled = true;
     };
@@ -112,7 +134,7 @@ export default function Saved() {
           </div>
 
           <Link
-            to="/"
+            to="/dogs"
             className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
           >
             Browse more dogs
@@ -133,7 +155,7 @@ export default function Saved() {
             </p>
             <div className="mt-4">
               <Link
-                to="/"
+                to="/dogs"
                 className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
               >
                 Browse dogs
@@ -142,12 +164,12 @@ export default function Saved() {
           </div>
         ) : dogs.length === 0 ? (
           <div className="mt-10 rounded-xl border border-slate-200 bg-white p-4 text-slate-700">
-            Saved dogs couldn’t be loaded (they may have been removed).
+            Saved dogs couldn’t be loaded. They may have been removed.
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {dogs.map((d) => (
-              <DogCard key={d.id} dog={d} showMatch={false} />
+            {dogs.map((dog) => (
+              <DogCard key={dog.id} dog={dog} showMatch={false} />
             ))}
           </div>
         )}

@@ -31,6 +31,21 @@ const ENERGY_OPTIONS = [
   { label: "High", value: "High" },
 ];
 
+// Important: this is what lets DogCard show the real shelter/rescue name.
+// It fetches the dog row PLUS the related shelter row.
+const DOG_SELECT = `
+  *,
+  shelters (
+    id,
+    name,
+    city,
+    state,
+    logo_url,
+    website_url,
+    adoption_url
+  )
+`;
+
 function normalizeAgeBucket(ageYears) {
   const n = Number(ageYears);
   if (!Number.isFinite(n)) return null;
@@ -49,7 +64,6 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // Match the Dogs.jsx filter UI exactly
   const [ageFilter, setAgeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [energyFilter, setEnergyFilter] = useState("all");
@@ -77,7 +91,7 @@ export default function Results() {
 
         const { data, error } = await supabase
           .from("dogs")
-          .select("*")
+          .select(DOG_SELECT)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -94,12 +108,12 @@ export default function Results() {
     }
 
     run();
+
     return () => {
       mounted = false;
     };
   }, [sessionId]);
 
-  // Rows: { dog, score, scorePct, breakdown }
   const rankedRows = useMemo(
     () => computeRankedMatches(dogs, answersById),
     [dogs, answersById]
@@ -162,7 +176,6 @@ export default function Results() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Match Dogs.jsx header exactly (logo goes home) */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3" aria-label="Go home">
@@ -212,7 +225,6 @@ export default function Results() {
           </button>
         </div>
 
-        {/* Match Dogs.jsx filter card exactly */}
         <div className="mt-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <label className="text-sm font-semibold text-slate-800">
@@ -263,27 +275,47 @@ export default function Results() {
 
           <div className="mt-4 flex flex-wrap gap-5 text-sm text-slate-700">
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={hypoOnly} onChange={(e) => setHypoOnly(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={hypoOnly}
+                onChange={(e) => setHypoOnly(e.target.checked)}
+              />
               Hypoallergenic only
             </label>
 
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={pottyOnly} onChange={(e) => setPottyOnly(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={pottyOnly}
+                onChange={(e) => setPottyOnly(e.target.checked)}
+              />
               Potty trained only
             </label>
 
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={kidsOnly} onChange={(e) => setKidsOnly(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={kidsOnly}
+                onChange={(e) => setKidsOnly(e.target.checked)}
+              />
               Good with kids
             </label>
 
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={catsOnly} onChange={(e) => setCatsOnly(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={catsOnly}
+                onChange={(e) => setCatsOnly(e.target.checked)}
+              />
               Good with cats
             </label>
 
             <label className="inline-flex items-center gap-2">
-              <input type="checkbox" checked={dogsOnly} onChange={(e) => setDogsOnly(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={dogsOnly}
+                onChange={(e) => setDogsOnly(e.target.checked)}
+              />
               Good with other dogs
             </label>
           </div>
