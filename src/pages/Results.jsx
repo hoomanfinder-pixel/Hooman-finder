@@ -31,8 +31,8 @@ const ENERGY_OPTIONS = [
   { label: "High", value: "High" },
 ];
 
-// Important: this is what lets DogCard show the real shelter/rescue name.
-// It fetches the dog row PLUS the related shelter row.
+// Fetch dogs plus shelter/rescue info.
+// Only include columns that exist in your shelters table.
 const DOG_SELECT = `
   *,
   shelters (
@@ -40,9 +40,7 @@ const DOG_SELECT = `
     name,
     city,
     state,
-    logo_url,
-    website_url,
-    adoption_url
+    logo_url
   )
 `;
 

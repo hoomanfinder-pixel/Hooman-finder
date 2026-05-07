@@ -6,8 +6,8 @@ import DogCard from "../components/DogCard";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
-// Important: this is what lets DogCard show the real shelter/rescue name.
-// It fetches the dog row PLUS the related shelter row.
+// Fetch dogs plus shelter/rescue info.
+// Only include columns that exist in your shelters table.
 const DOG_SELECT = `
   *,
   shelters (
@@ -15,9 +15,7 @@ const DOG_SELECT = `
     name,
     city,
     state,
-    logo_url,
-    website_url,
-    adoption_url
+    logo_url
   )
 `;
 
