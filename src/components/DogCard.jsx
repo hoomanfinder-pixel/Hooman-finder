@@ -143,6 +143,30 @@ function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
   return { left, top };
 }
 
+function displayApplyLink(dog) {
+  return (
+    dog?.shelters?.apply_url ||
+    dog?.shelters?.website ||
+    dog?.source_url ||
+    dog?.shelter_website ||
+    ""
+  );
+}
+
+function displayLocation(dog) {
+  if (dog?.shelters?.city && dog?.shelters?.state) {
+    return `${dog.shelters.city}, ${dog.shelters.state}`;
+  }
+
+  if (dog?.placement_location) return dog.placement_location;
+
+  if (dog?.placement_city && dog?.placement_state) {
+    return `${dog.placement_city}, ${dog.placement_state}`;
+  }
+
+  return "Apply through shelter";
+}
+
 export default function DogCard({
   dog,
   scorePct = null,
@@ -161,7 +185,7 @@ export default function DogCard({
 
   const shelter = dog?.shelters || {};
   const urgency = dog?.urgency_level || "Standard";
-  const applyLink = shelter?.apply_url || shelter?.website || "";
+  const applyLink = displayApplyLink(dog);
 
   const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
   const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
@@ -365,13 +389,9 @@ export default function DogCard({
 
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-slate-900">
-                    {shelter?.name || "Shelter/Rescue"}
+                    {shelter?.name || dog?.shelter_name || "Shelter/Rescue"}
                   </div>
-                  <div className="text-xs text-slate-500">
-                    {dog?.placement_city && dog?.placement_state
-                      ? `${dog.placement_city}, ${dog.placement_state}`
-                      : "Apply through shelter"}
-                  </div>
+                  <div className="text-xs text-slate-500">{displayLocation(dog)}</div>
                 </div>
               </div>
             </div>

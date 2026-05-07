@@ -31,16 +31,16 @@ const ENERGY_OPTIONS = [
   { label: "High", value: "High" },
 ];
 
-// Fetch dogs plus shelter/rescue info.
-// Only include columns that exist in your shelters table.
 const DOG_SELECT = `
   *,
   shelters (
     id,
     name,
+    website,
+    apply_url,
+    logo_url,
     city,
-    state,
-    logo_url
+    state
   )
 `;
 
@@ -134,7 +134,6 @@ export default function Results() {
       if (kidsOnly && !dog?.good_with_kids) return false;
       if (catsOnly && !dog?.good_with_cats) return false;
 
-      // If toggled on: exclude only explicit false. Allow true OR null/unknown.
       if (dogsOnly && dog?.good_with_dogs === false) return false;
 
       return true;

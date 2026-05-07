@@ -6,16 +6,16 @@ import DogCard from "../components/DogCard";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
-// Fetch dogs plus shelter/rescue info.
-// Only include columns that exist in your shelters table.
 const DOG_SELECT = `
   *,
   shelters (
     id,
     name,
+    website,
+    apply_url,
+    logo_url,
     city,
-    state,
-    logo_url
+    state
   )
 `;
 
@@ -79,7 +79,6 @@ export default function Saved() {
 
         const rows = Array.isArray(data) ? data : [];
 
-        // Keep the same order as savedIds.
         const map = new Map(rows.map((dog) => [String(dog.id), dog]));
         const ordered = savedIds.map((id) => map.get(String(id))).filter(Boolean);
 
