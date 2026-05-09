@@ -44,12 +44,37 @@ const DOG_SELECT = `
   )
 `;
 
-function normalizeAgeBucket(ageYears) {
+function normalizeAgeBucket(ageYears, ageText) {
   const n = Number(ageYears);
-  if (!Number.isFinite(n)) return null;
-  if (n < 2) return "puppy";
-  if (n < 7) return "adult";
-  return "senior";
+
+  if (Number.isFinite(n)) {
+    if (n < 2) return "puppy";
+    if (n < 7) return "adult";
+    return "senior";
+  }
+
+  const text = String(ageText || "").toLowerCase();
+
+  if (text.includes("puppy")) return "puppy";
+  if (text.includes("senior")) return "senior";
+
+  const yearMatch = text.match(/(\d+)\s*year/);
+  if (yearMatch) {
+    const years = Number(yearMatch[1]);
+    if (years < 2) return "puppy";
+    if (years < 7) return "adult";
+    return "senior";
+  }
+
+  return null;
+}
+
+function getShelterId(dog) {
+  return dog?.shelters?.id || dog?.shelter_id || "";
+}
+
+function getShelterName(dog) {
+  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
 }
 
 export default function Results() {
@@ -62,6 +87,7 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  const [rescueFilter, setRescueFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [energyFilter, setEnergyFilter] = useState("all");
@@ -90,6 +116,7 @@ export default function Results() {
         const { data, error } = await supabase
           .from("dogs")
           .select(DOG_SELECT)
+          .eq("adoptable", true)
           .order("created_at", { ascending: false });
 
         if (error) throw error;
@@ -112,6 +139,31 @@ export default function Results() {
     };
   }, [sessionId]);
 
+  const rescueOptions = useMemo(() => {
+    const map = new Map();
+
+    dogs.forEach((dog) => {
+      if (dog.urgency_level === "Adopted") return;
+
+      const id = getShelterId(dog);
+      const name = getShelterName(dog);
+
+      if (!id) return;
+
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name,
+          count: 0,
+        });
+      }
+
+      map.get(id).count += 1;
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [dogs]);
+
   const rankedRows = useMemo(
     () => computeRankedMatches(dogs, answersById),
     [dogs, answersById]
@@ -121,8 +173,15 @@ export default function Results() {
     return rankedRows.filter((row) => {
       const dog = row.dog;
 
+      if (dog?.urgency_level === "Adopted") return false;
+
+      if (rescueFilter !== "all") {
+        const shelterId = getShelterId(dog);
+        if (shelterId !== rescueFilter) return false;
+      }
+
       if (ageFilter !== "all") {
-        const bucket = normalizeAgeBucket(dog?.age_years);
+        const bucket = normalizeAgeBucket(dog?.age_years, dog?.age_text);
         if (bucket !== ageFilter) return false;
       }
 
@@ -134,12 +193,13 @@ export default function Results() {
       if (kidsOnly && !dog?.good_with_kids) return false;
       if (catsOnly && !dog?.good_with_cats) return false;
 
-      if (dogsOnly && dog?.good_with_dogs === false) return false;
+      if (dogsOnly && dog?.good_with_dogs !== true) return false;
 
       return true;
     });
   }, [
     rankedRows,
+    rescueFilter,
     ageFilter,
     sizeFilter,
     energyFilter,
@@ -151,6 +211,7 @@ export default function Results() {
   ]);
 
   function resetFilters() {
+    setRescueFilter("all");
     setAgeFilter("all");
     setSizeFilter("all");
     setEnergyFilter("all");
@@ -202,7 +263,7 @@ export default function Results() {
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Your matches</h1>
             <p className="mt-1 text-sm text-slate-600">
-              Refine anytime to improve ranking.
+              Refine anytime to improve ranking, or narrow results by rescue.
             </p>
 
             <div className="mt-2">
@@ -223,7 +284,23 @@ export default function Results() {
         </div>
 
         <div className="mt-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <label className="text-sm font-semibold text-slate-800">
+              Rescue / shelter
+              <select
+                value={rescueFilter}
+                onChange={(e) => setRescueFilter(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All rescues</option>
+                {rescueOptions.map((rescue) => (
+                  <option key={rescue.id} value={rescue.id}>
+                    {rescue.name} ({rescue.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="text-sm font-semibold text-slate-800">
               Age
               <select

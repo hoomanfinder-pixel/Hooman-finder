@@ -77,6 +77,7 @@ function normalizeDog(dog) {
     dog?.placement_state ||
     dog?.source_url
       ? {
+          id: dog.shelter_id || null,
           name: dog.shelter_name || "Shelter or rescue",
           website: dog.shelter_website || dog.source_url || null,
           apply_url: dog.source_url || dog.shelter_website || null,
@@ -88,21 +89,26 @@ function normalizeDog(dog) {
 
   return {
     ...dog,
-
     age_years: dog.age_years,
     display_age: dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
     photo_url: dog.photo_url,
-
-    // This is the important part:
-    // DogCard expects dog.shelters.logo_url / dog.shelters.name / dog.shelters.apply_url.
     shelters: joinedShelter || fallbackShelter,
   };
+}
+
+function getShelterId(dog) {
+  return dog?.shelters?.id || dog?.shelter_id || "";
+}
+
+function getShelterName(dog) {
+  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
 }
 
 export default function Dogs() {
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
 
+  const [rescueFilter, setRescueFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [energyFilter, setEnergyFilter] = useState("all");
@@ -133,6 +139,7 @@ export default function Dogs() {
             logo_url
           )
         `)
+        .eq("adoptable", true)
         .order("created_at", { ascending: false });
 
       console.log("Fetched dogs with shelters:", data);
@@ -159,10 +166,40 @@ export default function Dogs() {
     };
   }, []);
 
+  const rescueOptions = useMemo(() => {
+    const map = new Map();
+
+    dogs.forEach((dog) => {
+      if (dog.urgency_level === "Adopted") return;
+
+      const id = getShelterId(dog);
+      const name = getShelterName(dog);
+
+      if (!id) return;
+
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name,
+          count: 0,
+        });
+      }
+
+      map.get(id).count += 1;
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [dogs]);
+
   const filteredDogs = useMemo(() => {
     return dogs
       .filter((dog) => {
         if (dog.urgency_level === "Adopted") return false;
+
+        if (rescueFilter !== "all") {
+          const shelterId = getShelterId(dog);
+          if (shelterId !== rescueFilter) return false;
+        }
 
         if (ageFilter !== "all") {
           const bucket = normalizeAgeBucket(dog.age_years, dog.age_text);
@@ -188,6 +225,7 @@ export default function Dogs() {
       });
   }, [
     dogs,
+    rescueFilter,
     ageFilter,
     sizeFilter,
     energyFilter,
@@ -199,6 +237,7 @@ export default function Dogs() {
   ]);
 
   function resetFilters() {
+    setRescueFilter("all");
     setAgeFilter("all");
     setSizeFilter("all");
     setEnergyFilter("all");
@@ -249,8 +288,9 @@ export default function Dogs() {
             </h1>
 
             <p className="mt-2 text-sm text-slate-600 max-w-2xl">
-              Browse dogs by lifestyle fit, personality, and urgency. Hooman Finder does
-              not process adoptions directly — apply through the shelter or rescue.
+              Browse dogs by rescue, lifestyle fit, personality, and urgency. Hooman
+              Finder does not process adoptions directly — apply through the shelter or
+              rescue.
             </p>
           </div>
 
@@ -263,7 +303,23 @@ export default function Dogs() {
         </div>
 
         <div className="mt-6 rounded-2xl bg-white border border-slate-200 shadow-sm p-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <label className="text-sm font-semibold text-slate-800">
+              Rescue / shelter
+              <select
+                value={rescueFilter}
+                onChange={(e) => setRescueFilter(e.target.value)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="all">All rescues</option>
+                {rescueOptions.map((rescue) => (
+                  <option key={rescue.id} value={rescue.id}>
+                    {rescue.name} ({rescue.count})
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="text-sm font-semibold text-slate-800">
               Age
               <select
