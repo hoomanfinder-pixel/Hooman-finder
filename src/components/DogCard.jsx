@@ -178,8 +178,6 @@ function buildLifestyleTags(dog) {
   if (dog?.potty_trained === true) tags.push("Potty trained");
   if (dog?.hypoallergenic === true) tags.push("Hypoallergenic");
   if (dog?.first_time_friendly === true) tags.push("First-time friendly");
-  if (dog?.barking_level) tags.push(`${dog.barking_level} barking`);
-  if (dog?.shedding_level) tags.push(`${dog.shedding_level} shedding`);
 
   return tags.slice(0, 4);
 }
@@ -188,14 +186,14 @@ function shortDescription(dog) {
   const raw = String(dog?.description || "").trim();
 
   if (!raw) {
-    return "View this dog’s profile to learn more about their personality, needs, and adoption source.";
+    return "View this dog’s profile to learn more about their personality and adoption source.";
   }
 
   const cleaned = raw.replace(/\s+/g, " ");
 
-  if (cleaned.length <= 135) return cleaned;
+  if (cleaned.length <= 105) return cleaned;
 
-  return `${cleaned.slice(0, 135).trim()}…`;
+  return `${cleaned.slice(0, 105).trim()}…`;
 }
 
 export default function DogCard({
@@ -339,7 +337,7 @@ export default function DogCard({
         state={linkState}
         className="group block overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
       >
-        <div className="relative aspect-[4/3] w-full bg-slate-100">
+        <div className="relative aspect-[16/11] w-full bg-slate-100 sm:aspect-[4/3]">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -358,7 +356,7 @@ export default function DogCard({
               {showMatch && tier ? (
                 <span
                   className={[
-                    "inline-flex items-center rounded-full px-3 py-1 text-xs font-bold shadow-sm",
+                    "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold shadow-sm sm:px-3 sm:text-xs",
                     tier.pillClass,
                   ].join(" ")}
                   title={
@@ -374,7 +372,7 @@ export default function DogCard({
               {urgency !== "Standard" ? (
                 <span
                   className={[
-                    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-bold shadow-sm",
+                    "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold shadow-sm sm:px-3 sm:text-xs",
                     urgencyStyle(urgency),
                   ].join(" ")}
                 >
@@ -387,7 +385,7 @@ export default function DogCard({
               type="button"
               onClick={onToggleSaved}
               className={[
-                "shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-full border text-lg font-bold shadow-sm transition",
+                "shrink-0 inline-flex h-9 w-9 items-center justify-center rounded-full border text-base font-bold shadow-sm transition sm:h-10 sm:w-10 sm:text-lg",
                 saved
                   ? "bg-rose-600 text-white border-rose-600"
                   : "bg-white/90 text-slate-800 border-white/80 hover:bg-white",
@@ -399,27 +397,27 @@ export default function DogCard({
             </button>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent p-4">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/25 to-transparent p-4">
             <div className="flex items-end justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="truncate text-2xl font-extrabold text-white drop-shadow">
+                <h2 className="truncate text-xl font-extrabold text-white drop-shadow sm:text-2xl">
                   {dog?.name || "Unnamed"}
                 </h2>
 
-                <p className="mt-1 truncate text-sm font-semibold text-white/90 drop-shadow">
+                <p className="mt-0.5 truncate text-xs font-semibold text-white/90 drop-shadow sm:text-sm">
                   {dog?.breed || "Mixed breed"}
                   {ageLabel ? ` • ${ageLabel}` : ""}
                 </p>
               </div>
 
-              <span className="shrink-0 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-slate-800 shadow-sm">
+              <span className="shrink-0 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-slate-800 shadow-sm sm:px-3 sm:text-xs">
                 Adoptable
               </span>
             </div>
           </div>
         </div>
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           {lifestyleTags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {lifestyleTags.map((tag) => (
@@ -439,20 +437,20 @@ export default function DogCard({
             </div>
           )}
 
-          <p className="mt-4 text-sm leading-relaxed text-slate-600">
+          <p className="mt-3 hidden text-sm leading-relaxed text-slate-600 sm:block">
             {previewDescription}
           </p>
 
-          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <div className="mt-4 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
             {shelter?.logo_url ? (
               <img
                 src={shelter.logo_url}
                 alt={shelter?.name || "Shelter logo"}
-                className="h-10 w-10 rounded-full border border-slate-200 bg-white object-cover"
+                className="h-9 w-9 rounded-full border border-slate-200 bg-white object-cover sm:h-10 sm:w-10"
                 loading="lazy"
               />
             ) : (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-extrabold text-slate-400">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-extrabold text-slate-400 sm:h-10 sm:w-10 sm:text-sm">
                 HF
               </div>
             )}
@@ -477,14 +475,14 @@ export default function DogCard({
               onMouseLeave={scheduleCloseHover}
               onFocus={openHover}
               onBlur={scheduleCloseHover}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate-900 border border-slate-300 hover:bg-slate-50"
+              className="mt-3 inline-flex w-full items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate-900 border border-slate-300 hover:bg-slate-50"
             >
               Why matched?
             </button>
           ) : null}
 
-          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-3 text-sm font-bold text-slate-900 transition group-hover:bg-slate-200">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
+            <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-5 py-2.5 text-sm font-bold text-slate-900 transition group-hover:bg-slate-200 sm:py-3">
               View profile
             </span>
 
@@ -493,7 +491,7 @@ export default function DogCard({
               onClick={onApplyClick}
               disabled={!applyLink}
               className={[
-                "inline-flex items-center justify-center rounded-full px-5 py-3 text-sm font-bold transition",
+                "inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-bold transition sm:py-3",
                 applyLink
                   ? "bg-slate-900 text-white hover:bg-slate-800"
                   : "bg-slate-200 text-slate-500 cursor-not-allowed",

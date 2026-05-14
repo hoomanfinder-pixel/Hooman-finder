@@ -10,7 +10,11 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <header className="bg-white border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between gap-3">
-          <Link to="/" aria-label="Go to Hooman Finder homepage" className="shrink-0">
+          <Link
+            to="/"
+            aria-label="Go to Hooman Finder homepage"
+            className="shrink-0"
+          >
             <img
               src="/logo.png"
               alt="Hooman Finder"
@@ -38,7 +42,7 @@ export default function Home() {
               onClick={() => navigate("/quiz")}
               className="rounded-full bg-slate-900 text-white px-4 sm:px-5 py-2 text-sm sm:text-base font-semibold hover:bg-slate-800 whitespace-nowrap"
             >
-              Take the quiz
+              Take quiz
             </button>
           </div>
         </div>
@@ -46,93 +50,106 @@ export default function Home() {
 
       <main className="flex-1">
         <section className="mx-auto max-w-6xl px-4 py-6 sm:py-10">
-          <div className="relative overflow-hidden rounded-3xl border border-slate-300 bg-white shadow-sm">
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="absolute inset-0">
               <img
                 src="/hero-dog.jpg"
                 alt=""
-                className="h-full w-full object-cover object-center opacity-35"
+                className="h-full w-full object-cover object-center opacity-25"
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-white/85 via-white/75 to-white/90" />
+              <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/90 to-white/95" />
             </div>
 
-            <div className="relative px-5 py-10 sm:px-6 sm:py-14 md:px-10 md:py-20 text-center">
-              <div className="mx-auto mb-4 sm:mb-5 inline-flex max-w-full items-center rounded-full border border-slate-300 bg-white/85 px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold uppercase tracking-wide text-slate-700 shadow-sm">
-                Starting with rescue dogs in Michigan + the Midwest
+            <div className="relative px-5 py-8 sm:px-8 sm:py-14 md:px-10 md:py-16">
+              <div className="max-w-3xl">
+                <div className="mb-4 inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[11px] sm:text-xs font-bold uppercase tracking-wide text-slate-600 shadow-sm">
+                  Rescue dogs in Michigan + the Midwest
+                </div>
+
+                <h1 className="text-3xl sm:text-5xl md:text-6xl font-extrabold leading-tight tracking-tight text-slate-950">
+                  Find a dog who fits your real life.
+                </h1>
+
+                <p className="mt-4 text-base sm:text-lg text-slate-700 max-w-2xl leading-relaxed">
+                  Hooman Finder helps you discover adoptable dogs by personality,
+                  lifestyle fit, and urgency — then apply directly through the rescue
+                  or shelter.
+                </p>
+
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/dogs")}
+                    className="w-full sm:w-auto rounded-full bg-slate-900 text-white px-7 py-3 font-semibold hover:bg-slate-800 shadow-sm"
+                  >
+                    View adoptable dogs
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate("/quiz")}
+                    className="w-full sm:w-auto rounded-full bg-white border border-slate-300 px-7 py-3 font-semibold text-slate-900 hover:bg-slate-50 shadow-sm"
+                  >
+                    Take the matching quiz
+                  </button>
+                </div>
+
+                <p className="mt-4 text-xs sm:text-sm text-slate-500 leading-relaxed max-w-2xl">
+                  Hooman Finder does not process adoptions directly. We help you find
+                  the fit, then connect you to the source.
+                </p>
               </div>
+            </div>
+          </div>
 
-              <h1 className="mx-auto max-w-5xl text-3xl sm:text-4xl md:text-6xl font-extrabold leading-tight text-slate-950">
-                Find dogs who need homes — and the hoomans who fit them best.
-              </h1>
-
-              <p className="mt-4 sm:mt-5 text-base md:text-lg text-slate-700 max-w-3xl mx-auto leading-relaxed">
-                Discover adoptable dogs by personality, lifestyle fit, and urgency.
-                When you find your perfect match, apply directly through the shelter
-                or rescue.
+          <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+              <div className="text-sm sm:text-base font-extrabold text-slate-900">
+                Match by lifestyle
+              </div>
+              <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                Look beyond breed and age to energy, temperament, home needs, and fit.
               </p>
+            </div>
 
-              <div className="mt-7 sm:mt-8 flex flex-col sm:flex-row justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => navigate("/dogs")}
-                  className="w-full sm:w-auto rounded-full bg-slate-900 text-white px-7 py-3 font-semibold hover:bg-slate-800 shadow-sm"
-                >
-                  View adoptable dogs
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/quiz")}
-                  className="w-full sm:w-auto rounded-full bg-white border border-slate-300 px-7 py-3 font-semibold text-slate-900 hover:bg-slate-50 shadow-sm"
-                >
-                  Take the matching quiz
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => navigate("/shelters/join")}
-                  className="w-full sm:w-auto rounded-full bg-white border border-slate-300 px-7 py-3 font-semibold text-slate-900 hover:bg-slate-50 shadow-sm"
-                >
-                  For shelters
-                </button>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+              <div className="text-sm sm:text-base font-extrabold text-slate-900">
+                See urgent dogs
               </div>
+              <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                Dogs who need visibility quickly can stand out to the right adopters.
+              </p>
+            </div>
 
-              <p className="mt-5 text-xs md:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                Hooman Finder does not process adoptions directly — adoption applications
-                are completed through the shelter or rescue.
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+              <div className="text-sm sm:text-base font-extrabold text-slate-900">
+                Apply through rescues
+              </div>
+              <p className="mt-1.5 text-sm text-slate-600 leading-relaxed">
+                We help with discovery. The shelter or rescue handles the adoption.
               </p>
             </div>
           </div>
 
-          <div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-base md:text-sm font-extrabold text-slate-900">
-                Personality-based discovery
+          <div className="mt-5 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-950">
+                  Not sure where to start?
+                </h2>
+                <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl">
+                  Take the quiz if you want guidance, or browse dogs if you already
+                  know what you’re looking for.
+                </p>
               </div>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Browse dogs by temperament, energy level, lifestyle fit, and home needs —
-                not just breed or age.
-              </p>
-            </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-base md:text-sm font-extrabold text-slate-900">
-                Urgent dogs get visibility
-              </div>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Dogs who need help quickly can be highlighted so more potential adopters
-                see them.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="text-base md:text-sm font-extrabold text-slate-900">
-                Apply through the source
-              </div>
-              <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                Hooman Finder helps you discover the dog. The shelter or rescue handles
-                the adoption.
-              </p>
+              <button
+                type="button"
+                onClick={() => navigate("/quiz")}
+                className="w-full sm:w-auto shrink-0 rounded-full bg-slate-900 text-white px-6 py-3 font-semibold hover:bg-slate-800 shadow-sm"
+              >
+                Find my match
+              </button>
             </div>
           </div>
         </section>
