@@ -49,6 +49,8 @@ function urgencyStyle(level) {
       return "bg-red-600 text-white";
     case "High":
       return "bg-orange-500 text-white";
+    case "Urgent":
+      return "bg-orange-500 text-white";
     case "Adopted":
       return "bg-emerald-600 text-white";
     default:
@@ -167,19 +169,60 @@ function displayLocation(dog) {
   return "Apply through rescue";
 }
 
-function buildLifestyleTags(dog) {
+function shelterName(dog) {
+  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
+}
+
+function displayBreed(dog) {
+  return dog?.breed || "Mixed breed";
+}
+
+function buildDescription(dog) {
+  const raw =
+    dog?.description ||
+    dog?.bio ||
+    dog?.placement_note ||
+    dog?.notes ||
+    "";
+
+  const clean = String(raw).replace(/\s+/g, " ").trim();
+
+  if (!clean) {
+    const bits = [];
+    if (dog?.energy_level) bits.push(`${dog.energy_level.toLowerCase()} energy`);
+    if (dog?.good_with_dogs === true) bits.push("dog-friendly");
+    if (dog?.good_with_cats === true) bits.push("cat-friendly");
+    if (dog?.potty_trained === true) bits.push("potty trained");
+
+    return bits.length
+      ? `A ${bits.join(", ")} dog who could be a strong fit.`
+      : "Tap to learn more about this dog's personality and adoption details.";
+  }
+
+  return clean.length > 120 ? `${clean.slice(0, 117)}...` : clean;
+}
+
+function buildLifestyleTags(dog, ageLabel) {
   const tags = [];
 
-  if (dog?.energy_level) tags.push(`${dog.energy_level} energy`);
+  if (ageLabel) tags.push(ageLabel);
+  if (dog?.breed) tags.push(dog.breed);
+  else tags.push("Mixed breed");
   if (dog?.size) tags.push(dog.size);
-  if (dog?.good_with_kids === true) tags.push("Kids");
-  if (dog?.good_with_dogs === true) tags.push("Dogs");
-  if (dog?.good_with_cats === true) tags.push("Cats");
-  if (dog?.potty_trained === true) tags.push("Potty trained");
-  if (dog?.hypoallergenic === true) tags.push("Hypoallergenic");
-  if (dog?.first_time_friendly === true) tags.push("First-time friendly");
+  if (dog?.energy_level) tags.push(`${dog.energy_level} energy`);
 
-  return tags.slice(0, 3);
+  return tags.filter(Boolean).slice(0, 4);
+}
+
+function PlaceholderPhoto({ name }) {
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#eee8da] to-[#dfe7d7] text-center">
+      <div className="text-3xl">🐶</div>
+      <div className="mt-2 px-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-500">
+        {name || "Dog photo"}
+      </div>
+    </div>
+  );
 }
 
 export default function DogCard({
@@ -188,6 +231,8 @@ export default function DogCard({
   breakdown = null,
   showMatch = false,
   sessionId = null,
+  variant = "grid",
+  rank = null,
 }) {
   const [openModal, setOpenModal] = useState(false);
   const [showHover, setShowHover] = useState(false);
@@ -198,19 +243,22 @@ export default function DogCard({
   const hoverPanelRef = useRef(null);
   const closeTimer = useRef(null);
 
-  const shelter = dog?.shelters || {};
   const urgency = dog?.urgency_level || "Standard";
   const applyLink = displayApplyLink(dog);
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
+  const cardVariant = showMatch ? "match" : variant;
 
   const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
   const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
-  const lifestyleTags = useMemo(() => buildLifestyleTags(dog), [dog]);
 
   const ageLabel = useMemo(() => {
-    const v = formatAge(dog?.age_years);
-    return v === "Unknown" ? "" : v;
-  }, [dog?.age_years]);
+    const formatted = formatAge(dog?.age_years);
+    if (formatted && formatted !== "Unknown") return formatted;
+    if (dog?.age_text) return dog.age_text;
+    return "";
+  }, [dog?.age_years, dog?.age_text]);
+
+  const lifestyleTags = useMemo(() => buildLifestyleTags(dog, ageLabel), [dog, ageLabel]);
 
   const dogLink = useMemo(() => {
     const base = `/dog/${dog?.id}`;
@@ -315,172 +363,26 @@ export default function DogCard({
     window.open(applyLink, "_blank", "noopener,noreferrer");
   }
 
-  return (
+  const heartButton = (
+    <button
+      type="button"
+      onClick={onToggleSaved}
+      className={[
+        "inline-flex shrink-0 items-center justify-center rounded-full font-black shadow-sm backdrop-blur transition",
+        cardVariant === "saved" ? "h-9 w-9 text-lg" : "h-8 w-8 text-base sm:h-9 sm:w-9 sm:text-lg",
+        saved
+          ? "bg-white text-rose-600"
+          : "bg-black/35 text-white ring-1 ring-white/30 hover:bg-white hover:text-stone-950",
+      ].join(" ")}
+      aria-label={saved ? "Unsave dog" : "Save dog"}
+      title={saved ? "Saved" : "Save"}
+    >
+      {saved ? "♥" : "♡"}
+    </button>
+  );
+
+  const modals = (
     <>
-      <Link
-        to={dogLink}
-        state={linkState}
-        className="group relative block overflow-hidden rounded-[1.65rem] bg-stone-950 shadow-sm ring-1 ring-black/5 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
-      >
-        <div className="relative aspect-[4/5] min-h-[300px] w-full overflow-hidden bg-stone-200 sm:aspect-[3/4]">
-          {imgSrc ? (
-            <img
-              src={imgSrc}
-              alt={dog?.name || "Dog"}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
-              loading="lazy"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-stone-200 text-sm font-semibold text-stone-500">
-              No photo yet
-            </div>
-          )}
-
-          <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/24 to-black/18" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent" />
-
-          <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-            <div className="flex min-w-0 flex-wrap gap-1.5">
-              {showMatch && tier ? (
-                <span
-                  className={[
-                    "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] shadow-sm backdrop-blur",
-                    tier.className,
-                  ].join(" ")}
-                  title={
-                    Number.isFinite(Number(scorePct))
-                      ? `${Math.round(scorePct)}% match`
-                      : ""
-                  }
-                >
-                  {Number.isFinite(Number(scorePct))
-                    ? `${Math.round(scorePct)}%`
-                    : tier.label}
-                </span>
-              ) : null}
-
-              {urgency !== "Standard" ? (
-                <span
-                  className={[
-                    "inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.14em] shadow-sm",
-                    urgencyStyle(urgency),
-                  ].join(" ")}
-                >
-                  {urgency}
-                </span>
-              ) : null}
-            </div>
-
-            <button
-              type="button"
-              onClick={onToggleSaved}
-              className={[
-                "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-lg font-black shadow-sm backdrop-blur transition",
-                saved
-                  ? "bg-white text-rose-600"
-                  : "bg-black/35 text-white ring-1 ring-white/30 hover:bg-white hover:text-stone-950",
-              ].join(" ")}
-              aria-label={saved ? "Unsave dog" : "Save dog"}
-              title={saved ? "Saved" : "Save"}
-            >
-              {saved ? "♥" : "♡"}
-            </button>
-          </div>
-
-          <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-            <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/62">
-                  {shelter?.name || dog?.shelter_name || "Rescue dog"}
-                </p>
-
-                <h2 className="truncate text-3xl font-semibold leading-none tracking-[-0.055em] text-white drop-shadow-sm">
-                  {dog?.name || "Unnamed"}
-                </h2>
-
-                <p className="mt-2 truncate text-sm font-medium text-white/82">
-                  {dog?.breed || "Mixed breed"}
-                  {ageLabel ? ` • ${ageLabel}` : ""}
-                </p>
-              </div>
-
-              <div className="hidden shrink-0 text-right sm:block">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/55">
-                  Location
-                </p>
-                <p className="mt-1 max-w-[120px] truncate text-xs font-semibold text-white/85">
-                  {displayLocation(dog)}
-                </p>
-              </div>
-            </div>
-
-            {lifestyleTags.length > 0 ? (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {lifestyleTags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center rounded-full bg-white/14 px-2.5 py-1 text-[10px] font-bold text-white ring-1 ring-white/18 backdrop-blur"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-              <span className="inline-flex items-center justify-center bg-white px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-stone-950 transition group-hover:bg-stone-100">
-                View profile
-              </span>
-
-              {showMatch ? (
-                <button
-                  ref={whyBtnRef}
-                  type="button"
-                  onClick={openFromClick}
-                  onMouseEnter={openHover}
-                  onMouseLeave={scheduleCloseHover}
-                  onFocus={openHover}
-                  onBlur={scheduleCloseHover}
-                  className="inline-flex items-center justify-center border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
-                >
-                  Why
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onApplyClick}
-                  disabled={!applyLink}
-                  className={[
-                    "inline-flex items-center justify-center border px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] backdrop-blur transition",
-                    applyLink
-                      ? "border-white/45 bg-white/10 text-white hover:bg-white hover:text-stone-950"
-                      : "cursor-not-allowed border-white/15 bg-white/5 text-white/35",
-                  ].join(" ")}
-                >
-                  Apply
-                </button>
-              )}
-            </div>
-
-            {showMatch ? (
-              <button
-                type="button"
-                onClick={onApplyClick}
-                disabled={!applyLink}
-                className={[
-                  "mt-2 inline-flex w-full items-center justify-center border px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] backdrop-blur transition",
-                  applyLink
-                    ? "border-white/35 bg-black/20 text-white hover:bg-white hover:text-stone-950"
-                    : "cursor-not-allowed border-white/15 bg-white/5 text-white/35",
-                ].join(" ")}
-              >
-                {applyLink ? "Apply through rescue" : "Application unavailable"}
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </Link>
-
       {showMatch &&
         showHover &&
         createPortal(
@@ -556,7 +458,7 @@ export default function DogCard({
               </button>
             </div>
 
-            <div className="mt-5 border border-stone-950/10 bg-white p-4">
+            <div className="mt-5 rounded-2xl border border-stone-950/10 bg-white p-4">
               <div className="text-sm font-black text-stone-950">Top reasons</div>
 
               <ul className="mt-3 list-disc pl-5 text-sm leading-6 text-stone-700">
@@ -579,7 +481,7 @@ export default function DogCard({
             <div className="mt-5 flex justify-end">
               <button
                 type="button"
-                className="bg-stone-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-stone-800"
+                className="rounded-full bg-stone-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-stone-800"
                 onClick={closeModal}
               >
                 Close
@@ -588,6 +490,264 @@ export default function DogCard({
           </div>
         </div>
       ) : null}
+    </>
+  );
+
+  if (cardVariant === "saved") {
+    return (
+      <>
+        <Link
+          to={dogLink}
+          state={linkState}
+          className="group grid grid-cols-[88px_1fr_auto] items-center gap-3 rounded-[1.35rem] border border-stone-950/10 bg-white/72 p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md sm:grid-cols-[112px_1fr_auto] sm:p-3"
+        >
+          <div className="relative aspect-square overflow-hidden rounded-[1.05rem] bg-stone-200">
+            {imgSrc ? (
+              <img
+                src={imgSrc}
+                alt={dog?.name || "Dog"}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+                loading="lazy"
+              />
+            ) : (
+              <PlaceholderPhoto name={dog?.name} />
+            )}
+
+            {urgency !== "Standard" ? (
+              <span
+                className={[
+                  "absolute left-2 top-2 rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] shadow-sm",
+                  urgencyStyle(urgency),
+                ].join(" ")}
+              >
+                {urgency}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="min-w-0 py-1">
+            <h3 className="truncate text-xl font-semibold leading-none tracking-[-0.04em] text-stone-950">
+              {dog?.name || "Unnamed"}
+            </h3>
+
+            <p className="mt-1 truncate text-[11px] font-semibold text-stone-500">
+              {shelterName(dog)}
+            </p>
+
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {(ageLabel ? [ageLabel, displayBreed(dog), dog?.size] : [displayBreed(dog), dog?.size])
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-[#f4f1ea] px-2 py-1 text-[10px] font-bold text-stone-600 ring-1 ring-stone-950/5"
+                  >
+                    {tag}
+                  </span>
+                ))}
+            </div>
+
+            <p className="mt-2 hidden truncate text-xs text-stone-500 sm:block">
+              {displayLocation(dog)}
+            </p>
+          </div>
+
+          <div className="self-start">{heartButton}</div>
+        </Link>
+
+        {modals}
+      </>
+    );
+  }
+
+  if (cardVariant === "match") {
+    return (
+      <>
+        <Link
+          to={dogLink}
+          state={linkState}
+          className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+        >
+          <div className="relative aspect-[4/4.7] min-h-[360px] w-full overflow-hidden bg-stone-200 sm:aspect-[16/13]">
+            {imgSrc ? (
+              <img
+                src={imgSrc}
+                alt={dog?.name || "Dog"}
+                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+                loading="lazy"
+              />
+            ) : (
+              <PlaceholderPhoto name={dog?.name} />
+            )}
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/35 to-black/15" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent" />
+
+            <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap gap-1.5">
+                {rank === 1 ? (
+                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-stone-950 shadow-sm">
+                    Top match
+                  </span>
+                ) : null}
+
+                {showMatch && tier ? (
+                  <span
+                    className={[
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-sm backdrop-blur",
+                      tier.className,
+                    ].join(" ")}
+                    title={
+                      Number.isFinite(Number(scorePct))
+                        ? `${Math.round(scorePct)}% match`
+                        : ""
+                    }
+                  >
+                    {Number.isFinite(Number(scorePct))
+                      ? `${Math.round(scorePct)}% match`
+                      : tier.label}
+                  </span>
+                ) : null}
+
+                {urgency !== "Standard" ? (
+                  <span
+                    className={[
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-sm",
+                      urgencyStyle(urgency),
+                    ].join(" ")}
+                  >
+                    {urgency}
+                  </span>
+                ) : null}
+              </div>
+
+              {heartButton}
+            </div>
+
+            {Number.isFinite(Number(scorePct)) ? (
+              <div className="absolute right-4 top-16 hidden h-14 w-14 items-center justify-center rounded-full border border-[#dfe7d7]/70 bg-black/35 text-center text-[#dfe7d7] backdrop-blur sm:flex">
+                <div>
+                  <div className="text-base font-black leading-none">{Math.round(scorePct)}%</div>
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em]">Match</div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
+              <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-white/62">
+                {shelterName(dog)}
+              </p>
+
+              <h2 className="truncate text-4xl font-semibold leading-none tracking-[-0.06em] text-white drop-shadow-sm">
+                {dog?.name || "Unnamed"}
+              </h2>
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {lifestyleTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center rounded-full bg-white/14 px-2.5 py-1 text-[10px] font-bold text-white ring-1 ring-white/18 backdrop-blur"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-white/82 sm:text-sm">
+                {buildDescription(dog)}
+              </p>
+
+              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
+                <span className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-stone-950 transition group-hover:bg-stone-100">
+                  View profile
+                </span>
+
+                <button
+                  ref={whyBtnRef}
+                  type="button"
+                  onClick={openFromClick}
+                  onMouseEnter={openHover}
+                  onMouseLeave={scheduleCloseHover}
+                  onFocus={openHover}
+                  onBlur={scheduleCloseHover}
+                  className="inline-flex items-center justify-center rounded-xl border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
+                >
+                  Why
+                </button>
+              </div>
+            </div>
+          </div>
+        </Link>
+
+        {modals}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Link
+        to={dogLink}
+        state={linkState}
+        className="group relative block overflow-hidden rounded-[1.25rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+      >
+        <div className="relative aspect-[3/4] min-h-[210px] w-full overflow-hidden bg-stone-200 sm:min-h-[300px]">
+          {imgSrc ? (
+            <img
+              src={imgSrc}
+              alt={dog?.name || "Dog"}
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+              loading="lazy"
+            />
+          ) : (
+            <PlaceholderPhoto name={dog?.name} />
+          )}
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/24 to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
+
+          <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap gap-1">
+              {urgency !== "Standard" ? (
+                <span
+                  className={[
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
+                    urgencyStyle(urgency),
+                  ].join(" ")}
+                >
+                  {urgency}
+                </span>
+              ) : null}
+            </div>
+
+            {heartButton}
+          </div>
+
+          <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
+            <p className="mb-1 truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-white/65 sm:text-[10px]">
+              {shelterName(dog)}
+            </p>
+
+            <h2 className="truncate text-2xl font-semibold leading-none tracking-[-0.055em] text-white drop-shadow-sm sm:text-3xl">
+              {dog?.name || "Unnamed"}
+            </h2>
+
+            <div className="mt-2 flex flex-wrap gap-1">
+              {lifestyleTags.slice(0, 3).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex max-w-full items-center truncate rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Link>
+
+      {modals}
     </>
   );
 }

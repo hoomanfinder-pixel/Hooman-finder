@@ -57,6 +57,7 @@ function urgencyRank(level) {
     case "Critical":
       return 1;
     case "High":
+    case "Urgent":
       return 2;
     case "Standard":
       return 3;
@@ -90,8 +91,7 @@ function normalizeDog(dog) {
   return {
     ...dog,
     age_years: dog.age_years,
-    display_age:
-      dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
+    display_age: dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
     photo_url: dog.photo_url,
     shelters: joinedShelter || fallbackShelter,
   };
@@ -186,9 +186,7 @@ export default function Dogs() {
       map.get(id).count += 1;
     });
 
-    return Array.from(map.values()).sort((a, b) =>
-      a.name.localeCompare(b.name)
-    );
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [dogs]);
 
   const filteredDogs = useMemo(() => {
@@ -207,9 +205,7 @@ export default function Dogs() {
         }
 
         if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
-        if (energyFilter !== "all" && dog.energy_level !== energyFilter) {
-          return false;
-        }
+        if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
 
         if (hypoOnly && !dog.hypoallergenic) return false;
         if (pottyOnly && !dog.potty_trained) return false;
@@ -220,11 +216,8 @@ export default function Dogs() {
         return true;
       })
       .sort((a, b) => {
-        const urgencyDiff =
-          urgencyRank(a.urgency_level) - urgencyRank(b.urgency_level);
-
+        const urgencyDiff = urgencyRank(a.urgency_level) - urgencyRank(b.urgency_level);
         if (urgencyDiff !== 0) return urgencyDiff;
-
         return new Date(b.created_at || 0) - new Date(a.created_at || 0);
       });
   }, [
@@ -240,8 +233,7 @@ export default function Dogs() {
     dogsOnly,
   ]);
 
-  const visibleTotal = dogs.filter((dog) => dog.urgency_level !== "Adopted")
-    .length;
+  const visibleTotal = dogs.filter((dog) => dog.urgency_level !== "Adopted").length;
 
   const activeFilterCount = [
     rescueFilter !== "all",
@@ -269,27 +261,27 @@ export default function Dogs() {
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
           <Link to="/" className="shrink-0" aria-label="Go home">
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-10 w-auto object-contain sm:h-12"
+              className="h-9 w-auto object-contain sm:h-11"
             />
           </Link>
 
           <div className="flex items-center gap-2">
             <Link
               to="/saved"
-              className="hidden border border-stone-950/15 bg-white/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-stone-700 hover:bg-white sm:inline-flex"
+              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
             >
               Saved
             </Link>
 
             <Link
               to="/quiz"
-              className="inline-flex items-center justify-center bg-stone-950 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="inline-flex items-center justify-center rounded-full bg-stone-950 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white hover:bg-stone-800"
             >
               Quiz
             </Link>
@@ -297,28 +289,27 @@ export default function Dogs() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-        <section className="border-b border-stone-950/15 pb-5">
+      <main className="mx-auto w-full max-w-7xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8">
+        <section className="pb-4">
           <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-stone-500">
             Browse adoptable dogs
           </p>
 
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="max-w-2xl text-4xl font-semibold leading-[0.9] tracking-[-0.055em] text-stone-950 sm:text-6xl">
+              <h1 className="max-w-2xl text-[2.45rem] font-semibold leading-[0.88] tracking-[-0.065em] text-stone-950 sm:text-6xl">
                 Find your next favorite face.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
-                Browse by rescue, lifestyle fit, personality, and urgency. Hooman
-                Finder helps with discovery — the rescue handles the adoption.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
+                Scroll real adoptable dogs, save favorites, and take the quiz when you’re ready for better matches.
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => setFiltersOpen((current) => !current)}
-              className="inline-flex items-center justify-center border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950"
+              className="inline-flex w-full items-center justify-center rounded-2xl border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
             >
               {filtersOpen ? "Hide filters" : "Filter"}
               {activeFilterCount > 0 ? (
@@ -329,18 +320,18 @@ export default function Dogs() {
             </button>
           </div>
 
-          <div className="mt-5 flex items-center gap-3 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">
-            <span className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2">
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
               {loading ? "Loading" : `${filteredDogs.length} showing`}
             </span>
 
-            <span className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2">
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
               {visibleTotal} available
             </span>
 
             <Link
               to="/quiz"
-              className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2 hover:bg-white"
+              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 hover:bg-white"
             >
               Find my match
             </Link>
@@ -348,7 +339,7 @@ export default function Dogs() {
         </section>
 
         {filtersOpen ? (
-          <section className="mt-4 border border-stone-950/10 bg-white/55 p-4 shadow-sm sm:p-5">
+          <section className="mt-2 rounded-[1.5rem] border border-stone-950/10 bg-white/62 p-4 shadow-sm sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.035em] text-stone-950">
@@ -368,13 +359,13 @@ export default function Dogs() {
               </button>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
               <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 md:col-span-1">
                 Rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   <option value="all">All rescues</option>
                   {rescueOptions.map((rescue) => (
@@ -390,7 +381,7 @@ export default function Dogs() {
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {AGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -405,7 +396,7 @@ export default function Dogs() {
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {SIZE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -420,7 +411,7 @@ export default function Dogs() {
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {ENERGY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -442,7 +433,7 @@ export default function Dogs() {
                 <label
                   key={label}
                   className={[
-                    "shrink-0 border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
+                    "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
                       ? "border-stone-950 bg-stone-950 text-white"
                       : "border-stone-950/15 bg-[#f4f1ea] text-stone-600",
@@ -462,7 +453,7 @@ export default function Dogs() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-5 w-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="mt-4 w-full rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
             >
               Show {filteredDogs.length} dogs
             </button>
@@ -470,11 +461,11 @@ export default function Dogs() {
         ) : null}
 
         {loading ? (
-          <div className="mt-6 border border-stone-950/10 bg-white/55 p-5 text-sm font-semibold text-stone-600">
+          <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm font-semibold text-stone-600">
             Loading adoptable dogs…
           </div>
         ) : filteredDogs.length === 0 ? (
-          <div className="mt-6 border border-stone-950/10 bg-white/55 p-5">
+          <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5">
             <h2 className="text-2xl font-semibold tracking-[-0.035em] text-stone-950">
               No dogs match those filters yet.
             </h2>
@@ -487,22 +478,22 @@ export default function Dogs() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
+                className="rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
               >
                 Clear filters
               </button>
 
               <Link
                 to="/quiz"
-                className="border border-stone-950 px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
+                className="rounded-2xl border border-stone-950 px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
               >
                 Take quiz
               </Link>
             </div>
           </div>
         ) : (
-          <section className="mt-5 sm:mt-7">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <section className="mt-4 sm:mt-7">
+            <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
                 Available dogs
               </h2>
@@ -518,18 +509,15 @@ export default function Dogs() {
               ) : null}
             </div>
 
-            <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-              {filteredDogs.map((dog, index) => (
-                <div
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+              {filteredDogs.map((dog) => (
+                <DogCard
                   key={dog.id}
-                  className={[
-                    "mb-4 break-inside-avoid",
-                    index % 5 === 1 ? "sm:pt-8" : "",
-                    index % 7 === 3 ? "lg:pt-10" : "",
-                  ].join(" ")}
-                >
-                  <DogCard dog={dog} scorePct={null} showMatch={false} />
-                </div>
+                  dog={dog}
+                  scorePct={null}
+                  showMatch={false}
+                  variant="grid"
+                />
               ))}
             </div>
           </section>

@@ -222,9 +222,6 @@ export default function Results() {
     dogsOnly,
   ].filter(Boolean).length;
 
-  const topRow = filteredRows[0] || null;
-  const remainingRows = filteredRows.slice(1);
-
   function resetFilters() {
     setRescueFilter("all");
     setAgeFilter("all");
@@ -249,23 +246,29 @@ export default function Results() {
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/90 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <Link to="/" className="shrink-0" aria-label="Go home">
-            <img src="/logo.png" alt="Hooman Finder" className="h-10 w-auto object-contain sm:h-12" />
+            <img
+              src="/logo.png"
+              alt="Hooman Finder"
+              className="h-9 w-auto object-contain sm:h-11"
+            />
           </Link>
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={goDealbreakers}
-              className="hidden border border-stone-950/15 bg-white/45 px-4 py-2 text-xs font-bold uppercase tracking-[0.16em] text-stone-700 hover:bg-white sm:inline-flex"
+              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
             >
               Deal breakers
             </button>
 
             <button
+              type="button"
               onClick={goRefine}
-              className="inline-flex bg-stone-950 px-4 py-2.5 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="inline-flex rounded-full bg-stone-950 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white hover:bg-stone-800"
             >
               Refine
             </button>
@@ -273,8 +276,8 @@ export default function Results() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-        <section className="border-b border-stone-950/15 pb-5">
+      <main className="mx-auto w-full max-w-4xl px-3.5 py-4 sm:px-6 sm:py-8">
+        <section className="pb-4">
           <Link
             to="/dogs"
             className="text-[10px] font-bold uppercase tracking-[0.24em] text-stone-500 hover:text-stone-950"
@@ -282,28 +285,31 @@ export default function Results() {
             ← Back to browse
           </Link>
 
-          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-stone-500">
                 Your matches
               </p>
 
-              <h1 className="mt-3 max-w-2xl text-4xl font-semibold leading-[0.9] tracking-[-0.055em] text-stone-950 sm:text-6xl">
+              <h1 className="mt-2 max-w-2xl text-[2.5rem] font-semibold leading-[0.9] tracking-[-0.065em] text-stone-950 sm:text-6xl">
                 Your best-fit dogs, ranked.
               </h1>
 
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
-                These matches are based on your quiz answers and the dog details
-                currently available from rescues.
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
+                Top matches based on your quiz answers and the dog details currently available from rescues.
               </p>
 
-              {err ? <div className="mt-3 text-sm font-semibold text-red-600">{err}</div> : null}
+              {err ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {err}
+                </div>
+              ) : null}
             </div>
 
             <button
               type="button"
               onClick={() => setFiltersOpen((current) => !current)}
-              className="inline-flex items-center justify-center border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950"
+              className="inline-flex w-full items-center justify-center rounded-2xl border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
             >
               {filtersOpen ? "Hide filters" : "Filter"}
               {activeFilterCount > 0 ? (
@@ -314,24 +320,27 @@ export default function Results() {
             </button>
           </div>
 
-          <div className="mt-5 flex gap-3 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-stone-500">
-            <span className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2">
-              {loading ? "Loading" : `${filteredRows.length} showing`}
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+              {loading ? "Loading" : `${filteredRows.length} matches found`}
             </span>
-            <span className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2">
+
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
               {rankedRows.length || 0} ranked
             </span>
+
             <button
+              type="button"
               onClick={goDealbreakers}
-              className="shrink-0 border border-stone-950/10 bg-white/45 px-3 py-2 hover:bg-white sm:hidden"
+              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 hover:bg-white sm:hidden"
             >
-              Edit deal breakers
+              Deal breakers
             </button>
           </div>
         </section>
 
         {filtersOpen ? (
-          <section className="mt-4 border border-stone-950/10 bg-white/55 p-4 shadow-sm sm:p-5">
+          <section className="mt-2 rounded-[1.5rem] border border-stone-950/10 bg-white/62 p-4 shadow-sm sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-xl font-semibold tracking-[-0.035em] text-stone-950">
@@ -351,13 +360,13 @@ export default function Results() {
               </button>
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
               <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 md:col-span-1">
                 Rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   <option value="all">All rescues</option>
                   {rescueOptions.map((rescue) => (
@@ -373,7 +382,7 @@ export default function Results() {
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {AGE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -388,7 +397,7 @@ export default function Results() {
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {SIZE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -403,7 +412,7 @@ export default function Results() {
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {ENERGY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -425,7 +434,7 @@ export default function Results() {
                 <label
                   key={label}
                   className={[
-                    "shrink-0 border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
+                    "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
                       ? "border-stone-950 bg-stone-950 text-white"
                       : "border-stone-950/15 bg-[#f4f1ea] text-stone-600",
@@ -445,7 +454,7 @@ export default function Results() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-5 w-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="mt-4 w-full rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
             >
               Show {filteredRows.length} matches
             </button>
@@ -453,14 +462,15 @@ export default function Results() {
         ) : null}
 
         {loading ? (
-          <div className="mt-6 border border-stone-950/10 bg-white/55 p-5 text-sm font-semibold text-stone-600">
+          <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm font-semibold text-stone-600">
             Loading matches…
           </div>
         ) : filteredRows.length === 0 ? (
-          <div className="mt-6 border border-stone-950/10 bg-white/55 p-5">
+          <div className="mt-5 rounded-[1.6rem] border border-stone-950/10 bg-white/62 p-5">
             <h2 className="text-2xl font-semibold tracking-[-0.035em] text-stone-950">
               No dogs match your current filters.
             </h2>
+
             <p className="mt-2 text-sm leading-6 text-stone-600">
               Try clearing filters or refining your quiz answers.
             </p>
@@ -469,7 +479,7 @@ export default function Results() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
+                className="rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
               >
                 Clear filters
               </button>
@@ -477,72 +487,44 @@ export default function Results() {
               <button
                 type="button"
                 onClick={goRefine}
-                className="border border-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
+                className="rounded-2xl border border-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
               >
                 Refine quiz
               </button>
             </div>
           </div>
         ) : (
-          <section className="mt-5 sm:mt-7">
-            {topRow ? (
-              <div className="mb-7">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
-                    Top match
-                  </h2>
+          <section className="mt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
+                Ranked matches
+              </h2>
 
-                  {activeFilterCount > 0 ? (
-                    <button
-                      type="button"
-                      onClick={resetFilters}
-                      className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 underline underline-offset-4 hover:text-stone-950"
-                    >
-                      Clear
-                    </button>
-                  ) : null}
-                </div>
+              {activeFilterCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 underline underline-offset-4 hover:text-stone-950"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
 
-                <div className="mx-auto max-w-md sm:max-w-lg lg:max-w-xl">
-                  <DogCard
-                    dog={topRow.dog}
-                    showMatch
-                    scorePct={topRow.scorePct}
-                    breakdown={topRow.breakdown}
-                    sessionId={sessionId}
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            {remainingRows.length > 0 ? (
-              <>
-                <h2 className="mb-4 text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
-                  More matches
-                </h2>
-
-                <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-                  {remainingRows.map((row, idx) => (
-                    <div
-                      key={row.dog?.id ?? idx}
-                      className={[
-                        "mb-4 break-inside-avoid",
-                        idx % 5 === 1 ? "sm:pt-8" : "",
-                        idx % 7 === 3 ? "lg:pt-10" : "",
-                      ].join(" ")}
-                    >
-                      <DogCard
-                        dog={row.dog}
-                        showMatch
-                        scorePct={row.scorePct}
-                        breakdown={row.breakdown}
-                        sessionId={sessionId}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
+            <div className="space-y-4">
+              {filteredRows.map((row, idx) => (
+                <DogCard
+                  key={row.dog?.id ?? idx}
+                  dog={row.dog}
+                  showMatch
+                  scorePct={row.scorePct}
+                  breakdown={row.breakdown}
+                  sessionId={sessionId}
+                  variant="match"
+                  rank={idx + 1}
+                />
+              ))}
+            </div>
           </section>
         )}
       </main>
