@@ -155,17 +155,18 @@ export default function Home() {
           <img
             src="/home-hero-dogs.jpg"
             alt="Rescue dogs looking for their future home"
-            className="absolute inset-0 h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover object-[52%_28%] sm:object-[50%_35%] lg:object-center"
           />
 
-          <div className="absolute inset-0 bg-stone-950/55" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950 via-stone-950/35 to-stone-950/25" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/65 via-stone-950/20 to-transparent" />
+          {/* lighter mobile overlays so the image does not look almost black */}
+          <div className="absolute inset-0 bg-stone-950/38 sm:bg-stone-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/78 via-stone-950/24 to-stone-950/08 sm:from-stone-950/86 sm:via-stone-950/34 sm:to-stone-950/18" />
+          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/36 via-stone-950/10 to-transparent sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
 
           <div className="relative z-10 flex min-h-[92vh] items-end">
             <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-32 sm:px-6 sm:pb-14 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-white/70">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-white/76">
                   Michigan + Midwest rescue dogs
                 </p>
 
@@ -173,7 +174,7 @@ export default function Home() {
                   Find a dog who fits your real life.
                 </h1>
 
-                <p className="mt-6 max-w-xl text-base leading-7 text-white/78 sm:text-lg">
+                <p className="mt-6 max-w-xl text-base leading-7 text-white/82 sm:text-lg">
                   Discover adoptable dogs by personality, lifestyle fit, and
                   urgency — then apply directly through the rescue or shelter.
                 </p>
@@ -195,8 +196,8 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="mt-10 border-t border-white/20 pt-4">
-                <p className="max-w-xl text-xs uppercase leading-6 tracking-[0.22em] text-white/58">
+              <div className="mt-10 border-t border-white/24 pt-4">
+                <p className="max-w-xl text-xs uppercase leading-6 tracking-[0.22em] text-white/64">
                   Personality-first adoption discovery. Hooman Finder helps with
                   discovery and fit. The rescue handles the adoption.
                 </p>
