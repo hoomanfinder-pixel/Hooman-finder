@@ -110,7 +110,7 @@ export default function Home() {
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-12 w-auto rounded-sm bg-white/85 p-1 shadow-sm backdrop-blur-sm sm:h-14"
+              className="h-10 w-auto rounded-sm bg-white/82 p-0.5 shadow-sm backdrop-blur-sm sm:h-12"
             />
           </Link>
 
@@ -188,43 +188,41 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-[#f4f1ea] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <section className="bg-[#f4f1ea] px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="border-b border-stone-950/20 pb-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-stone-500">
+            <div className="border-b border-stone-950/20 pb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
                 How it works
               </p>
 
-              <h2 className="mt-3 max-w-2xl text-4xl font-semibold leading-none tracking-[-0.045em] text-stone-950 sm:text-5xl">
+              <h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-none tracking-[-0.045em] text-stone-950 sm:text-5xl">
                 Less scrolling. Better fit.
               </h2>
             </div>
 
             <div className="divide-y divide-stone-950/15">
-              {howItWorksRows.map((row, index) => (
+              {howItWorksRows.map((row) => (
                 <article
                   key={row.number}
-                  className="grid gap-5 py-7 sm:grid-cols-[120px_1fr_180px] sm:items-center sm:gap-8 lg:grid-cols-[160px_1fr_260px]"
+                  className="grid grid-cols-[34px_1fr] gap-x-4 gap-y-4 py-5 sm:grid-cols-[120px_1fr_180px] sm:items-center sm:gap-8 sm:py-7 lg:grid-cols-[160px_1fr_260px]"
                 >
-                  <div className="flex items-center justify-between gap-4 sm:block">
-                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-stone-400">
+                  <div className="pt-1 sm:pt-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-400">
                       {row.number}
                     </p>
-
-                    <div className="h-px flex-1 bg-stone-950/15 sm:mt-5 sm:h-24 sm:w-px" />
                   </div>
 
                   <div>
-                    <h3 className="text-3xl font-semibold leading-none tracking-[-0.04em] text-stone-950 sm:text-4xl">
+                    <h3 className="text-2xl font-semibold leading-none tracking-[-0.04em] text-stone-950 sm:text-4xl">
                       {row.title}
                     </h3>
 
-                    <p className="mt-3 max-w-xl text-sm leading-7 text-stone-600 sm:text-base">
+                    <p className="mt-2 max-w-xl text-sm leading-6 text-stone-600 sm:mt-3 sm:text-base sm:leading-7">
                       {row.text}
                     </p>
 
                     {row.dog?.name && (
-                      <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-stone-500">
+                      <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-500">
                         Featuring {row.dog.name}
                       </p>
                     )}
@@ -232,7 +230,7 @@ export default function Home() {
 
                   <Link
                     to={row.dog?.id ? `/dogs/${row.dog.id}` : "/dogs"}
-                    className="group relative h-48 overflow-hidden bg-stone-200 sm:h-32 lg:h-40"
+                    className="group relative col-span-2 h-28 overflow-hidden bg-stone-200 sm:col-span-1 sm:h-32 lg:h-40"
                     aria-label={
                       row.dog?.name
                         ? `View ${row.dog.name}'s profile`
@@ -249,14 +247,26 @@ export default function Home() {
                       className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                     />
 
-                    <div className="absolute inset-0 bg-stone-950/10 transition group-hover:bg-stone-950/25" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/35 via-stone-950/5 to-transparent transition group-hover:from-stone-950/45" />
 
-                    {row.dog?.urgency_level &&
-                      row.dog.urgency_level !== "Standard" && (
-                        <div className="absolute left-3 top-3 bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-stone-950">
-                          {row.dog.urgency_level}
-                        </div>
+                    <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
+                      {row.dog?.name ? (
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white drop-shadow-sm">
+                          {row.dog.name}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white drop-shadow-sm">
+                          View dogs
+                        </p>
                       )}
+
+                      {row.dog?.urgency_level &&
+                        row.dog.urgency_level !== "Standard" && (
+                          <p className="bg-white/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-stone-950">
+                            {row.dog.urgency_level}
+                          </p>
+                        )}
+                    </div>
                   </Link>
                 </article>
               ))}
@@ -309,16 +319,17 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-stone-950/10 bg-[#f4f1ea] px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <img src="/logo.png" alt="Hooman Finder" className="h-10 w-auto" />
-            <p className="mt-3 text-xs text-stone-500">
+      <footer className="border-t border-stone-950/10 bg-[#f4f1ea] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 sm:block">
+            <img src="/logo.png" alt="Hooman Finder" className="h-8 w-auto sm:h-10" />
+
+            <p className="text-xs text-stone-500 sm:mt-3">
               © 2026 Hooman Finder
             </p>
           </div>
 
-          <nav className="flex flex-wrap gap-5 text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500 sm:text-xs">
             <Link to="/about" className="hover:text-stone-950">
               About
             </Link>
