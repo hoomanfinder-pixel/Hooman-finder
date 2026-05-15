@@ -27,6 +27,22 @@ const fallbackDogImages = [
   "/home-hero-dogs.jpg",
 ];
 
+function urgencyClass(level) {
+  switch (level) {
+    case "Critical":
+      return "bg-red-600 text-white";
+    case "High":
+    case "Urgent":
+      return "bg-orange-500 text-white";
+    default:
+      return "bg-white/90 text-stone-950";
+  }
+}
+
+function dogProfilePath(dog) {
+  return dog?.id ? `/dog/${dog.id}` : "/dogs";
+}
+
 export default function Home() {
   const [featuredDogs, setFeaturedDogs] = useState([]);
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
@@ -53,6 +69,7 @@ export default function Home() {
         const urgencyRank = {
           Critical: 1,
           High: 2,
+          Urgent: 2,
           Standard: 3,
           Adopted: 99,
         };
@@ -190,82 +207,112 @@ export default function Home() {
 
         <section className="bg-[#f4f1ea] px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="border-b border-stone-950/20 pb-4">
+            <div className="border-b border-stone-950/20 pb-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
                 How it works
               </p>
 
-              <h2 className="mt-3 max-w-2xl text-3xl font-semibold leading-none tracking-[-0.045em] text-stone-950 sm:text-5xl">
+              <h2 className="mt-3 max-w-2xl text-4xl font-semibold leading-none tracking-[-0.055em] text-stone-950 sm:text-6xl">
                 Less scrolling. Better fit.
               </h2>
             </div>
 
             <div className="divide-y divide-stone-950/15">
-              {howItWorksRows.map((row) => (
+              {howItWorksRows.map((row, index) => (
                 <article
                   key={row.number}
-                  className="grid grid-cols-[34px_1fr] gap-x-4 gap-y-4 py-5 sm:grid-cols-[120px_1fr_180px] sm:items-center sm:gap-8 sm:py-7 lg:grid-cols-[160px_1fr_260px]"
+                  className={[
+                    "grid gap-5 py-6 sm:grid-cols-[88px_minmax(0,1fr)_minmax(260px,420px)] sm:items-center sm:gap-7 sm:py-8 lg:grid-cols-[110px_minmax(0,1fr)_minmax(360px,520px)] lg:gap-10",
+                    index % 2 === 1 ? "lg:[&_.home-step-image]:order-2" : "",
+                  ].join(" ")}
                 >
-                  <div className="pt-1 sm:pt-0">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-stone-400">
+                  <div className="flex items-start gap-4 sm:block">
+                    <p className="text-[12px] font-bold uppercase tracking-[0.26em] text-stone-400">
                       {row.number}
                     </p>
                   </div>
 
-                  <div>
-                    <h3 className="text-2xl font-semibold leading-none tracking-[-0.04em] text-stone-950 sm:text-4xl">
+                  <div className="min-w-0">
+                    <h3 className="max-w-xl text-3xl font-semibold leading-none tracking-[-0.05em] text-stone-950 sm:text-4xl lg:text-5xl">
                       {row.title}
                     </h3>
 
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-stone-600 sm:mt-3 sm:text-base sm:leading-7">
+                    <p className="mt-3 max-w-xl text-base leading-7 text-stone-600 sm:text-lg sm:leading-8">
                       {row.text}
                     </p>
 
-                    {row.dog?.name && (
-                      <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-stone-500">
-                        Featuring {row.dog.name}
-                      </p>
-                    )}
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {row.dog?.name ? (
+                        <p className="rounded-full bg-white/65 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500 ring-1 ring-stone-950/8">
+                          Featuring {row.dog.name}
+                        </p>
+                      ) : (
+                        <p className="rounded-full bg-white/65 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500 ring-1 ring-stone-950/8">
+                          Featuring adoptable dogs
+                        </p>
+                      )}
+
+                      {row.dog?.urgency_level && row.dog.urgency_level !== "Standard" ? (
+                        <p
+                          className={[
+                            "rounded-full px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em]",
+                            urgencyClass(row.dog.urgency_level),
+                          ].join(" ")}
+                        >
+                          {row.dog.urgency_level}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-5">
+                      <Link
+                        to={dogProfilePath(row.dog)}
+                        className="inline-flex items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white transition hover:bg-stone-800"
+                      >
+                        {row.dog?.id ? "View profile" : "Browse dogs"} →
+                      </Link>
+                    </div>
                   </div>
 
                   <Link
-                    to={row.dog?.id ? `/dogs/${row.dog.id}` : "/dogs"}
-                    className="group relative col-span-2 h-28 overflow-hidden bg-stone-200 sm:col-span-1 sm:h-32 lg:h-40"
+                    to={dogProfilePath(row.dog)}
+                    className="home-step-image group relative overflow-hidden rounded-[1.5rem] border border-stone-950/10 bg-white/60 p-2 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
                     aria-label={
                       row.dog?.name
                         ? `View ${row.dog.name}'s profile`
                         : "View adoptable dogs"
                     }
                   >
-                    <img
-                      src={row.image}
-                      alt={
-                        row.dog?.name
-                          ? `${row.dog.name}, an adoptable dog`
-                          : "Adoptable dog"
-                      }
-                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                    />
+                    <div className="relative overflow-hidden rounded-[1.15rem] bg-[#e8e1d5]">
+                      <div className="flex aspect-[4/3] items-center justify-center sm:aspect-[5/4] lg:aspect-[4/3]">
+                        <img
+                          src={row.image}
+                          alt={
+                            row.dog?.name
+                              ? `${row.dog.name}, an adoptable dog`
+                              : "Adoptable dog"
+                          }
+                          className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
+                        />
+                      </div>
 
-                    <div className="absolute inset-0 bg-gradient-to-t from-stone-950/35 via-stone-950/5 to-transparent transition group-hover:from-stone-950/45" />
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-stone-950/65 via-stone-950/12 to-transparent p-4">
+                        <div className="flex items-end justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/70">
+                              Hooman Finder
+                            </p>
 
-                    <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between gap-3">
-                      {row.dog?.name ? (
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white drop-shadow-sm">
-                          {row.dog.name}
-                        </p>
-                      ) : (
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white drop-shadow-sm">
-                          View dogs
-                        </p>
-                      )}
+                            <p className="mt-1 truncate text-2xl font-semibold leading-none tracking-[-0.04em] text-white drop-shadow-sm">
+                              {row.dog?.name || "View dogs"}
+                            </p>
+                          </div>
 
-                      {row.dog?.urgency_level &&
-                        row.dog.urgency_level !== "Standard" && (
-                          <p className="bg-white/90 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-stone-950">
-                            {row.dog.urgency_level}
-                          </p>
-                        )}
+                          <div className="hidden rounded-full bg-white/90 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-950 sm:block">
+                            Profile
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </Link>
                 </article>
