@@ -1,5 +1,5 @@
 // src/components/DogCard.jsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { formatAge } from "../utils/formatAge";
@@ -35,9 +35,21 @@ function toggleSavedId(id) {
   return next.includes(sid);
 }
 
-function matchTier(scorePct) {
+function isRealMatchScore(scorePct, breakdown) {
+  if (breakdown?.enoughQuizInfo === false) return false;
+  return Number.isFinite(Number(scorePct));
+}
+
+function matchTier(scorePct, breakdown) {
+  if (!isRealMatchScore(scorePct, breakdown)) {
+    return {
+      label: "Quiz needed",
+      className: "bg-white/90 text-stone-950",
+    };
+  }
+
   const n = Number(scorePct);
-  if (!Number.isFinite(n)) return null;
+
   if (n >= 85) return { label: "Strong match", className: "bg-white text-stone-950" };
   if (n >= 70) return { label: "Good match", className: "bg-white/90 text-stone-950" };
   return { label: "Potential match", className: "bg-white/85 text-stone-950" };
@@ -58,91 +70,147 @@ function urgencyStyle(level) {
   }
 }
 
-function buildTopReasons({ dog, breakdown }) {
-  const pretty = {
-    play: "play style",
-    energy: "energy level",
-    size: "size",
-    age: "age",
-    potty: "potty training",
-    kids: "kids compatibility",
-    cats: "cats compatibility",
-    pets: "pets compatibility",
-    dogs: "dogs compatibility",
-    firstTime: "first-time owner friendly",
-    allergy: "allergies / hypoallergenic",
-    shedding: "shedding",
-    noise: "barking / noise",
-    alone: "alone time",
-    yard: "yard / outdoor access",
-    stairs: "stairs",
-    budget: "budget fit",
-    medical: "medical needs",
-    meds: "medication comfort",
-    reactivity: "reactivity comfort",
-    training: "training commitment",
-    behavior: "behavior tolerance",
+function readableReason(reason) {
+  const raw = String(reason || "").trim();
+  if (!raw) return "";
+
+  const map = {
+    Size: "Matches your preferred size range",
+    size: "Matches your preferred size range",
+    "Energy Level": "Fits your preferred energy level",
+    "energy level": "Fits your preferred energy level",
+    Energy: "Fits your preferred energy level",
+    energy: "Fits your preferred energy level",
+    Age: "Fits the age range you selected",
+    age: "Fits the age range you selected",
+    Kids: "May work with your kid/home setup",
+    kids: "May work with your kid/home setup",
+    "Other pets": "Lines up with your pet preferences",
+    "other pets": "Lines up with your pet preferences",
+    "Potty training": "Fits your potty-training preference",
+    "potty training": "Fits your potty-training preference",
+    Allergies: "May fit allergy or shedding needs",
+    allergies: "May fit allergy or shedding needs",
+    Shedding: "Fits your shedding preference",
+    shedding: "Fits your shedding preference",
+    "Alone time": "May fit your weekday alone-time schedule",
+    "alone time": "May fit your weekday alone-time schedule",
   };
 
-  const EXCLUDE = new Set([
-    "ScorePct",
-    "scorePct",
-    "activePct",
-    "matchPct",
-    "score",
-    "total",
-    "totalScore",
-    "points",
-    "weighted",
-    "weightedScore",
-  ]);
-
-  const isPlainObject = (v) => v && typeof v === "object" && !Array.isArray(v);
-
-  if (isPlainObject(breakdown)) {
-    const top = Object.entries(breakdown)
-      .map(([k, v]) => [k, Number(v)])
-      .filter(([k, v]) => !EXCLUDE.has(k) && Number.isFinite(v) && v > 0)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([k]) => pretty[k] || k);
-
-    if (top.length) return top;
-  }
-
-  const reasons = [];
-
-  if (dog?.size) reasons.push("size");
-  if (dog?.energy_level) reasons.push("energy level");
-  if (dog?.age_years !== null && dog?.age_years !== undefined) reasons.push("age");
-  if (dog?.good_with_kids === true) reasons.push("good with kids");
-  if (dog?.good_with_dogs === true) reasons.push("good with other dogs");
-  if (dog?.good_with_cats === true) reasons.push("good with cats");
-  if (dog?.potty_trained === true) reasons.push("potty trained");
-  if (dog?.hypoallergenic === true) reasons.push("hypoallergenic");
-
-  return reasons.length ? reasons.slice(0, 3) : ["overall fit"];
+  return map[raw] || raw;
 }
 
-function computePopoverPosition(anchorRect, popoverSize, gap = 10) {
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
+function getCleanTopReasons(breakdown) {
+  const incoming = Array.isArray(breakdown?.topReasons) ? breakdown.topReasons : [];
 
-  let left = anchorRect.left;
-  let top = anchorRect.bottom + gap;
+  return incoming
+    .map(readableReason)
+    .filter(Boolean)
+    .filter((reason, index, arr) => arr.indexOf(reason) === index)
+    .slice(0, 4);
+}
 
-  if (left + popoverSize.width > vw - 12) {
-    left = Math.max(12, vw - popoverSize.width - 12);
+function hasStructuredDogInfo(dog) {
+  return Boolean(
+    dog?.size ||
+      dog?.age_years !== null ||
+      dog?.age_text ||
+      dog?.energy_level ||
+      dog?.good_with_kids === true ||
+      dog?.good_with_dogs === true ||
+      dog?.good_with_cats === true ||
+      dog?.potty_trained === true ||
+      dog?.hypoallergenic === true ||
+      dog?.description
+  );
+}
+
+function buildDogInfoBullets(dog) {
+  const bullets = [];
+
+  if (dog?.size) bullets.push(`${dog.size} size`);
+  if (dog?.energy_level) bullets.push(`${dog.energy_level} energy`);
+  if (dog?.good_with_dogs === true) bullets.push("Listed as good with dogs");
+  if (dog?.good_with_cats === true) bullets.push("Listed as good with cats");
+  if (dog?.good_with_kids === true) bullets.push("Listed as good with kids");
+  if (dog?.potty_trained === true) bullets.push("Potty trained");
+  if (dog?.hypoallergenic === true) bullets.push("Hypoallergenic");
+
+  return bullets.slice(0, 4);
+}
+
+function getMatchState({ dog, scorePct, breakdown }) {
+  const hasScore = isRealMatchScore(scorePct, breakdown);
+  const topReasons = getCleanTopReasons(breakdown);
+  const answeredCount = Number(breakdown?.answeredCount || 0);
+
+  if (hasScore) {
+    return {
+      kind: "match",
+      eyebrow: "Why this match",
+      headline: dog?.name || "This dog",
+      subhead: `${Math.round(Number(scorePct))}% match`,
+      reasonsTitle: topReasons.length ? "Top reasons" : "What we know",
+      reasons: topReasons.length
+        ? topReasons
+        : buildDogInfoBullets(dog).map((item) => `Available rescue info: ${item}`),
+      note: "These reasons are based on your quiz answers and available rescue/shelter info.",
+      pillText: `${Math.round(Number(scorePct))}% match`,
+      showScoreCircle: true,
+    };
   }
 
-  if (top + popoverSize.height > vh - 12) {
-    top = anchorRect.top - popoverSize.height - gap;
+  if (answeredCount <= 0 || breakdown?.emptyReason === "no_quiz_answers") {
+    return {
+      kind: "quiz_needed",
+      eyebrow: "Match details",
+      headline: "Not enough match info yet",
+      subhead: "Answer the quiz to unlock better lifestyle matches for this dog.",
+      reasonsTitle: "What the quiz compares",
+      reasons: [
+        "Size, age, and energy preferences",
+        "Home setup, stairs, and alone-time needs",
+        "Kids, cats, dogs, and other pet compatibility",
+      ],
+      note: "For now, this is a browse suggestion — not a true lifestyle match score yet.",
+      pillText: "Quiz needed",
+      showScoreCircle: false,
+    };
   }
 
-  left = Math.max(12, Math.min(left, vw - popoverSize.width - 12));
-  top = Math.max(12, Math.min(top, vh - popoverSize.height - 12));
+  if (!hasStructuredDogInfo(dog)) {
+    return {
+      kind: "limited_info",
+      eyebrow: "Match details",
+      headline: "Limited dog info available",
+      subhead: "This dog may still be a great fit, but the listing does not include enough structured details yet.",
+      reasonsTitle: "What would improve this match",
+      reasons: [
+        "More details about energy level",
+        "More info about kids, cats, or other dogs",
+        "More notes about home setup and routine",
+      ],
+      note: "We avoid guessing when rescue/shelter info is limited.",
+      pillText: "Info limited",
+      showScoreCircle: false,
+    };
+  }
 
-  return { left, top };
+  return {
+    kind: "more_info_needed",
+    eyebrow: "Match details",
+    headline: "More quiz info needed",
+    subhead: "Answer a few more questions so we can compare this dog against your lifestyle.",
+    reasonsTitle: "We’ll compare",
+    reasons: [
+      "Lifestyle and activity level",
+      "Home setup and daily routine",
+      "Pet, kid, and experience preferences",
+    ],
+    note: "A real match score needs both your quiz answers and available dog details.",
+    pillText: "More info needed",
+    showScoreCircle: false,
+  };
 }
 
 function displayApplyLink(dog) {
@@ -235,21 +303,22 @@ export default function DogCard({
   rank = null,
 }) {
   const [openModal, setOpenModal] = useState(false);
-  const [showHover, setShowHover] = useState(false);
-  const [hoverPos, setHoverPos] = useState({ left: 0, top: 0 });
   const [saved, setSaved] = useState(() => isSavedId(dog?.id));
-
-  const whyBtnRef = useRef(null);
-  const hoverPanelRef = useRef(null);
-  const closeTimer = useRef(null);
 
   const urgency = dog?.urgency_level || "Standard";
   const applyLink = displayApplyLink(dog);
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
   const cardVariant = showMatch ? "match" : variant;
 
-  const tier = useMemo(() => (showMatch ? matchTier(scorePct) : null), [showMatch, scorePct]);
-  const topReasons = useMemo(() => buildTopReasons({ dog, breakdown }), [dog, breakdown]);
+  const matchState = useMemo(
+    () => getMatchState({ dog, scorePct, breakdown }),
+    [dog, scorePct, breakdown]
+  );
+
+  const tier = useMemo(
+    () => (showMatch ? matchTier(scorePct, breakdown) : null),
+    [showMatch, scorePct, breakdown]
+  );
 
   const ageLabel = useMemo(() => {
     const formatted = formatAge(dog?.age_years);
@@ -287,54 +356,6 @@ export default function DogCard({
       window.removeEventListener("hooman:saved_changed", sync);
     };
   }, [dog?.id]);
-
-  useEffect(() => {
-    if (!showHover) return;
-
-    const anchor = whyBtnRef.current;
-    const pop = hoverPanelRef.current;
-    if (!anchor || !pop) return;
-
-    const updatePosition = () => {
-      const anchorRect = anchor.getBoundingClientRect();
-      const popRect = pop.getBoundingClientRect();
-
-      setHoverPos(
-        computePopoverPosition(
-          anchorRect,
-          { width: popRect.width, height: popRect.height },
-          10
-        )
-      );
-    };
-
-    updatePosition();
-
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [showHover]);
-
-  function clearCloseTimer() {
-    if (closeTimer.current) {
-      window.clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }
-
-  function openHover() {
-    clearCloseTimer();
-    setShowHover(true);
-  }
-
-  function scheduleCloseHover() {
-    clearCloseTimer();
-    closeTimer.current = window.setTimeout(() => setShowHover(false), 120);
-  }
 
   function openFromClick(e) {
     e.preventDefault();
@@ -383,113 +404,94 @@ export default function DogCard({
 
   const modals = (
     <>
-      {showMatch &&
-        showHover &&
-        createPortal(
-          <div
-            ref={hoverPanelRef}
-            className="fixed z-[9999] w-72 rounded-2xl border border-stone-200 bg-white p-4 shadow-xl"
-            style={{ left: hoverPos.left, top: hoverPos.top }}
-            onMouseEnter={openHover}
-            onMouseLeave={scheduleCloseHover}
-          >
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-500">
-              Top reasons
-            </div>
+      {openModal
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 px-4 py-5 backdrop-blur-sm"
+              onMouseDown={closeModal}
+            >
+              <div
+                className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#f4f1ea] p-5 shadow-2xl ring-1 ring-white/25 sm:max-w-lg sm:p-6"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-semibold text-stone-500 shadow-sm ring-1 ring-stone-950/5 hover:bg-stone-100 hover:text-stone-950"
+                  onClick={closeModal}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
 
-            {Number.isFinite(Number(scorePct)) ? (
-              <div className="mt-1 text-lg font-black text-stone-950">
-                {Math.round(scorePct)}% match
-              </div>
-            ) : null}
-
-            <ul className="mt-3 list-disc pl-5 text-sm leading-6 text-stone-700">
-              {topReasons.length ? (
-                topReasons.map((reason) => (
-                  <li key={reason} className="capitalize">
-                    {reason}
-                  </li>
-                ))
-              ) : (
-                <li>overall fit</li>
-              )}
-            </ul>
-
-            <div className="mt-3 text-xs leading-5 text-stone-500">
-              Based on your quiz + what the shelter has observed so far.
-            </div>
-          </div>,
-          document.body
-        )}
-
-      {openModal ? (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm"
-          onMouseDown={closeModal}
-        >
-          <div
-            className="w-full max-w-lg rounded-3xl bg-[#f4f1ea] p-6 shadow-2xl"
-            onMouseDown={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-stone-500">
-                  Why this match
-                </div>
-
-                <div className="mt-2 text-3xl font-semibold leading-none tracking-[-0.04em] text-stone-950">
-                  {dog?.name || "This dog"}
-                </div>
-
-                {Number.isFinite(Number(scorePct)) ? (
-                  <div className="mt-2 text-sm font-semibold text-stone-600">
-                    {Math.round(scorePct)}% match
+                <div className="pr-12">
+                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-stone-500">
+                    {matchState.eyebrow}
                   </div>
-                ) : null}
+
+                  <h2 className="mt-2 text-[2rem] font-semibold leading-[0.95] tracking-[-0.06em] text-stone-950 sm:text-4xl">
+                    {matchState.headline}
+                  </h2>
+
+                  <p className="mt-3 text-sm font-semibold leading-6 text-stone-600">
+                    {matchState.subhead}
+                  </p>
+                </div>
+
+                <div className="mt-5 border-t border-stone-950/10 pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-stone-500">
+                      {matchState.reasonsTitle}
+                    </div>
+
+                    {matchState.kind === "match" && Number.isFinite(Number(scorePct)) ? (
+                      <div className="rounded-full bg-stone-950 px-3 py-1.5 text-xs font-black text-white">
+                        {Math.round(Number(scorePct))}%
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <ul className="mt-4 space-y-2.5">
+                    {matchState.reasons.map((reason) => (
+                      <li
+                        key={reason}
+                        className="flex gap-2.5 rounded-2xl border border-stone-950/8 bg-white/68 px-3.5 py-3 text-sm font-semibold leading-5 text-stone-750 shadow-sm"
+                      >
+                        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-stone-950">
+                          ✓
+                        </span>
+                        <span>{reason}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <p className="mt-4 rounded-2xl bg-white/50 px-4 py-3 text-xs font-medium leading-5 text-stone-500 ring-1 ring-stone-950/5">
+                    {matchState.note}
+                  </p>
+                </div>
+
+                <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                  <Link
+                    to={dogLink}
+                    state={linkState}
+                    className="inline-flex items-center justify-center rounded-2xl border border-stone-950/15 bg-white px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-stone-950 hover:bg-stone-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    View profile
+                  </Link>
+
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center rounded-2xl bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-white hover:bg-stone-800"
+                    onClick={closeModal}
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
-
-              <button
-                type="button"
-                className="rounded-full bg-white px-3 py-1.5 text-stone-500 shadow-sm hover:bg-stone-100"
-                onClick={closeModal}
-                aria-label="Close"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-stone-950/10 bg-white p-4">
-              <div className="text-sm font-black text-stone-950">Top reasons</div>
-
-              <ul className="mt-3 list-disc pl-5 text-sm leading-6 text-stone-700">
-                {topReasons.length ? (
-                  topReasons.map((reason) => (
-                    <li key={reason} className="capitalize">
-                      {reason}
-                    </li>
-                  ))
-                ) : (
-                  <li>overall fit</li>
-                )}
-              </ul>
-
-              <div className="mt-4 text-xs leading-5 text-stone-500">
-                These reasons are based on your quiz + what the shelter has observed so far.
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                className="rounded-full bg-stone-950 px-5 py-2.5 text-sm font-bold text-white hover:bg-stone-800"
-                onClick={closeModal}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 
@@ -586,7 +588,7 @@ export default function DogCard({
 
             <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1.5">
-                {rank === 1 ? (
+                {rank === 1 && matchState.kind === "match" ? (
                   <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-stone-950 shadow-sm">
                     Top match
                   </span>
@@ -598,15 +600,9 @@ export default function DogCard({
                       "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-sm backdrop-blur",
                       tier.className,
                     ].join(" ")}
-                    title={
-                      Number.isFinite(Number(scorePct))
-                        ? `${Math.round(scorePct)}% match`
-                        : ""
-                    }
+                    title={matchState.pillText}
                   >
-                    {Number.isFinite(Number(scorePct))
-                      ? `${Math.round(scorePct)}% match`
-                      : tier.label}
+                    {matchState.pillText}
                   </span>
                 ) : null}
 
@@ -625,11 +621,15 @@ export default function DogCard({
               {heartButton}
             </div>
 
-            {Number.isFinite(Number(scorePct)) ? (
+            {matchState.showScoreCircle && Number.isFinite(Number(scorePct)) ? (
               <div className="absolute right-4 top-16 hidden h-14 w-14 items-center justify-center rounded-full border border-[#dfe7d7]/70 bg-black/35 text-center text-[#dfe7d7] backdrop-blur sm:flex">
                 <div>
-                  <div className="text-base font-black leading-none">{Math.round(scorePct)}%</div>
-                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em]">Match</div>
+                  <div className="text-base font-black leading-none">
+                    {Math.round(Number(scorePct))}%
+                  </div>
+                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em]">
+                    Match
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -664,13 +664,8 @@ export default function DogCard({
                 </span>
 
                 <button
-                  ref={whyBtnRef}
                   type="button"
                   onClick={openFromClick}
-                  onMouseEnter={openHover}
-                  onMouseLeave={scheduleCloseHover}
-                  onFocus={openHover}
-                  onBlur={scheduleCloseHover}
                   className="inline-flex items-center justify-center rounded-xl border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
                 >
                   Why
