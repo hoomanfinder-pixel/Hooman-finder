@@ -152,16 +152,25 @@ export default function Home() {
 
       <main>
         <section className="relative min-h-[92vh] overflow-hidden bg-stone-950 text-white">
+          {/* Blurred fill layer so mobile does not look empty when the full image is shown */}
+          <img
+            src="/home-hero-dogs.jpg"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm"
+          />
+
+          {/* Main hero photo: contain on mobile so both dog faces are visible */}
           <img
             src="/home-hero-dogs.jpg"
             alt="Rescue dogs looking for their future home"
-            className="absolute inset-0 h-full w-full object-cover object-[52%_28%] sm:object-[50%_35%] lg:object-center"
+            className="absolute inset-0 h-full w-full object-contain object-center sm:object-cover sm:object-[50%_35%] lg:object-center"
           />
 
-          {/* lighter mobile overlays so the image does not look almost black */}
-          <div className="absolute inset-0 bg-stone-950/38 sm:bg-stone-950/50" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/78 via-stone-950/24 to-stone-950/08 sm:from-stone-950/86 sm:via-stone-950/34 sm:to-stone-950/18" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/36 via-stone-950/10 to-transparent sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
+          {/* Lighter overlays so dog faces stay visible on low brightness */}
+          <div className="absolute inset-0 bg-stone-950/28 sm:bg-stone-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/74 via-stone-950/18 to-stone-950/04 sm:from-stone-950/86 sm:via-stone-950/34 sm:to-stone-950/18" />
+          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/28 via-stone-950/08 to-stone-950/18 sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
 
           <div className="relative z-10 flex min-h-[92vh] items-end">
             <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-32 sm:px-6 sm:pb-14 lg:px-8">
