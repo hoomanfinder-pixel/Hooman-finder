@@ -1,9 +1,18 @@
 // scripts/enrich-dogs-ai.cjs
 // AI dog trait enrichment using plain fetch instead of the OpenAI SDK.
 //
+// Writes:
+// - dogs.ai_traits = full detailed JSON
+// - dogs.bio_good_with_kids = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_good_with_dogs = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_good_with_cats = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_first_time_friendly = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_potty_trained = yes / most_likely / may_do_well / no / unknown
+//
 // Run:
 //   node scripts/enrich-dogs-ai.cjs --limit=1 --force
-//   node scripts/enrich-dogs-ai.cjs --limit=3 --force
+//   node scripts/enrich-dogs-ai.cjs --limit=25
+//   node scripts/enrich-dogs-ai.cjs --limit=25 --force
 
 require("dotenv").config({ path: ".env.local" });
 
@@ -13,10 +22,12 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v2";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v3";
 const DEFAULT_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
+
+const BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "no", "unknown"]);
 
 if (!SUPABASE_URL) throw new Error("Missing VITE_SUPABASE_URL in .env.local");
 if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
@@ -101,16 +112,59 @@ Extract likely matching traits from the provided dog listing.
 Rules:
 - Do not invent facts.
 - If the listing does not mention something, use "unknown".
-- If something is implied but not certain, use "maybe".
+- If something is strongly implied but not guaranteed, use "likely".
+- If something is somewhat implied or needs caveats, use "maybe".
 - Existing boolean fields are only provided when true. Missing/null means unknown.
-- Never claim good_with_kids, good_with_cats, good_with_dogs, potty_trained, or first_time_friendly unless there is evidence.
-- For first_time_friendly:
-  - "true" only with clear easygoing/manageable/beginner-friendly behavior or training evidence.
-  - "false" only with clear experienced-adopter/breed-experience/major behavior needs.
-  - "maybe" is okay for mild positive signs like loving/family-friendly language or manageable energy.
-  - "unknown" when generic, copied, mismatched, or not enough behavior detail.
+- Never claim good_with_kids, good_with_cats, good_with_dogs, potty_trained, or first_time_friendly unless there is evidence from the structured fields or rescue-provided bio.
+
+Allowed values for boolean-like traits:
+- "true" = directly stated or strongly confirmed by the rescue bio/structured field
+- "likely" = strong bio evidence, but not worded as a formal guarantee
+- "maybe" = some positive clue, caveat, slow intro, or limited exposure
+- "false" = clearly not compatible or clearly not trained
+- "unknown" = not enough info
+
+Compatibility extraction rules:
+- Use "true" when the bio directly says the dog is good with, gets along with, loves, lived with, or does well with that group.
+- Use "likely" when the bio gives strong positive evidence but not a formal guarantee.
+- Use "maybe" when the bio describes positive exposure with limits, such as respectful interactions, supervised meetings, slow introductions, proper introductions, or needing a compatible companion.
+- Use "false" only when the bio clearly says no, not good with, cannot live with, chases aggressively, must be the only pet, no kids, no cats, or no dogs.
+- Use "unknown" when the group is not mentioned.
+
+Kids examples:
+- "good with kids", "kid-friendly", "loves kids", "lived with children" => good_with_kids true.
+- "respectful interactions with kids", "gentle with children", "loves 10 month old twins", "met kids and did well" => good_with_kids likely.
+- "met kids once", "may do well with respectful kids" => good_with_kids maybe.
+- "no kids", "adult-only home", "not good with children" => good_with_kids false.
+
+Dogs examples:
+- "good with dogs", "gets along with dogs", "does well with other dogs", "loves other dogs" => good_with_dogs true.
+- "would love a dog companion", "needs a well-established dog", "enjoys the company of other dogs" => good_with_dogs likely.
+- "does well with slow introductions", "proper introductions needed", "may do well with another dog" => good_with_dogs maybe.
+- "only dog", "does not like other dogs", "reactive to dogs" => good_with_dogs false.
+
+Cats examples:
+- "lived with cats", "good with cats", "gets along with cats" => good_with_cats true.
+- "has been around cats and did well" => good_with_cats likely.
+- "does okay with cats but wants to chase", "may be okay with dog-savvy cats" => good_with_cats maybe.
+- "no cats", "not cat safe", "will chase cats" => good_with_cats false.
+
+Potty training examples:
+- "potty trained", "house trained", "fully housebroken" => potty_trained true.
+- "mostly potty trained", "doing well with potty training" => potty_trained likely.
+- "working on potty training" => potty_trained maybe.
+- "not potty trained" => potty_trained false.
+
+First-time-friendly:
+- "true" only with clear easygoing/manageable/beginner-friendly behavior or training evidence.
+- "likely" when the bio strongly suggests manageable/easygoing traits, low or moderate energy, gentle temperament, and no advanced behavior needs.
+- "maybe" for mild positive signs like loving/family-friendly language, manageable energy, gentle temperament, or eager-to-please wording.
+- "false" only with clear experienced-adopter/breed-experience/major behavior needs.
+- "unknown" when generic, copied, mismatched, or not enough behavior detail.
 - "great addition to any family" can support "maybe" for first_time_friendly, but not "true" by itself.
-- "research the breed before applying" should lower confidence and suggest review.
+
+Other rules:
+- "research the breed before applying" should lower confidence and suggest review, but it should not erase specific compatibility evidence about kids, dogs, or cats.
 - Do not include the dog's name in ideal_home_summary.
 - If listing is generic, copied, mismatched, or too thin, make ideal_home_summary empty and set needs_human_review true.
 - Return JSON only.
@@ -154,6 +208,23 @@ function normalizeConfidence(value) {
   return Math.max(0, Math.min(1, n));
 }
 
+function normalizeTraitValue(value, fallbackValue = "unknown") {
+  if (value === true) return "true";
+  if (value === false) return "false";
+
+  const raw = String(value ?? fallbackValue).trim().toLowerCase();
+
+  if (["true", "likely", "maybe", "false", "unknown"].includes(raw)) return raw;
+
+  // Some models accidentally use display-ish words.
+  if (raw === "yes") return "true";
+  if (raw === "most_likely" || raw === "most likely") return "likely";
+  if (raw === "may_do_well" || raw === "may do well") return "maybe";
+  if (raw === "no") return "false";
+
+  return fallbackValue;
+}
+
 function normalizeTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
     return { value: fallbackValue, confidence: 0, evidence: "" };
@@ -161,7 +232,7 @@ function normalizeTraitObject(obj, fallbackValue = "unknown") {
 
   return {
     ...obj,
-    value: obj.value ?? fallbackValue,
+    value: normalizeTraitValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
   };
@@ -203,6 +274,10 @@ function containsDifferentDogName(text, currentName) {
     "monte",
     "cota",
     "penny",
+    "stormi",
+    "noelle",
+    "artemis",
+    "smokey",
   ];
 
   return knownNames.some((name) => {
@@ -256,8 +331,305 @@ function normalizeAiTraits(parsed, dogInput) {
     },
   };
 
+  const bio = String(dogInput.description || "").toLowerCase();
   const description = String(dogInput.description || "");
   const descriptionLower = description.toLowerCase();
+
+  const existingEnergy = String(dogInput.current_energy_level || "").toLowerCase();
+
+  if (["low", "moderate", "high"].includes(existingEnergy)) {
+    normalized.energy_level = {
+      value: existingEnergy,
+      confidence: Math.max(normalized.energy_level?.confidence || 0, 0.8),
+      evidence: `Existing structured energy level is ${existingEnergy}.`,
+    };
+  } else if (!["low", "moderate", "high", "unknown"].includes(String(normalized.energy_level?.value || "").toLowerCase())) {
+    normalized.energy_level = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "AI returned an invalid energy value, so it was treated as unknown.",
+    };
+  }
+
+  function strengthenTraitFromBio(key, value, confidence, evidence) {
+    const current = normalized[key] || { value: "unknown", confidence: 0, evidence: "" };
+    const currentConfidence = Number(current.confidence || 0);
+    const currentValue = normalizeTraitValue(current.value);
+
+    if (currentValue === "true" && currentConfidence >= confidence) return;
+    if (currentValue === "false") return;
+
+    const valueRank = { unknown: 0, maybe: 1, likely: 2, true: 3, false: 4 };
+    const nextRank = valueRank[value] ?? 0;
+    const currentRank = valueRank[currentValue] ?? 0;
+
+    if (nextRank > currentRank || confidence > currentConfidence) {
+      normalized[key] = {
+        value,
+        confidence: Math.max(currentConfidence, confidence),
+        evidence,
+      };
+    }
+  }
+
+  function includesAny(phrases) {
+    return phrases.some((phrase) => bio.includes(phrase));
+  }
+
+  // Kids: positive exposure from the rescue bio should not stay Unknown.
+  if (
+    includesAny([
+      "good with kids",
+      "kid-friendly",
+      "kid friendly",
+      "loves kids",
+      "loves children",
+      "lived with children",
+      "lived with kids",
+      "great with kids",
+      "great with children",
+      "wonderful with kids",
+      "wonderful with children",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_kids",
+      "true",
+      0.88,
+      "Bio directly describes positive compatibility with kids."
+    );
+  } else if (
+    includesAny([
+      "respectful interactions with kids",
+      "respectful interactions with children",
+      "gentle with kids",
+      "gentle with children",
+      "10 month old twins",
+      "10-month-old twins",
+      "twins she recently met",
+      "children she recently met",
+      "kids she recently met",
+      "loves a couple of 10 month old twins",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_kids",
+      "likely",
+      0.78,
+      "Bio describes strong positive kid exposure or respectful interactions."
+    );
+  } else if (
+    includesAny([
+      "met kids",
+      "met children",
+      "did well with kids",
+      "did well with children",
+      "may do well with kids",
+      "may do well with children",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_kids",
+      "maybe",
+      0.68,
+      "Bio describes some positive kid exposure."
+    );
+  }
+
+  // Dogs: positive companion/social wording should become useful.
+  if (
+    includesAny([
+      "good with dogs",
+      "gets along with dogs",
+      "gets along wonderfully with other dogs",
+      "does well with other dogs",
+      "loves other dogs",
+      "dog friendly",
+      "dog-friendly",
+      "friendly with dogs",
+      "lived with dogs",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_dogs",
+      "true",
+      0.88,
+      "Bio directly describes positive compatibility with dogs."
+    );
+  } else if (
+    includesAny([
+      "would love a dog companion",
+      "dog companion",
+      "well-established dog",
+      "well established dog",
+      "company of other dogs",
+      "enjoys the company of other dogs",
+      "needs a well-established dog",
+      "needs a well established dog",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_dogs",
+      "likely",
+      0.78,
+      "Bio strongly suggests a compatible dog companion may be beneficial."
+    );
+  } else if (
+    includesAny([
+      "proper and slow introduction",
+      "slow introductions",
+      "slow intro",
+      "foster sister",
+      "another dog",
+      "with other dogs",
+      "may do well with dogs",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_dogs",
+      "maybe",
+      0.68,
+      "Bio describes possible dog compatibility with caveats or introductions."
+    );
+  }
+
+  // Cats: direct lived-with/gets-along wording should become useful.
+  if (
+    includesAny([
+      "good with cats",
+      "gets along with cats",
+      "cat friendly",
+      "cat-friendly",
+      "lived with cats",
+      "lives with cats",
+      "wonderful with cats",
+      "even cats",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_cats",
+      "true",
+      0.88,
+      "Bio directly describes positive compatibility with cats."
+    );
+  } else if (
+    includesAny([
+      "has been around cats and did well",
+      "does ok with the kitties",
+      "does okay with the kitties",
+      "does ok with cats",
+      "does okay with cats",
+      "dog-savvy cats",
+      "cat-savvy",
+      "wants to chase",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "good_with_cats",
+      "maybe",
+      0.65,
+      "Bio suggests possible cat compatibility with caveats."
+    );
+  }
+
+  // Potty training.
+  if (
+    includesAny([
+      "fully potty trained",
+      "potty trained",
+      "house trained",
+      "housebroken",
+      "pee pad trained",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "potty_trained",
+      "true",
+      0.9,
+      "Bio directly describes potty or house training."
+    );
+  } else if (
+    includesAny([
+      "mostly potty trained",
+      "doing well with potty training",
+      "almost potty trained",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "potty_trained",
+      "likely",
+      0.78,
+      "Bio suggests potty training is mostly established."
+    );
+  } else if (
+    includesAny([
+      "working on potty training",
+      "working on house training",
+      "needs help with potty training",
+    ])
+  ) {
+    strengthenTraitFromBio(
+      "potty_trained",
+      "maybe",
+      0.6,
+      "Bio says potty training is still in progress."
+    );
+  }
+
+  // Direct negative phrases override maybe/likely/unknown.
+  if (includesAny(["no kids", "adult-only home", "adult only home", "not good with kids", "not good with children"])) {
+    normalized.good_with_kids = {
+      value: "false",
+      confidence: 0.9,
+      evidence: "Bio clearly indicates the dog should not live with kids.",
+    };
+  }
+
+  if (includesAny(["only dog", "must be the only dog", "not good with dogs", "no dogs", "dog reactive"])) {
+    normalized.good_with_dogs = {
+      value: "false",
+      confidence: 0.9,
+      evidence: "Bio clearly indicates the dog should not live with other dogs.",
+    };
+  }
+
+  if (includesAny(["no cats", "not good with cats", "not cat safe", "cannot live with cats"])) {
+    normalized.good_with_cats = {
+      value: "false",
+      confidence: 0.9,
+      evidence: "Bio clearly indicates the dog should not live with cats.",
+    };
+  }
+
+  if (includesAny(["not potty trained", "not house trained", "not housebroken"])) {
+    normalized.potty_trained = {
+      value: "false",
+      confidence: 0.9,
+      evidence: "Bio clearly says the dog is not potty trained.",
+    };
+  }
+
+  const firstTimeValue = String(normalized.first_time_friendly?.value || "").toLowerCase();
+  const firstTimeEvidence = String(normalized.first_time_friendly?.evidence || "").toLowerCase();
+
+  const firstTimeBasedOnlyOnGenericFamilyLanguage =
+    (firstTimeValue === "maybe" || firstTimeValue === "likely") &&
+    (
+      firstTimeEvidence.includes("great addition to any family") ||
+      firstTimeEvidence.includes("addition to any family") ||
+      firstTimeEvidence.includes("loving")
+    );
+
+  if (firstTimeBasedOnlyOnGenericFamilyLanguage) {
+    normalized.first_time_friendly = {
+      ...normalized.first_time_friendly,
+      value: "maybe",
+      confidence: Math.min(normalized.first_time_friendly.confidence || 0.5, 0.55),
+      evidence:
+        normalized.first_time_friendly.evidence ||
+        "Generic family-friendly language suggests possible fit, but behavior details are limited.",
+    };
+  }
 
   const isThinListing = description.length < 70;
   const looksGeneric =
@@ -290,42 +662,7 @@ function normalizeAiTraits(parsed, dogInput) {
     normalized.overall_confidence = Math.min(normalized.overall_confidence, 0.45);
   }
 
-  const existingEnergy = String(dogInput.current_energy_level || "").toLowerCase();
-
-  if (["low", "moderate", "high"].includes(existingEnergy)) {
-    normalized.energy_level = {
-      value: existingEnergy,
-      confidence: Math.max(normalized.energy_level?.confidence || 0, 0.8),
-      evidence: `Existing structured energy level is ${existingEnergy}.`,
-    };
-  } else if (!["low", "moderate", "high", "unknown"].includes(String(normalized.energy_level?.value || "").toLowerCase())) {
-    normalized.energy_level = {
-      value: "unknown",
-      confidence: 0,
-      evidence: "AI returned an invalid energy value, so it was treated as unknown.",
-    };
-  }
-
-  const firstTimeValue = String(normalized.first_time_friendly?.value || "").toLowerCase();
-  const firstTimeEvidence = String(normalized.first_time_friendly?.evidence || "").toLowerCase();
-
-  const firstTimeBasedOnlyOnGenericFamilyLanguage =
-    firstTimeValue === "maybe" &&
-    (
-      firstTimeEvidence.includes("great addition to any family") ||
-      firstTimeEvidence.includes("addition to any family") ||
-      firstTimeEvidence.includes("loving")
-    );
-
-  if (firstTimeBasedOnlyOnGenericFamilyLanguage) {
-    normalized.first_time_friendly = {
-      ...normalized.first_time_friendly,
-      value: "maybe",
-      confidence: Math.min(normalized.first_time_friendly.confidence || 0.5, 0.55),
-      evidence: normalized.first_time_friendly.evidence || "Generic family-friendly language suggests possible fit, but behavior details are limited.",
-    };
-  }
-
+  // Extra safety: never allow false compatibility from weak evidence.
   for (const key of [
     "potty_trained",
     "good_with_kids",
@@ -343,7 +680,8 @@ function normalizeAiTraits(parsed, dogInput) {
       evidence.includes("cannot") ||
       evidence.includes("can't") ||
       evidence.includes("isn't") ||
-      evidence.includes("not compatible");
+      evidence.includes("not compatible") ||
+      evidence.includes("should not live");
 
     if (value === "false" && !explicitNegative) {
       normalized[key] = {
@@ -355,6 +693,34 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   return normalized;
+}
+
+function traitToBioValue(trait) {
+  const value = normalizeTraitValue(trait?.value, "unknown");
+  const confidence = normalizeConfidence(trait?.confidence);
+
+  if (value === "true") return "yes";
+  if (value === "likely") return confidence >= 0.5 ? "most_likely" : "unknown";
+  if (value === "maybe") return confidence >= 0.45 ? "may_do_well" : "unknown";
+  if (value === "false") return "no";
+
+  return "unknown";
+}
+
+function safeBioValue(value) {
+  return BIO_VALUES.has(value) ? value : "unknown";
+}
+
+function buildBioColumns(aiTraits) {
+  return {
+    bio_good_with_kids: safeBioValue(traitToBioValue(aiTraits.good_with_kids)),
+    bio_good_with_dogs: safeBioValue(traitToBioValue(aiTraits.good_with_dogs)),
+    bio_good_with_cats: safeBioValue(traitToBioValue(aiTraits.good_with_cats)),
+    bio_first_time_friendly: safeBioValue(traitToBioValue(aiTraits.first_time_friendly)),
+    bio_potty_trained: safeBioValue(traitToBioValue(aiTraits.potty_trained)),
+    bio_traits_source: "ai_bio_extraction",
+    bio_traits_updated_at: new Date().toISOString(),
+  };
 }
 
 async function callOpenAI(prompt) {
@@ -415,6 +781,7 @@ async function enrichOneDog(dog) {
 
   const parsed = safeParseJson(content);
   const aiTraits = normalizeAiTraits(parsed, dogInput);
+  const bioColumns = buildBioColumns(aiTraits);
 
   const { error } = await supabase
     .from("dogs")
@@ -423,12 +790,13 @@ async function enrichOneDog(dog) {
       ai_enriched_at: new Date().toISOString(),
       ai_enrichment_version: AI_ENRICHMENT_VERSION,
       ai_confidence_score: aiTraits.overall_confidence,
+      ...bioColumns,
     })
     .eq("id", dog.id);
 
   if (error) throw error;
 
-  return { aiTraits, elapsed };
+  return { aiTraits, bioColumns, elapsed };
 }
 
 async function fetchDogs({ limit, force, dogId }) {
@@ -464,6 +832,11 @@ async function fetchDogs({ limit, force, dogId }) {
       ai_traits,
       ai_enriched_at,
       ai_enrichment_version,
+      bio_good_with_kids,
+      bio_good_with_dogs,
+      bio_good_with_cats,
+      bio_first_time_friendly,
+      bio_potty_trained,
       adoptable,
       urgency_level,
       shelters (
@@ -530,7 +903,7 @@ async function main() {
       const result = await enrichOneDog(dog);
       if (!result) continue;
 
-      const { aiTraits, elapsed } = result;
+      const { aiTraits, bioColumns, elapsed } = result;
       updated += 1;
 
       const tags = Array.isArray(aiTraits.match_tags)
@@ -540,12 +913,11 @@ async function main() {
       console.log(`✅ Updated ${dog.name || dog.id} in ${elapsed}s`);
       console.log(`   Confidence: ${aiTraits.overall_confidence}`);
       console.log(`   Review: ${aiTraits.needs_human_review ? "yes" : "no"}`);
-      console.log(
-        `   First-time friendly: ${aiTraits.first_time_friendly?.value || "unknown"} (${aiTraits.first_time_friendly?.confidence ?? 0})`
-      );
-      console.log(
-        `   Potty trained: ${aiTraits.potty_trained?.value || "unknown"} (${aiTraits.potty_trained?.confidence ?? 0})`
-      );
+      console.log(`   bio_good_with_kids: ${bioColumns.bio_good_with_kids}`);
+      console.log(`   bio_good_with_dogs: ${bioColumns.bio_good_with_dogs}`);
+      console.log(`   bio_good_with_cats: ${bioColumns.bio_good_with_cats}`);
+      console.log(`   bio_first_time_friendly: ${bioColumns.bio_first_time_friendly}`);
+      console.log(`   bio_potty_trained: ${bioColumns.bio_potty_trained}`);
       if (tags) console.log(`   Tags: ${tags}`);
     } catch (error) {
       failed += 1;

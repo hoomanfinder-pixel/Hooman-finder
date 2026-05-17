@@ -147,7 +147,6 @@ function displayApplyLink(dog) {
 
 function parseAiTraits(raw) {
   if (!raw) return null;
-
   if (typeof raw === "object") return raw;
 
   try {
@@ -157,216 +156,181 @@ function parseAiTraits(raw) {
   }
 }
 
-function normalizeAiValue(value) {
-  if (value === true) return "true";
-  if (value === false) return "false";
-  return String(value ?? "").trim().toLowerCase();
+function normalizeBioValue(value) {
+  const raw = String(value || "unknown").trim().toLowerCase();
+
+  if (raw === "yes") return "yes";
+  if (raw === "most_likely") return "most_likely";
+  if (raw === "may_do_well") return "may_do_well";
+  if (raw === "no") return "no";
+
+  return "unknown";
 }
 
-function getAiTrait(aiTraits, key) {
-  const trait = aiTraits?.[key];
+function hasUsefulBioValue(value) {
+  const normalized = normalizeBioValue(value);
+  return normalized !== "unknown";
+}
 
-  if (!trait || typeof trait !== "object") return null;
+function displayBooleanValue(value) {
+  if (value === true) return "Yes";
+  if (value === false) return "No";
+  if (value === null || value === undefined || value === "") return "Unknown";
+  return String(value);
+}
 
-  const value = normalizeAiValue(trait.value);
-  const confidence = Number(trait.confidence ?? 0);
-  const evidence = cleanText(trait.evidence || "");
+function displayBioTrait(value) {
+  const normalized = normalizeBioValue(value);
 
-  if (!value || value === "unknown") return null;
-  if (!Number.isFinite(confidence) || confidence < 0.5) return null;
+  if (normalized === "yes") return "Yes";
+  if (normalized === "most_likely") return "Most likely";
+  if (normalized === "may_do_well") return "May do well";
+  if (normalized === "no") return "No";
+
+  return "Unknown";
+}
+
+function getTraitDisplay({ structuredValue, bioValue }) {
+  if (structuredValue === true) {
+    return {
+      value: "Yes",
+      source: "listed",
+      estimated: false,
+    };
+  }
+
+  if (structuredValue === false) {
+    return {
+      value: "No",
+      source: "listed",
+      estimated: false,
+    };
+  }
+
+  const normalizedBio = normalizeBioValue(bioValue);
+
+  if (normalizedBio !== "unknown") {
+    return {
+      value: displayBioTrait(normalizedBio),
+      source: "bio",
+      estimated: true,
+    };
+  }
 
   return {
-    key,
-    value,
-    confidence,
-    evidence,
+    value: "Unknown",
+    source: "unknown",
+    estimated: false,
   };
 }
 
-function getAiMatchClues(dog) {
-  const aiTraits = parseAiTraits(dog?.ai_traits);
-  if (!aiTraits) return [];
+function getSimpleTrait({ value }) {
+  return {
+    value:
+      value === null || value === undefined || value === ""
+        ? "Unknown"
+        : String(value),
+    source: "listed",
+    estimated: false,
+  };
+}
 
+function getBioMatchClues(dog) {
   const clues = [];
 
-  const add = ({ key, icon, label, detail, priority = 10 }) => {
-    const trait = getAiTrait(aiTraits, key);
-    if (!trait) return;
+  const add = ({ key, value, icon, title, detail }) => {
+    const normalized = normalizeBioValue(value);
+    if (normalized === "unknown" || normalized === "no") return;
 
     clues.push({
       key,
       icon,
-      label: typeof label === "function" ? label(trait) : label,
-      detail: typeof detail === "function" ? detail(trait) : detail,
-      value: trait.value,
-      confidence: trait.confidence,
-      evidence: trait.evidence,
-      priority,
+      title:
+        typeof title === "function"
+          ? title(normalized)
+          : title,
+      detail,
+      value: normalized,
     });
   };
 
   add({
-    key: "first_time_friendly",
+    key: "bio_first_time_friendly",
+    value: dog?.bio_first_time_friendly,
     icon: "🌱",
-    label: (trait) =>
-      trait.value === "true" ? "May be beginner-friendly" : "Could be beginner-friendly",
-    detail: "Estimated from temperament and bio language.",
-    priority: 1,
+    title: (value) =>
+      value === "yes"
+        ? "Beginner-friendly clue"
+        : value === "most_likely"
+          ? "Most likely beginner-friendly"
+          : "Could be beginner-friendly",
+    detail: "Estimated from temperament, training, and bio language.",
   });
 
   add({
-    key: "energy_level",
-    icon: "⚡",
-    label: (trait) => {
-      if (trait.value === "low") return "Lower energy";
-      if (trait.value === "high") return "Higher energy";
-      if (trait.value === "moderate") return "Moderate energy";
-      return "Energy clue available";
-    },
-    detail: "Based on listed energy or bio clues.",
-    priority: 2,
-  });
-
-  add({
-    key: "good_with_dogs",
+    key: "bio_good_with_dogs",
+    value: dog?.bio_good_with_dogs,
     icon: "🐕",
-    label: (trait) =>
-      trait.value === "true" ? "Dog-friendly clue" : "May do well with dogs",
-    detail: "Confirm dog introductions with the rescue.",
-    priority: 3,
+    title: (value) =>
+      value === "yes"
+        ? "Dog-friendly clue"
+        : value === "most_likely"
+          ? "Most likely dog-friendly"
+          : "May do well with dogs",
+    detail: "Based on dog-social language in the rescue bio.",
   });
 
   add({
-    key: "good_with_cats",
-    icon: "🐈",
-    label: (trait) =>
-      trait.value === "true" ? "Cat-friendly clue" : "May do well with cats",
-    detail: "Confirm cat compatibility with the rescue.",
-    priority: 4,
-  });
-
-  add({
-    key: "good_with_kids",
+    key: "bio_good_with_kids",
+    value: dog?.bio_good_with_kids,
     icon: "👨‍👩‍👧",
-    label: (trait) =>
-      trait.value === "true" ? "Kid-friendly clue" : "May do well with kids",
-    detail: "Confirm child age/handling details with the rescue.",
-    priority: 5,
+    title: (value) =>
+      value === "yes"
+        ? "Kid-friendly clue"
+        : value === "most_likely"
+          ? "Most likely kid-friendly"
+          : "May do well with kids",
+    detail: "Based on child/kid interaction notes in the bio.",
   });
 
   add({
-    key: "potty_trained",
+    key: "bio_good_with_cats",
+    value: dog?.bio_good_with_cats,
+    icon: "🐈",
+    title: (value) =>
+      value === "yes"
+        ? "Cat-friendly clue"
+        : value === "most_likely"
+          ? "Most likely cat-friendly"
+          : "May do well with cats",
+    detail: "Based on cat compatibility language in the rescue bio.",
+  });
+
+  add({
+    key: "bio_potty_trained",
+    value: dog?.bio_potty_trained,
     icon: "🏠",
-    label: (trait) =>
-      trait.value === "true" ? "Potty-training clue" : "Potty-training may need confirming",
-    detail: "Estimated from listed training details.",
-    priority: 6,
+    title: (value) =>
+      value === "yes"
+        ? "Potty-training clue"
+        : value === "most_likely"
+          ? "Most likely potty trained"
+          : "Potty training may be in progress",
+    detail: "Based on training details in the rescue bio.",
   });
 
-  add({
-    key: "crate_trained",
-    icon: "🧺",
-    label: (trait) =>
-      trait.value === "true" ? "Crate-training clue" : "May have crate-training notes",
-    detail: "Based on the rescue bio when mentioned.",
-    priority: 7,
-  });
-
-  add({
-    key: "leash_trained",
-    icon: "🦮",
-    label: (trait) =>
-      trait.value === "true" ? "Leash manners clue" : "May have leash-training notes",
-    detail: "Confirm leash behavior with the rescue.",
-    priority: 8,
-  });
-
-  add({
-    key: "apartment_friendly",
-    icon: "🏢",
-    label: (trait) =>
-      trait.value === "true" ? "Apartment-friendly clue" : "May work in an apartment",
-    detail: "Estimated from energy, noise, and home needs.",
-    priority: 9,
-  });
-
-  add({
-    key: "needs_yard",
-    icon: "🌳",
-    label: (trait) =>
-      trait.value === "true" ? "May need yard access" : "Yard may not be required",
-    detail: "Based on activity and home setup clues.",
-    priority: 10,
-  });
-
-  add({
-    key: "training_needs",
-    icon: "🎓",
-    label: (trait) => {
-      if (trait.value === "high") return "Higher training needs";
-      if (trait.value === "moderate") return "Moderate training needs";
-      if (trait.value === "low") return "Lower training needs";
-      return "Training clue available";
-    },
-    detail: "Estimated from behavior and training notes.",
-    priority: 11,
-  });
-
-  add({
-    key: "home_environment",
-    icon: "🛋️",
-    label: (trait) => {
-      if (trait.value === "quiet") return "May prefer a quieter home";
-      if (trait.value === "active") return "May enjoy an active home";
-      if (trait.value === "average") return "May fit an average home routine";
-      return "Home-style clue available";
-    },
-    detail: "Estimated from the dog’s bio and needs.",
-    priority: 12,
-  });
-
-  add({
-    key: "affection_level",
-    icon: "♡",
-    label: (trait) =>
-      trait.value === "true" || trait.value === "high"
-        ? "Affectionate clue"
-        : "May be affectionate",
-    detail: "Based on affection/social wording in the bio.",
-    priority: 13,
-  });
-
-  add({
-    key: "playfulness",
-    icon: "🎾",
-    label: (trait) =>
-      trait.value === "true" || trait.value === "high"
-        ? "Playful clue"
-        : "May enjoy playtime",
-    detail: "Based on activity or play wording in the bio.",
-    priority: 14,
-  });
-
-  return clues
-    .filter((clue) => clue.value !== "false")
-    .sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
-      return b.confidence - a.confidence;
-    })
-    .slice(0, 6);
+  return clues.slice(0, 6);
 }
 
 function getAiDisclosure(aiTraits) {
   if (!aiTraits) return null;
 
-  const sourceVersion = aiTraits?.source?.version || "";
   const needsReview = aiTraits?.needs_human_review === true;
   const cautionNotes = Array.isArray(aiTraits?.caution_notes)
     ? aiTraits.caution_notes.filter(Boolean).slice(0, 3)
     : [];
 
   return {
-    sourceVersion,
     needsReview,
     cautionNotes,
   };
@@ -485,8 +449,14 @@ export default function DogDetail() {
   const description = cleanText(dog.description) || "No description provided yet.";
 
   const aiTraits = parseAiTraits(dog.ai_traits);
-  const aiClues = getAiMatchClues(dog);
   const aiDisclosure = getAiDisclosure(aiTraits);
+  const bioMatchClues = getBioMatchClues(dog);
+  const hasBioTraitData =
+    hasUsefulBioValue(dog.bio_good_with_kids) ||
+    hasUsefulBioValue(dog.bio_good_with_dogs) ||
+    hasUsefulBioValue(dog.bio_good_with_cats) ||
+    hasUsefulBioValue(dog.bio_first_time_friendly) ||
+    hasUsefulBioValue(dog.bio_potty_trained);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -502,7 +472,7 @@ export default function DogDetail() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                  AI-assisted match clues
+                  Bio-based match clues
                 </div>
                 <h2 className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-slate-950">
                   What does this mean?
@@ -520,18 +490,18 @@ export default function DogDetail() {
             </div>
 
             <p className="mt-4 text-sm leading-6 text-slate-700">
-              These clues are generated from the rescue or shelter listing to help you compare
-              dogs more easily. They are not official behavior guarantees.
+              These clues come from the rescue-provided bio. Hooman Finder uses AI to turn bio
+              language into simpler compatibility labels when structured details are missing.
             </p>
 
             <p className="mt-3 text-sm leading-6 text-slate-700">
-              Always confirm details like kids, cats, dogs, training, and home fit directly with
-              the rescue before applying.
+              They are not official behavior guarantees. Always confirm details like kids, cats,
+              dogs, training, and home fit directly with the rescue before applying.
             </p>
 
             {aiDisclosure?.needsReview ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-                This listing has limited or potentially messy bio details, so the AI clues should
+                This listing has limited or potentially messy bio details, so these clues should
                 be treated as extra cautious.
               </div>
             ) : null}
@@ -691,15 +661,15 @@ export default function DogDetail() {
               </div>
             </div>
 
-            {aiClues.length ? (
+            {bioMatchClues.length ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-lg font-extrabold text-slate-900">
-                      AI-assisted match clues
+                      Bio-based match clues
                     </div>
                     <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Estimated from the dog’s rescue bio when structured details are limited.
+                      Helpful compatibility clues pulled from the rescue bio.
                     </p>
                   </div>
 
@@ -707,15 +677,15 @@ export default function DogDetail() {
                     type="button"
                     onClick={() => setAiInfoOpen(true)}
                     className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                    aria-label="Learn about AI-assisted match clues"
+                    aria-label="Learn about bio-based match clues"
                   >
                     i
                   </button>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {aiClues.map((clue) => (
-                    <AiClue key={clue.key} clue={clue} />
+                  {bioMatchClues.map((clue) => (
+                    <BioClue key={clue.key} clue={clue} />
                   ))}
                 </div>
 
@@ -725,7 +695,7 @@ export default function DogDetail() {
                     onClick={() => setAiInfoOpen(true)}
                     className="mt-4 w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
                   >
-                    This listing has limited or messy bio details. Tap to see how AI-assisted clues
+                    This listing may have limited or messy bio details. Tap to see how these clues
                     should be interpreted.
                   </button>
                 ) : (
@@ -738,16 +708,64 @@ export default function DogDetail() {
             ) : null}
 
             <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-lg font-extrabold text-slate-900">Traits</div>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-lg font-extrabold text-slate-900">Traits & bio clues</div>
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Official structured details first. Bio-based estimates fill in helpful gaps.
+                  </p>
+                </div>
+
+                {hasBioTraitData ? (
+                  <button
+                    type="button"
+                    onClick={() => setAiInfoOpen(true)}
+                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                    aria-label="Learn about bio-based trait estimates"
+                  >
+                    i
+                  </button>
+                ) : null}
+              </div>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
-                <Trait label="Size" value={dog.size} />
-                <Trait label="Energy" value={dog.energy_level} />
-                <Trait label="Potty trained" value={dog.potty_trained} />
-                <Trait label="Good with dogs" value={dog.good_with_dogs} />
-                <Trait label="Good with cats" value={dog.good_with_cats} />
-                <Trait label="Good with kids" value={dog.good_with_kids} />
+                <TraitCard label="Size" trait={getSimpleTrait({ value: dog.size })} />
+                <TraitCard label="Energy" trait={getSimpleTrait({ value: dog.energy_level })} />
+                <TraitCard
+                  label="Potty trained"
+                  trait={getTraitDisplay({
+                    structuredValue: dog.potty_trained,
+                    bioValue: dog.bio_potty_trained,
+                  })}
+                />
+                <TraitCard
+                  label="Good with dogs"
+                  trait={getTraitDisplay({
+                    structuredValue: dog.good_with_dogs,
+                    bioValue: dog.bio_good_with_dogs,
+                  })}
+                />
+                <TraitCard
+                  label="Good with cats"
+                  trait={getTraitDisplay({
+                    structuredValue: dog.good_with_cats,
+                    bioValue: dog.bio_good_with_cats,
+                  })}
+                />
+                <TraitCard
+                  label="Good with kids"
+                  trait={getTraitDisplay({
+                    structuredValue: dog.good_with_kids,
+                    bioValue: dog.bio_good_with_kids,
+                  })}
+                />
               </div>
+
+              {hasBioTraitData ? (
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  ✨ Estimated from the rescue bio when structured details aren’t available.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -756,9 +774,7 @@ export default function DogDetail() {
   );
 }
 
-function AiClue({ clue }) {
-  const isMaybe = clue.value === "maybe";
-
+function BioClue({ clue }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
       <div className="flex items-start gap-3">
@@ -767,36 +783,36 @@ function AiClue({ clue }) {
         </div>
 
         <div className="min-w-0">
-          <div className="text-sm font-extrabold text-slate-900">
-            {isMaybe ? clue.label : clue.label}
-          </div>
+          <div className="text-sm font-extrabold text-slate-900">{clue.title}</div>
           <div className="mt-1 text-xs leading-5 text-slate-600">{clue.detail}</div>
-
-          {clue.evidence ? (
-            <div className="mt-2 line-clamp-2 text-[11px] leading-4 text-slate-500">
-              Bio clue: {clue.evidence}
-            </div>
-          ) : null}
         </div>
       </div>
     </div>
   );
 }
 
-function Trait({ label, value }) {
-  const display =
-    value === true
-      ? "Yes"
-      : value === false
-        ? "No"
-        : value === null || value === undefined || value === ""
-          ? "Unknown"
-          : String(value);
-
+function TraitCard({ label, trait }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
-      <div className="mt-1 text-sm font-extrabold text-slate-900">{display}</div>
+      <div className="mt-1 flex items-center gap-1.5 text-sm font-extrabold text-slate-900">
+        <span>{trait.value}</span>
+        {trait.estimated ? (
+          <span
+            className="text-xs"
+            title="Estimated from the rescue bio. Confirm with the rescue."
+            aria-label="Estimated from bio"
+          >
+            ✨
+          </span>
+        ) : null}
+      </div>
+
+      {trait.estimated ? (
+        <div className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
+          Estimated from bio
+        </div>
+      ) : null}
     </div>
   );
 }
