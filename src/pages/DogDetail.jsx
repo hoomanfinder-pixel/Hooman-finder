@@ -644,7 +644,7 @@ export default function DogDetail() {
                 <div className="text-sm font-extrabold text-slate-900">Listed by</div>
                 <div className="mt-3 flex items-center gap-3">
                   {shelterLogo ? (
-                    <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-1.5">
+                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 sm:h-16 sm:w-36">
                       <img
                         src={shelterLogo}
                         alt={`${shelterName} logo`}
@@ -652,7 +652,7 @@ export default function DogDetail() {
                       />
                     </div>
                   ) : (
-                    <div className="flex h-11 w-14 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-sm font-extrabold text-slate-500">
+                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-lg font-extrabold text-slate-500 sm:h-16 sm:w-36">
                       {shelterName.charAt(0).toUpperCase()}
                     </div>
                   )}
