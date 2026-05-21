@@ -647,7 +647,7 @@ export default function DogDetail() {
                     <img
                       src={shelterLogo}
                       alt={`${shelterName} logo`}
-                      className="h-12 w-12 rounded-full border border-slate-200 bg-white object-cover"
+                      className="h-12 w-12 rounded-full border border-slate-200 bg-white object-contain"
                     />
                   ) : (
                     <div className="h-12 w-12 rounded-full border border-slate-200 bg-slate-100" />
