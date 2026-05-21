@@ -122,6 +122,10 @@ export default function Dogs() {
   const [dogsOnly, setDogsOnly] = useState(false);
 
   useEffect(() => {
+    document.title = "Browse Adoptable Dogs | Hooman Finder";
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
 
     async function loadDogs() {

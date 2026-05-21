@@ -48,6 +48,10 @@ export default function Home() {
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
 
   useEffect(() => {
+    document.title = "Hooman Finder | Rescue Dog Adoption Matching";
+  }, []);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function loadFeaturedDogs() {

@@ -405,6 +405,14 @@ export default function DogDetail() {
     setImgSrc(resolvedImage || FALLBACK_IMG);
   }, [resolvedImage]);
 
+  useEffect(() => {
+    if (dog?.name) {
+      document.title = `${dog.name} - Adoptable Dog | Hooman Finder`;
+    } else if (!loading && (loadError || !dog)) {
+      document.title = "Dog Not Found | Hooman Finder";
+    }
+  }, [dog, loading, loadError]);
+
   function onToggleSaved() {
     const nextSaved = toggleSavedId(id);
     setSaved(nextSaved);
@@ -549,7 +557,7 @@ export default function DogDetail() {
               <div className="relative aspect-[4/3] w-full bg-slate-100">
                 <img
                   src={imgSrc}
-                  alt={name}
+                  alt={`${name}, adoptable dog`}
                   className="absolute inset-0 h-full w-full bg-slate-100 object-contain"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />

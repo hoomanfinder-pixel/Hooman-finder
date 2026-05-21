@@ -39,6 +39,10 @@ export default function Saved() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    document.title = "Saved Adoptable Dogs | Hooman Finder";
+  }, []);
+
+  useEffect(() => {
     const onStorage = (e) => {
       if (e.key === SAVED_KEY) setSavedIds(readSavedIds());
     };

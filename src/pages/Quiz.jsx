@@ -90,6 +90,10 @@ export default function Quiz() {
   const modeParam = searchParams.get("mode") || QUIZ_MODES.DEALBREAKERS;
   const mode = modeParam === QUIZ_MODES.REFINE ? QUIZ_MODES.REFINE : QUIZ_MODES.DEALBREAKERS;
 
+  useEffect(() => {
+    document.title = "Dog Adoption Matching Quiz | Hooman Finder";
+  }, []);
+
   const sessionFromUrl = searchParams.get("session");
   const sessionId = useMemo(() => ensureSessionId(sessionFromUrl), [sessionFromUrl]);
 
