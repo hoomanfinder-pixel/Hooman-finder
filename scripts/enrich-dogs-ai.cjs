@@ -158,10 +158,10 @@ Potty training examples:
 First-time-friendly:
 - "true" only with clear easygoing/manageable/beginner-friendly behavior or training evidence.
 - "likely" when the bio strongly suggests manageable/easygoing traits, low or moderate energy, gentle temperament, and no advanced behavior needs.
-- "maybe" for mild positive signs like loving/family-friendly language, manageable energy, gentle temperament, or eager-to-please wording.
+- "maybe" for mild positive signs like clear easygoing, calm, gentle, low-maintenance, manageable energy, or eager-to-please wording.
 - "false" only with clear experienced-adopter/breed-experience/major behavior needs.
 - "unknown" when generic, copied, mismatched, or not enough behavior detail.
-- "great addition to any family" can support "maybe" for first_time_friendly, but not "true" by itself.
+- "family", "great family dog", or "great addition to any family" must stay unknown by itself. Family language alone is not child-specific and is not first-time-owner evidence.
 
 Other rules:
 - "research the breed before applying" should lower confidence and suggest review, but it should not erase specific compatibility evidence about kids, dogs, or cats.
@@ -375,6 +375,48 @@ function normalizeAiTraits(parsed, dogInput) {
     return phrases.some((phrase) => bio.includes(phrase));
   }
 
+  function hasChildSpecificEvidence() {
+    return (
+      /\b(kid|kids|kiddo|kiddos|child|children|toddler|toddlers|baby|babies|infant|infants|teen|teens|teenager|teenagers)\b/.test(bio) ||
+      includesAny([
+        "family with kids",
+        "families with kids",
+        "family with children",
+        "families with children",
+        "young ones",
+        "little ones",
+      ])
+    );
+  }
+
+  function hasFirstTimeFriendlyEvidence() {
+    return includesAny([
+      "first time dog owner",
+      "first-time dog owner",
+      "first time owner",
+      "first-time owner",
+      "beginner friendly",
+      "beginner-friendly",
+      "easygoing",
+      "easy going",
+      "easy dog",
+      "low maintenance",
+      "low-maintenance",
+      "calm dog",
+      "calm girl",
+      "calm boy",
+      "very chill",
+      "gentle dog",
+      "gentle girl",
+      "gentle boy",
+      "laid back",
+      "laid-back",
+      "eager to please",
+      "good manners",
+      "bestest manners",
+    ]);
+  }
+
   function normalizeEnergyValue(value) {
     const raw = String(value || "").toLowerCase().trim();
     if (!raw || raw === "unknown") return "unknown";
@@ -502,11 +544,15 @@ function normalizeAiTraits(parsed, dogInput) {
     includesAny([
       "first time dog owner",
       "first-time dog owner",
+      "first time owner",
+      "first-time owner",
       "beginner friendly",
       "beginner-friendly",
       "easygoing",
       "easy going",
       "easy dog",
+      "low maintenance",
+      "low-maintenance",
       "great for a first time owner",
       "great for a first-time owner",
     ])
@@ -859,24 +905,33 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   const firstTimeValue = String(normalized.first_time_friendly?.value || "").toLowerCase();
-  const firstTimeEvidence = String(normalized.first_time_friendly?.evidence || "").toLowerCase();
+  const kidsValue = String(normalized.good_with_kids?.value || "").toLowerCase();
 
-  const firstTimeBasedOnlyOnGenericFamilyLanguage =
-    (firstTimeValue === "maybe" || firstTimeValue === "likely") &&
-    (
-      firstTimeEvidence.includes("great addition to any family") ||
-      firstTimeEvidence.includes("addition to any family") ||
-      firstTimeEvidence.includes("loving")
-    );
+  const childEvidenceAvailable =
+    dogInput.current_good_with_kids === true || hasChildSpecificEvidence();
 
-  if (firstTimeBasedOnlyOnGenericFamilyLanguage) {
+  if (
+    ["true", "likely", "maybe"].includes(kidsValue) &&
+    !childEvidenceAvailable
+  ) {
+    normalized.good_with_kids = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "Generic family language was not treated as child-specific kid compatibility evidence.",
+    };
+  }
+
+  const firstTimeEvidenceAvailable =
+    dogInput.current_first_time_friendly === true || hasFirstTimeFriendlyEvidence();
+
+  if (
+    ["true", "likely", "maybe"].includes(firstTimeValue) &&
+    !firstTimeEvidenceAvailable
+  ) {
     normalized.first_time_friendly = {
-      ...normalized.first_time_friendly,
-      value: "maybe",
-      confidence: Math.min(normalized.first_time_friendly.confidence || 0.5, 0.55),
-      evidence:
-        normalized.first_time_friendly.evidence ||
-        "Generic family-friendly language suggests possible fit, but behavior details are limited.",
+      value: "unknown",
+      confidence: 0,
+      evidence: "Generic family language was not treated as first-time-owner evidence.",
     };
   }
 
