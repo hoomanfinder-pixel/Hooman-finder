@@ -238,6 +238,21 @@ function normalizeTraitObject(obj, fallbackValue = "unknown") {
   };
 }
 
+function normalizeNumericTraitObject(obj) {
+  if (!obj || typeof obj !== "object") {
+    return { value: null, confidence: 0, evidence: "" };
+  }
+
+  const n = Number(obj.value);
+
+  return {
+    ...obj,
+    value: Number.isFinite(n) && n >= 0 ? n : null,
+    confidence: normalizeConfidence(obj.confidence),
+    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+  };
+}
+
 function safeParseJson(text) {
   const raw = String(text || "").trim();
 
@@ -300,7 +315,7 @@ function normalizeAiTraits(parsed, dogInput) {
     apartment_friendly: normalizeTraitObject(parsed.apartment_friendly),
     needs_yard: normalizeTraitObject(parsed.needs_yard),
     can_be_left_alone: normalizeTraitObject(parsed.can_be_left_alone),
-    max_alone_hours_estimate: normalizeTraitObject(parsed.max_alone_hours_estimate, null),
+    max_alone_hours_estimate: normalizeNumericTraitObject(parsed.max_alone_hours_estimate),
     training_needs: normalizeTraitObject(parsed.training_needs),
     home_environment: normalizeTraitObject(parsed.home_environment),
     affection_level: normalizeTraitObject(parsed.affection_level),
@@ -335,29 +350,13 @@ function normalizeAiTraits(parsed, dogInput) {
   const description = String(dogInput.description || "");
   const descriptionLower = description.toLowerCase();
 
-  const existingEnergy = String(dogInput.current_energy_level || "").toLowerCase();
-
-  if (["low", "moderate", "high"].includes(existingEnergy)) {
-    normalized.energy_level = {
-      value: existingEnergy,
-      confidence: Math.max(normalized.energy_level?.confidence || 0, 0.8),
-      evidence: `Existing structured energy level is ${existingEnergy}.`,
-    };
-  } else if (!["low", "moderate", "high", "unknown"].includes(String(normalized.energy_level?.value || "").toLowerCase())) {
-    normalized.energy_level = {
-      value: "unknown",
-      confidence: 0,
-      evidence: "AI returned an invalid energy value, so it was treated as unknown.",
-    };
-  }
-
   function strengthenTraitFromBio(key, value, confidence, evidence) {
     const current = normalized[key] || { value: "unknown", confidence: 0, evidence: "" };
     const currentConfidence = Number(current.confidence || 0);
     const currentValue = normalizeTraitValue(current.value);
 
     if (currentValue === "true" && currentConfidence >= confidence) return;
-    if (currentValue === "false") return;
+    if (currentValue === "false" && currentConfidence >= confidence) return;
 
     const valueRank = { unknown: 0, maybe: 1, likely: 2, true: 3, false: 4 };
     const nextRank = valueRank[value] ?? 0;
@@ -374,6 +373,256 @@ function normalizeAiTraits(parsed, dogInput) {
 
   function includesAny(phrases) {
     return phrases.some((phrase) => bio.includes(phrase));
+  }
+
+  function normalizeEnergyValue(value) {
+    const raw = String(value || "").toLowerCase().trim();
+    if (!raw || raw === "unknown") return "unknown";
+    if (raw.includes("low") || raw.includes("calm") || raw.includes("slightly active")) return "low";
+    if (raw.includes("high") || raw.includes("very active")) return "high";
+    if (raw.includes("moderate") || raw.includes("medium")) return "moderate";
+    return "unknown";
+  }
+
+  function setEnergy(value, confidence, evidence, force = false) {
+    const normalizedValue = normalizeEnergyValue(value);
+    if (!["low", "moderate", "high"].includes(normalizedValue)) return;
+
+    const currentConfidence = Number(normalized.energy_level?.confidence || 0);
+    const currentValue = normalizeEnergyValue(normalized.energy_level?.value);
+
+    if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
+    if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
+
+    normalized.energy_level = {
+      value: normalizedValue,
+      confidence: force ? confidence : Math.max(currentConfidence, confidence),
+      evidence,
+    };
+  }
+
+  function setTraitFromBio(key, value, confidence, evidence) {
+    normalized[key] = {
+      value,
+      confidence,
+      evidence,
+    };
+  }
+
+  function setNumericTraitFromBio(key, value, confidence, evidence) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) return;
+
+    normalized[key] = {
+      value: n,
+      confidence,
+      evidence,
+    };
+  }
+
+  const existingEnergy = normalizeEnergyValue(dogInput.current_energy_level);
+  const aiEnergy = normalizeEnergyValue(normalized.energy_level?.value);
+
+  if (aiEnergy === "unknown") {
+    normalized.energy_level = {
+      value: "unknown",
+      confidence: 0,
+      evidence: normalized.energy_level?.evidence || "",
+    };
+  }
+
+  if (existingEnergy !== "unknown") {
+    setEnergy(
+      existingEnergy,
+      0.72,
+      `Existing structured energy level is ${existingEnergy}.`
+    );
+  }
+
+  if (
+    includesAny([
+      "very energetic",
+      "high energy",
+      "higher energy",
+      "lots of energy",
+      "lot of energy",
+      "tons of energy",
+      "full of energy",
+      "very active",
+      "needs lots of exercise",
+      "needs a lot of exercise",
+      "needs plenty of exercise",
+    ])
+  ) {
+    setEnergy("high", 0.92, "Bio clearly describes high energy or high exercise needs.", true);
+  } else if (
+    includesAny([
+      "moderate energy",
+      "medium energy",
+      "moderately active",
+      "moderate exercise",
+      "regular walks",
+      "daily walks",
+    ])
+  ) {
+    setEnergy("moderate", 0.86, "Bio clearly describes moderate energy or regular exercise needs.", true);
+  } else if (
+    includesAny([
+      "low energy",
+      "very chill",
+      "laid back",
+      "laid-back",
+      "calm dog",
+      "calm girl",
+      "calm boy",
+      "couch potato",
+      "quiet and calm",
+      "leisurely strolls",
+      "short leisurely strolls",
+    ])
+  ) {
+    setEnergy("low", 0.88, "Bio clearly describes low energy or a calm lifestyle.", true);
+  }
+
+  if (
+    includesAny([
+      "crate trained",
+      "crate-trained",
+      "sleeps in her crate",
+      "sleeps in his crate",
+      "loves her crate",
+      "loves his crate",
+      "security of my crate",
+    ])
+  ) {
+    setTraitFromBio("crate_trained", "true", 0.88, "Bio directly describes crate training.");
+  }
+
+  if (
+    includesAny([
+      "first time dog owner",
+      "first-time dog owner",
+      "beginner friendly",
+      "beginner-friendly",
+      "easygoing",
+      "easy going",
+      "easy dog",
+      "great for a first time owner",
+      "great for a first-time owner",
+    ])
+  ) {
+    setTraitFromBio(
+      "first_time_friendly",
+      "true",
+      0.84,
+      "Bio directly suggests the dog may be manageable for a first-time owner."
+    );
+  }
+
+  if (
+    includesAny([
+      "apartment friendly",
+      "apartment-friendly",
+      "great fit for a shared wall",
+      "shared wall situation",
+      "good apartment dog",
+      "apartment or townhome",
+      "apartment or townhouse",
+    ])
+  ) {
+    setTraitFromBio(
+      "apartment_friendly",
+      "true",
+      0.86,
+      "Bio directly describes apartment or shared-wall suitability."
+    );
+  }
+
+  if (
+    includesAny([
+      "needs a fenced yard",
+      "requires a fenced yard",
+      "fenced yard required",
+      "must have a fenced yard",
+      "secure fenced yard",
+    ])
+  ) {
+    setTraitFromBio("needs_yard", "true", 0.9, "Bio clearly says a fenced yard is needed.");
+  } else if (
+    includesAny([
+      "would love a fenced yard",
+      "would do best with a fenced yard",
+      "yard to run",
+      "room to run",
+    ])
+  ) {
+    setTraitFromBio("needs_yard", "likely", 0.74, "Bio suggests a yard would be a strong fit.");
+  }
+
+  if (
+    includesAny([
+      "separation anxiety",
+      "anxious when left alone",
+      "does not like to be left alone",
+      "doesn't like to be left alone",
+      "cannot be left alone",
+      "can't be left alone",
+    ])
+  ) {
+    setTraitFromBio("anxiety_or_fear", "true", 0.88, "Bio directly describes separation anxiety or alone-time anxiety.");
+  }
+
+  if (
+    includesAny([
+      "handles alone time beautifully",
+      "does well alone",
+      "can be left alone",
+      "fine when left alone",
+    ])
+  ) {
+    setTraitFromBio("can_be_left_alone", "true", 0.84, "Bio describes the dog doing well when left alone.");
+  }
+
+  if (includesAny(["less than 4 hours", "under 4 hours", "no more than 4 hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.72, "Bio gives a rough alone-time limit around four hours.");
+  } else if (includesAny(["4-6 hours", "4 to 6 hours", "four to six hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.72, "Bio gives a rough alone-time range of four to six hours.");
+  } else if (includesAny(["6-8 hours", "6 to 8 hours", "six to eight hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.72, "Bio gives a rough alone-time range of six to eight hours.");
+  }
+
+  if (
+    includesAny([
+      "needs training",
+      "needs basic training",
+      "working on manners",
+      "working on leash manners",
+      "needs leash work",
+      "needs an experienced adopter",
+      "experienced adopter",
+    ])
+  ) {
+    setTraitFromBio("training_needs", "true", 0.82, "Bio describes training needs or experienced-adopter support.");
+  }
+
+  if (
+    includesAny([
+      "needs an experienced adopter",
+      "experienced adopter",
+      "experienced owner",
+      "breed experience",
+      "not for first time",
+      "not for a first time",
+      "not for first-time",
+      "not for a first-time",
+    ])
+  ) {
+    setTraitFromBio(
+      "first_time_friendly",
+      "false",
+      0.9,
+      "Bio clearly asks for an experienced adopter or says the dog is not for a first-time owner."
+    );
   }
 
   // Kids: positive exposure from the rescue bio should not stay Unknown.
