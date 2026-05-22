@@ -62,6 +62,115 @@ function onlyTrue(value) {
   return value === true ? true : null;
 }
 
+function normalizeSizeLabel(value) {
+  const text = String(value || "").toLowerCase().trim();
+  if (!text) return null;
+
+  if (text.includes("x-large") || text.includes("extra large") || text.includes("xlarge")) {
+    return "X-Large";
+  }
+
+  if (text.includes("large")) return "Large";
+  if (text.includes("medium")) return "Medium";
+  if (text.includes("small")) return "Small";
+
+  return null;
+}
+
+function isClearlyPuppy({ ageYears, ageText }) {
+  const n = Number(ageYears);
+  if (Number.isFinite(n)) return n < 1.5;
+
+  const text = String(ageText || "").toLowerCase();
+  if (!text) return false;
+
+  if (text.includes("puppy")) return true;
+
+  const monthMatch = text.match(/(\d+)\s*months?/);
+  if (monthMatch) return Number(monthMatch[1]) < 18;
+
+  return false;
+}
+
+function breedIncludesAny(breed, phrases) {
+  const text = String(breed || "").toLowerCase();
+  if (!text) return false;
+  return phrases.some((phrase) => text.includes(phrase));
+}
+
+function inferExpectedAdultSizeForPuppy(dogInput) {
+  const currentSize = normalizeSizeLabel(dogInput.size);
+
+  if (!isClearlyPuppy({ ageYears: dogInput.age_years, ageText: dogInput.age_text })) {
+    return null;
+  }
+
+  // This is expected adult size inference for puppies only. It prevents young
+  // large-breed puppies from being permanently treated as small based on current size.
+  if (currentSize === "Large" || currentSize === "X-Large") return null;
+
+  const breed = dogInput.breed;
+
+  if (
+    breedIncludesAny(breed, [
+      "great pyrenees",
+      "mastiff",
+      "great dane",
+      "saint bernard",
+      "st. bernard",
+      "newfoundland",
+      "bernese mountain dog",
+      "anatolian shepherd",
+      "cane corso",
+      "irish wolfhound",
+    ])
+  ) {
+    return "X-Large";
+  }
+
+  if (
+    breedIncludesAny(breed, [
+      "labrador retriever",
+      "golden retriever",
+      "german shepherd",
+      "siberian husky",
+      "boxer",
+      "pit bull terrier",
+      "standard poodle",
+      "australian shepherd",
+    ])
+  ) {
+    return "Large";
+  }
+
+  if (
+    breedIncludesAny(breed, [
+      "chihuahua",
+      "yorkie",
+      "yorkshire terrier",
+      "maltese",
+      "shih tzu",
+      "dachshund",
+      "toy poodle",
+    ])
+  ) {
+    return "Small";
+  }
+
+  if (
+    breedIncludesAny(breed, [
+      "beagle",
+      "cocker spaniel",
+      "border collie",
+      "australian cattle dog",
+    ])
+  ) {
+    return "Medium";
+  }
+
+  return null;
+}
+
 function asDogInput(dog) {
   const descriptionParts = [
     dog.description,
@@ -1086,21 +1195,28 @@ async function enrichOneDog(dog) {
   const parsed = safeParseJson(content);
   const aiTraits = normalizeAiTraits(parsed, dogInput);
   const bioColumns = buildBioColumns(aiTraits);
+  const inferredAdultSize = inferExpectedAdultSizeForPuppy(dogInput);
+
+  const updatePayload = {
+    ai_traits: aiTraits,
+    ai_enriched_at: new Date().toISOString(),
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    ai_confidence_score: aiTraits.overall_confidence,
+    ...bioColumns,
+  };
+
+  if (inferredAdultSize && inferredAdultSize !== normalizeSizeLabel(dog.size)) {
+    updatePayload.size = inferredAdultSize;
+  }
 
   const { error } = await supabase
     .from("dogs")
-    .update({
-      ai_traits: aiTraits,
-      ai_enriched_at: new Date().toISOString(),
-      ai_enrichment_version: AI_ENRICHMENT_VERSION,
-      ai_confidence_score: aiTraits.overall_confidence,
-      ...bioColumns,
-    })
+    .update(updatePayload)
     .eq("id", dog.id);
 
   if (error) throw error;
 
-  return { aiTraits, bioColumns, elapsed };
+  return { aiTraits, bioColumns, inferredAdultSize: updatePayload.size || null, elapsed };
 }
 
 async function fetchDogs({ limit, force, dogId }) {
@@ -1207,7 +1323,7 @@ async function main() {
       const result = await enrichOneDog(dog);
       if (!result) continue;
 
-      const { aiTraits, bioColumns, elapsed } = result;
+      const { aiTraits, bioColumns, inferredAdultSize, elapsed } = result;
       updated += 1;
 
       const tags = Array.isArray(aiTraits.match_tags)
@@ -1222,6 +1338,7 @@ async function main() {
       console.log(`   bio_good_with_cats: ${bioColumns.bio_good_with_cats}`);
       console.log(`   bio_first_time_friendly: ${bioColumns.bio_first_time_friendly}`);
       console.log(`   bio_potty_trained: ${bioColumns.bio_potty_trained}`);
+      if (inferredAdultSize) console.log(`   inferred adult puppy size: ${inferredAdultSize}`);
       if (tags) console.log(`   Tags: ${tags}`);
     } catch (error) {
       failed += 1;
