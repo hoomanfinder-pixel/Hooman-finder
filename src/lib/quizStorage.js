@@ -1,5 +1,12 @@
 // src/lib/quizStorage.js
-import { supabase } from "./supabase";
+import { createClient } from "@supabase/supabase-js";
+
+const url = import.meta.env.VITE_SUPABASE_URL;
+const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.v1";
+const CREATED_STORAGE_PREFIX = "hoomanFinder.quizResponsesCreated.v1";
+const sessionClients = new Map();
 
 function cleanArray(v) {
   if (v == null) return null;
@@ -7,50 +14,61 @@ function cleanArray(v) {
   return [v];
 }
 
-/**
- * Loads a quiz_responses row for a session.
- * Returns:
- *  - answersById: plain object with keys matching question ids / column names
- *  - row: the raw DB row
- */
-export async function loadQuizResponses(sessionId) {
-  if (!sessionId) throw new Error("Missing session id");
-
-  const { data, error } = await supabase
-    .from("quiz_responses")
-    .select("*")
-    .eq("session_id", sessionId)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  if (!data) {
-    return { answersById: {}, row: null };
-  }
-
-  // Convert row -> answersById (excluding non-answer bookkeeping)
-  const {
-    id,
-    session_id,
-    created_at,
-    total_score,
-    normalized_score,
-    completion_count,
-    completion_total,
-    completion_pct,
-    ...answers
-  } = data;
-
-  return { answersById: answers || {}, row: data };
+function storageKey(prefix, sessionId) {
+  return `${prefix}:${sessionId}`;
 }
 
-/**
- * Saves a partial patch of answers to quiz_responses.
- * ALWAYS writes extra_answers as {} if missing so DB not-null never fails.
- */
-export async function saveQuizResponses(sessionId, patch) {
-  if (!sessionId) throw new Error("Missing session id");
+function canUseLocalStorage() {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
 
+function readJson(key, fallback) {
+  if (!canUseLocalStorage()) return fallback;
+
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key, value) {
+  if (!canUseLocalStorage()) return;
+
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Local persistence is best-effort; Supabase save errors are still surfaced.
+  }
+}
+
+function hasCreatedRemoteRow(sessionId) {
+  if (!canUseLocalStorage()) return false;
+  return window.localStorage.getItem(storageKey(CREATED_STORAGE_PREFIX, sessionId)) === "true";
+}
+
+function markCreatedRemoteRow(sessionId) {
+  if (!canUseLocalStorage()) return;
+  window.localStorage.setItem(storageKey(CREATED_STORAGE_PREFIX, sessionId), "true");
+}
+
+function clientForSession(sessionId) {
+  if (sessionClients.has(sessionId)) return sessionClients.get(sessionId);
+
+  const client = createClient(url, anon, {
+    global: {
+      headers: {
+        "x-session-id": sessionId,
+      },
+    },
+  });
+
+  sessionClients.set(sessionId, client);
+  return client;
+}
+
+function normalizeQuizPatch(patch) {
   const safePatch = { ...(patch || {}) };
 
   // Ensure array columns stay arrays (text[])
@@ -61,22 +79,74 @@ export async function saveQuizResponses(sessionId, patch) {
   if ("behavior_tolerance" in safePatch) safePatch.behavior_tolerance = cleanArray(safePatch.behavior_tolerance);
   if ("shedding_levels" in safePatch) safePatch.shedding_levels = cleanArray(safePatch.shedding_levels);
 
-  // ✅ Critical fix: never allow null extra_answers (your table is NOT NULL)
+  // The table has extra_answers NOT NULL.
   if (!("extra_answers" in safePatch) || safePatch.extra_answers == null) {
     safePatch.extra_answers = {};
   }
+
+  return safePatch;
+}
+
+function isDuplicateInsert(error) {
+  return error?.code === "23505" || /duplicate key/i.test(error?.message || "");
+}
+
+async function insertQuizResponses(sessionId, payload) {
+  const { error } = await clientForSession(sessionId)
+    .from("quiz_responses")
+    .insert(payload);
+
+  if (error) throw error;
+  markCreatedRemoteRow(sessionId);
+}
+
+async function updateQuizResponses(sessionId, payload) {
+  const { error } = await clientForSession(sessionId)
+    .from("quiz_responses")
+    .update(payload)
+    .eq("session_id", sessionId);
+
+  if (error) throw error;
+}
+
+/**
+ * Loads quiz answers from browser storage only.
+ *
+ * The public client intentionally does not SELECT from quiz_responses. Quiz
+ * answers can be sensitive, and RLS should keep public SELECT unavailable.
+ */
+export async function loadQuizResponses(sessionId) {
+  if (!sessionId) throw new Error("Missing session id");
+
+  const answersById = readJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), {});
+  return { answersById: answersById || {}, row: null };
+}
+
+/**
+ * Saves quiz answers locally, then writes them to Supabase without returning
+ * rows. First save inserts; later saves update by session_id.
+ */
+export async function saveQuizResponses(sessionId, patch) {
+  if (!sessionId) throw new Error("Missing session id");
+
+  const safePatch = normalizeQuizPatch(patch);
+  writeJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), safePatch);
 
   const payload = {
     session_id: sessionId,
     ...safePatch,
   };
 
-  const { data, error } = await supabase
-    .from("quiz_responses")
-    .upsert(payload, { onConflict: "session_id" })
-    .select("*")
-    .single();
+  if (!hasCreatedRemoteRow(sessionId)) {
+    try {
+      await insertQuizResponses(sessionId, payload);
+      return { answersById: safePatch };
+    } catch (error) {
+      if (!isDuplicateInsert(error)) throw error;
+      markCreatedRemoteRow(sessionId);
+    }
+  }
 
-  if (error) throw error;
-  return data;
+  await updateQuizResponses(sessionId, payload);
+  return { answersById: safePatch };
 }
