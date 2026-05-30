@@ -1,5 +1,5 @@
 // src/pages/Quiz.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import AccordionSection from "../components/AccordionSection";
@@ -101,6 +101,9 @@ export default function Quiz() {
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState("");
   const [openRefineSection, setOpenRefineSection] = useState(REFINE_SECTIONS[0]);
+  const quizTopRef = useRef(null);
+  const refineSectionRefs = useRef({});
+  const didMountModeRef = useRef(false);
 
   const questions = useMemo(() => getQuestionsForMode(mode, answersById), [mode, answersById]);
   const completion = useMemo(() => getCompletionCounts(mode, answersById), [mode, answersById]);
@@ -115,8 +118,28 @@ export default function Quiz() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, mode]);
 
+  function scrollToElement(element) {
+    if (!element || typeof element.scrollIntoView !== "function") return;
+    window.requestAnimationFrame(() => {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  function scrollToQuizTop() {
+    scrollToElement(quizTopRef.current);
+  }
+
   useEffect(() => {
     if (mode === QUIZ_MODES.REFINE) setOpenRefineSection(REFINE_SECTIONS[0]);
+
+    if (didMountModeRef.current) {
+      scrollToQuizTop();
+    } else {
+      didMountModeRef.current = true;
+    }
   }, [mode]);
 
   useEffect(() => {
@@ -178,8 +201,18 @@ export default function Quiz() {
     navigate(`/results?session=${encodeURIComponent(sessionId)}`);
   }
 
-  function saveAndExit() {
-    navigate("/dogs");
+  function saveAndSeeMatches() {
+    goResults();
+  }
+
+  function toggleRefineSection(groupTitle, isOpen) {
+    if (isOpen) {
+      setOpenRefineSection("");
+      return;
+    }
+
+    setOpenRefineSection(groupTitle);
+    scrollToElement(refineSectionRefs.current[groupTitle] || quizTopRef.current);
   }
 
   const refineGroups = useMemo(() => {
@@ -246,7 +279,7 @@ export default function Quiz() {
         </header>
 
         <main className="flex-1">
-          <section className="py-5 sm:py-7">
+          <section ref={quizTopRef} className="scroll-mt-24 py-5 sm:scroll-mt-28 sm:py-7">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] font-extrabold uppercase tracking-[0.28em] text-[#0f2742]/55">
@@ -314,28 +347,35 @@ export default function Quiz() {
                 const totalCount = group.questions.length;
 
                 return (
-                  <AccordionSection
+                  <div
                     key={group.title}
-                    id={`refine-${group.title.toLowerCase().replaceAll(" ", "-")}`}
-                    title={group.title}
-                    summary={`${answeredCount}/${totalCount} answered`}
-                    status={sectionStatus(answeredCount, totalCount)}
-                    isOpen={isOpen}
-                    onToggle={() => setOpenRefineSection(isOpen ? "" : group.title)}
+                    ref={(element) => {
+                      if (element) refineSectionRefs.current[group.title] = element;
+                    }}
+                    className="scroll-mt-24 sm:scroll-mt-28"
                   >
-                    <div className="space-y-3">
-                      {group.questions.map((q, index) => (
-                        <QuestionCard
-                          key={q.id}
-                          question={q}
-                          value={answersById[q.id]}
-                          onChange={(v) => updateAnswer(q.id, v)}
-                          number={index + 1}
-                          statusText={answerSummary(q, answersById[q.id])}
-                        />
-                      ))}
-                    </div>
-                  </AccordionSection>
+                    <AccordionSection
+                      id={`refine-${group.title.toLowerCase().replaceAll(" ", "-")}`}
+                      title={group.title}
+                      summary={`${answeredCount}/${totalCount} answered`}
+                      status={sectionStatus(answeredCount, totalCount)}
+                      isOpen={isOpen}
+                      onToggle={() => toggleRefineSection(group.title, isOpen)}
+                    >
+                      <div className="space-y-3">
+                        {group.questions.map((q, index) => (
+                          <QuestionCard
+                            key={q.id}
+                            question={q}
+                            value={answersById[q.id]}
+                            onChange={(v) => updateAnswer(q.id, v)}
+                            number={index + 1}
+                            statusText={answerSummary(q, answersById[q.id])}
+                          />
+                        ))}
+                      </div>
+                    </AccordionSection>
+                  </div>
                 );
               })}
             </section>
@@ -347,19 +387,22 @@ export default function Quiz() {
             <div className="grid grid-cols-[1fr_1.2fr] gap-2">
               <button
                 type="button"
-                onClick={saveAndExit}
+                onClick={saveAndSeeMatches}
                 className="inline-flex items-center justify-center rounded-2xl border border-[#0f2742]/15 bg-white/80 px-4 py-3 text-sm font-bold text-[#0f2742] shadow-sm hover:bg-white"
               >
-                Save & exit
+                Save & See Matches
               </button>
 
               {mode === QUIZ_MODES.DEALBREAKERS ? (
                 <button
                   type="button"
                   onClick={goRefine}
-                  className="inline-flex items-center justify-center rounded-2xl bg-[#0f4f88] px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-[#0d416f]"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[#0f4f88] px-3 py-3 text-center text-sm font-bold leading-snug text-white shadow-sm hover:bg-[#0d416f] sm:px-4"
                 >
-                  Continue →
+                  <span className="sm:hidden">Deeper questions →</span>
+                  <span className="hidden sm:inline">
+                    Continue to deeper questions for stronger matches →
+                  </span>
                 </button>
               ) : (
                 <button

@@ -345,6 +345,7 @@ export default function DogDetail() {
   const [imgSrc, setImgSrc] = useState(FALLBACK_IMG);
   const [saved, setSaved] = useState(() => isSavedId(id));
   const [aiInfoOpen, setAiInfoOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   useEffect(() => {
     const sync = () => setSaved(isSavedId(id));
@@ -413,6 +414,17 @@ export default function DogDetail() {
     }
   }, [dog, loading, loadError]);
 
+  useEffect(() => {
+    if (!photoOpen) return undefined;
+
+    function onKeyDown(event) {
+      if (event.key === "Escape") setPhotoOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [photoOpen]);
+
   function onToggleSaved() {
     const nextSaved = toggleSavedId(id);
     setSaved(nextSaved);
@@ -468,6 +480,34 @@ export default function DogDetail() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {photoOpen ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/78 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={() => setPhotoOpen(false)}
+        >
+          <div
+            className="relative flex max-h-full w-full max-w-5xl items-center justify-center"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setPhotoOpen(false)}
+              className="absolute right-0 top-0 z-10 inline-flex h-11 w-11 -translate-y-3 translate-x-1 items-center justify-center rounded-full bg-white text-2xl font-bold leading-none text-slate-900 shadow-lg hover:bg-slate-100 sm:-translate-y-5 sm:translate-x-5"
+              aria-label="Close enlarged photo"
+            >
+              ×
+            </button>
+
+            <img
+              src={imgSrc}
+              alt={`${name}, enlarged adoptable dog photo`}
+              className="max-h-[86vh] w-auto max-w-full rounded-2xl bg-white object-contain shadow-2xl"
+              onError={() => setImgSrc(FALLBACK_IMG)}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {aiInfoOpen ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm"
@@ -555,18 +595,25 @@ export default function DogDetail() {
           <div className="space-y-6">
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               <div className="relative aspect-[4/3] w-full bg-slate-100">
-                <img
-                  src={imgSrc}
-                  alt={`${name}, adoptable dog`}
-                  className="absolute inset-0 h-full w-full bg-slate-100 object-contain"
-                  onError={() => setImgSrc(FALLBACK_IMG)}
-                />
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="absolute inset-0 block h-full w-full cursor-zoom-in bg-slate-100"
+                  aria-label={`Open larger photo of ${name}`}
+                >
+                  <img
+                    src={imgSrc}
+                    alt={`${name}, adoptable dog`}
+                    className="h-full w-full bg-slate-100 object-contain"
+                    onError={() => setImgSrc(FALLBACK_IMG)}
+                  />
+                </button>
 
                 <button
                   type="button"
                   onClick={onToggleSaved}
                   className={[
-                    "absolute bottom-4 right-4 inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
+                    "absolute bottom-4 right-4 z-10 inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
                     saved
                       ? "border-rose-600 bg-rose-600 text-white"
                       : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",

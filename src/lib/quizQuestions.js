@@ -8,6 +8,7 @@ export const QUIZ_MODES = {
 export const QUESTION_TYPES = {
   SINGLE: "single",
   MULTI: "multi",
+  TEXT: "text",
 };
 
 // These MUST match Supabase column names.
@@ -25,10 +26,10 @@ export const ALL_QUESTIONS = [
     // ✅ If "flexible" is selected, it becomes the only selection (and vice versa)
     exclusiveValues: ["flexible"],
     options: [
-      { value: "small", label: "Small" },
-      { value: "medium", label: "Medium" },
-      { value: "large", label: "Large" },
-      { value: "extra_large", label: "Extra large" },
+      { value: "small", label: "Small", icon: "🐶" },
+      { value: "medium", label: "Medium", icon: "🐾" },
+      { value: "large", label: "Large", icon: "🐕" },
+      { value: "extra_large", label: "Extra large", icon: "🐕" },
       { value: "flexible", label: "Any size / flexible" },
     ],
   },
@@ -280,6 +281,34 @@ export const ALL_QUESTIONS = [
   // -------------------------
 
   {
+    id: "adoption_city",
+    mode: QUIZ_MODES.REFINE,
+    refineSection: "Care & Lifestyle",
+    type: QUESTION_TYPES.TEXT,
+    title: "What city are you looking near?",
+    description: "This is saved with your quiz, but does not change match ranking yet.",
+    placeholder: "City, MI",
+    inputMode: "text",
+  },
+
+  {
+    id: "adoption_travel_radius",
+    mode: QUIZ_MODES.REFINE,
+    refineSection: "Care & Lifestyle",
+    type: QUESTION_TYPES.SINGLE,
+    title: "How far are you willing to travel to adopt?",
+    description: "Stored for your adoption search preferences.",
+    options: [
+      { value: "10_miles", label: "10 miles" },
+      { value: "25_miles", label: "25 miles" },
+      { value: "50_miles", label: "50 miles" },
+      { value: "100_miles", label: "100 miles" },
+      { value: "anywhere_michigan", label: "Anywhere in Michigan" },
+      { value: "no_preference", label: "No preference" },
+    ],
+  },
+
+  {
     id: "daily_walk_minutes",
     mode: QUIZ_MODES.REFINE,
     refineSection: "Care & Lifestyle",
@@ -332,11 +361,13 @@ export const ALL_QUESTIONS = [
     // ✅ no_preference is exclusive
     exclusiveValues: ["no_preference"],
     options: [
-      { value: "cuddly", label: "Cuddly / chill" },
-      { value: "fetch", label: "Fetch / toys" },
-      { value: "hikes", label: "Hikes / outdoors" },
-      { value: "training_games", label: "Training / brain games" },
-      { value: "dog_park", label: "Dog park / social play" },
+      { value: "fetch_returns", label: "Fetch — brings it back" },
+      { value: "tug", label: "Tug-of-war" },
+      { value: "chase_flirt_pole", label: "Chase games / flirt pole" },
+      { value: "scent_sniffing", label: "Scent games / sniffing" },
+      { value: "puzzle_brain_games", label: "Puzzle toys / brain games" },
+      { value: "social_play", label: "Dog park / social play" },
+      { value: "low_key_play", label: "Cuddly / low-key play" },
       { value: "no_preference", label: "No preference" },
     ],
   },

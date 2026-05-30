@@ -8,6 +8,38 @@ const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.v1";
 const CREATED_STORAGE_PREFIX = "hoomanFinder.quizResponsesCreated.v1";
 const sessionClients = new Map();
 
+const REMOTE_QUIZ_COLUMNS = new Set([
+  "size_preference",
+  "age_preference",
+  "kids_in_home",
+  "kids_age_band",
+  "pets_in_home",
+  "potty_requirement",
+  "separation_anxiety_willingness",
+  "dog_social_preference",
+  "first_time_owner",
+  "housing_type",
+  "landlord_restrictions",
+  "crate_ok",
+  "training_commitment_level",
+  "reactivity_comfort",
+  "behavior_tolerance",
+  "noise_preference",
+  "daily_walk_minutes",
+  "weekend_activity_style",
+  "energy_preference",
+  "play_styles",
+  "yard",
+  "stairs",
+  "alone_time",
+  "allergy_sensitivity",
+  "shedding_preference",
+  "monthly_pet_budget_range",
+  "medical_needs_ok",
+  "medication_comfort",
+  "extra_answers",
+]);
+
 function cleanArray(v) {
   if (v == null) return null;
   if (Array.isArray(v)) return v;
@@ -87,6 +119,30 @@ function normalizeQuizPatch(patch) {
   return safePatch;
 }
 
+function toRemotePayload(sessionId, answersById) {
+  const safeAnswers = normalizeQuizPatch(answersById);
+  const payload = {
+    session_id: sessionId,
+  };
+  const extraAnswers =
+    safeAnswers.extra_answers && typeof safeAnswers.extra_answers === "object"
+      ? { ...safeAnswers.extra_answers }
+      : {};
+
+  for (const [key, value] of Object.entries(safeAnswers)) {
+    if (key === "extra_answers") continue;
+
+    if (REMOTE_QUIZ_COLUMNS.has(key)) {
+      payload[key] = value;
+    } else {
+      extraAnswers[key] = value;
+    }
+  }
+
+  payload.extra_answers = extraAnswers;
+  return payload;
+}
+
 function isDuplicateInsert(error) {
   return error?.code === "23505" || /duplicate key/i.test(error?.message || "");
 }
@@ -132,10 +188,7 @@ export async function saveQuizResponses(sessionId, patch) {
   const safePatch = normalizeQuizPatch(patch);
   writeJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), safePatch);
 
-  const payload = {
-    session_id: sessionId,
-    ...safePatch,
-  };
+  const payload = toRemotePayload(sessionId, safePatch);
 
   if (!hasCreatedRemoteRow(sessionId)) {
     try {

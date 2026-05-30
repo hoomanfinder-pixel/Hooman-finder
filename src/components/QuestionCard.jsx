@@ -46,6 +46,9 @@ export default function QuestionCard({
       number={number}
       icon={question.icon || questionIcon(question)}
       statusText={statusText}
+      inputMode={question.inputMode}
+      placeholder={question.placeholder}
+      type={question.type}
     />
   );
 }

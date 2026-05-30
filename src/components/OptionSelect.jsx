@@ -25,6 +25,8 @@ function optionIcon(option) {
   const label = String(option?.label || "").toLowerCase();
   const value = String(option?.value || "").toLowerCase();
 
+  if (label.includes("mile") || value.includes("mile")) return "↔";
+  if (label.includes("michigan") || value.includes("michigan")) return "MI";
   if (label.includes("other dog") || value.includes("dog")) return "🐶";
   if (label.includes("cat") || value.includes("cat")) return "🐱";
   if (label.includes("small animal") || label.includes("rabbit") || value.includes("small")) return "🐰";
@@ -51,6 +53,9 @@ export default function OptionSelect({
   number = null,
   icon = "🐾",
   statusText = "",
+  inputMode = "text",
+  placeholder = "",
+  type = "single",
 }) {
   const normalizedExclusive = useMemo(
     () => (exclusiveValues || []).map(String),
@@ -70,6 +75,8 @@ export default function OptionSelect({
       onChange(optValue);
     }
   };
+
+  const isTextQuestion = type === "text";
 
   return (
     <section className="rounded-[1.35rem] border border-[#0f2742]/10 bg-white/68 p-3 shadow-sm sm:p-4">
@@ -105,69 +112,83 @@ export default function OptionSelect({
         </div>
       </div>
 
-      <div className="grid gap-2">
-        {options.map((opt) => {
-          const selected = isSelected(opt.value);
-          const key = opt.key ?? String(opt.value);
-          const mark = multiple ? "check" : "radio";
+      {isTextQuestion ? (
+        <label className="block">
+          <span className="sr-only">{title}</span>
+          <input
+            type="text"
+            inputMode={inputMode}
+            value={typeof value === "string" ? value : ""}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={placeholder}
+            className="min-h-[52px] w-full rounded-2xl border border-[#0f2742]/10 bg-white/82 px-4 py-3 text-base font-semibold text-[#0f2742] outline-none transition placeholder:text-[#0f2742]/35 focus:border-[#0f4f88]/45 focus:bg-white focus:ring-4 focus:ring-[#0f4f88]/10"
+          />
+        </label>
+      ) : (
+        <div className="grid gap-2">
+          {options.map((opt) => {
+            const selected = isSelected(opt.value);
+            const key = opt.key ?? String(opt.value);
+            const mark = multiple ? "check" : "radio";
 
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => toggle(opt.value)}
-              className={[
-                "w-full rounded-2xl border px-3 py-2.5 text-left transition sm:px-3.5",
-                "min-h-[50px]",
-                selected
-                  ? "border-[#9ead8d] bg-[#dfe7d7]/72 shadow-sm"
-                  : "border-[#0f2742]/10 bg-white/82 hover:border-[#0f4f88]/35 hover:bg-white",
-              ].join(" ")}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-3">
-                  <div
-                    className={[
-                      "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base",
-                      selected ? "bg-white/70" : "bg-[#f4f1ea]",
-                    ].join(" ")}
-                  >
-                    {opt.icon || optionIcon(opt)}
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold leading-snug text-[#0f2742]">
-                      {opt.label}
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggle(opt.value)}
+                className={[
+                  "w-full rounded-2xl border px-3 py-2.5 text-left transition sm:px-3.5",
+                  "min-h-[50px]",
+                  selected
+                    ? "border-[#9ead8d] bg-[#dfe7d7]/72 shadow-sm"
+                    : "border-[#0f2742]/10 bg-white/82 hover:border-[#0f4f88]/35 hover:bg-white",
+                ].join(" ")}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div
+                      className={[
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-base",
+                        selected ? "bg-white/70" : "bg-[#f4f1ea]",
+                      ].join(" ")}
+                    >
+                      {opt.icon || optionIcon(opt)}
                     </div>
 
-                    {opt.help ? (
-                      <div className="mt-0.5 text-xs leading-4 text-[#0f2742]/58">
-                        {opt.help}
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold leading-snug text-[#0f2742]">
+                        {opt.label}
                       </div>
+
+                      {opt.help ? (
+                        <div className="mt-0.5 text-xs leading-4 text-[#0f2742]/58">
+                          {opt.help}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div
+                    className={[
+                      "flex h-5 w-5 shrink-0 items-center justify-center border transition",
+                      mark === "radio" ? "rounded-full" : "rounded-md",
+                      selected
+                        ? "border-[#0f4f88] bg-[#0f4f88] text-white"
+                        : "border-[#0f2742]/24 bg-white text-transparent",
+                    ].join(" ")}
+                  >
+                    {selected ? (
+                      <span className="text-[12px] font-black leading-none">
+                        {mark === "radio" ? "●" : "✓"}
+                      </span>
                     ) : null}
                   </div>
                 </div>
-
-                <div
-                  className={[
-                    "flex h-5 w-5 shrink-0 items-center justify-center border transition",
-                    mark === "radio" ? "rounded-full" : "rounded-md",
-                    selected
-                      ? "border-[#0f4f88] bg-[#0f4f88] text-white"
-                      : "border-[#0f2742]/24 bg-white text-transparent",
-                  ].join(" ")}
-                >
-                  {selected ? (
-                    <span className="text-[12px] font-black leading-none">
-                      {mark === "radio" ? "●" : "✓"}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
