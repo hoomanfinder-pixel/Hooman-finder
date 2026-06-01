@@ -720,6 +720,60 @@ export default function DogDetail() {
               </div>
             </div>
 
+            <section className="rounded-3xl border border-sky-200 bg-sky-50/70 p-5 shadow-sm sm:p-6">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
+                Bringing your dog home
+              </div>
+              <h2 className="mt-2 text-xl font-extrabold text-slate-900">
+                Expect an adjustment period
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-slate-700">
+                Even potty-trained dogs may have accidents while settling into a new home. New
+                routines, smells, people, and stress can all affect behavior at first. A dog may
+                be quiet, nervous, extra clingy, bark or whine, test rules, or need time to show
+                their real personality.
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-sky-200 bg-white/80 p-4">
+                <div className="text-sm font-extrabold text-slate-900">
+                  The 3-3-3 rule is a rough guide
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
+                  <div>
+                    <span className="font-bold text-sky-800">First 3 days:</span> decompress
+                  </div>
+                  <div>
+                    <span className="font-bold text-sky-800">First 3 weeks:</span> learn routines
+                  </div>
+                  <div>
+                    <span className="font-bold text-sky-800">First 3 months:</span> feel more settled
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-5 text-slate-600">
+                  Every dog is different, so this is a guide, not a guarantee. Patience and
+                  consistency help.
+                </p>
+              </div>
+
+              <div className="mt-4">
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  Quick tips for the first few weeks
+                </h3>
+                <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm leading-5 text-slate-700 sm:grid-cols-2">
+                  <li>• Keep the first few days calm and predictable.</li>
+                  <li>• Set up a quiet safe space.</li>
+                  <li>• Take potty breaks more often than you think you need to.</li>
+                  <li>• Supervise indoors at first.</li>
+                  <li>• Reward outdoor potty trips and calm behavior.</li>
+                  <li>• Introduce new people, pets, and places slowly.</li>
+                </ul>
+                <p className="mt-3 text-sm leading-5 text-slate-700">
+                  Ask the rescue, vet, or trainer for help if concerns feel severe or do not
+                  improve.
+                </p>
+              </div>
+            </section>
+
             {bioMatchClues.length ? (
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <div className="flex items-start justify-between gap-3">
