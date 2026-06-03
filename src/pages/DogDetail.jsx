@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
+const BIO_PREVIEW_LENGTH = 520;
 
 const FALLBACK_IMG =
   "data:image/svg+xml;utf8," +
@@ -242,6 +243,15 @@ function getSimpleTrait({ value }) {
   };
 }
 
+function getPreviewText(text, maxLength = BIO_PREVIEW_LENGTH) {
+  if (!text || text.length <= maxLength) return text;
+
+  const sliced = text.slice(0, maxLength);
+  const lastSpace = sliced.lastIndexOf(" ");
+  const preview = lastSpace > maxLength * 0.75 ? sliced.slice(0, lastSpace) : sliced;
+  return `${preview.trim()}...`;
+}
+
 function getBioMatchClues(dog) {
   const clues = [];
 
@@ -353,6 +363,7 @@ export default function DogDetail() {
   const [saved, setSaved] = useState(() => isSavedId(id));
   const [aiInfoOpen, setAiInfoOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
+  const [bioExpanded, setBioExpanded] = useState(false);
 
   useEffect(() => {
     const sync = () => setSaved(isSavedId(id));
@@ -475,6 +486,15 @@ export default function DogDetail() {
   const applyLink = displayApplyLink(dog);
   const applyLabel = displayApplyLabel(dog);
   const description = cleanText(dog.description) || "No description provided yet.";
+  const bioIsLong = description.length > BIO_PREVIEW_LENGTH;
+  const bioPreview = getPreviewText(description);
+  const quickFacts = [
+    { label: "Breed", value: breed },
+    { label: "Age", value: age },
+    dog.size ? { label: "Size", value: dog.size } : null,
+    dog.energy_level ? { label: "Energy", value: dog.energy_level } : null,
+    location !== "Location unknown" ? { label: "Location", value: location } : null,
+  ].filter(Boolean);
 
   const aiTraits = parseAiTraits(dog.ai_traits);
   const aiDisclosure = getAiDisclosure(aiTraits);
@@ -602,323 +622,310 @@ export default function DogDetail() {
           </Link>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="space-y-6">
-            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              <div className="relative aspect-[4/3] w-full bg-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setPhotoOpen(true)}
-                  className="group absolute inset-0 block h-full w-full cursor-zoom-in bg-slate-100 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/20"
-                  aria-label={`Open larger photo of ${name}`}
-                >
-                  <img
-                    src={imgSrc}
-                    alt={`${name}, adoptable dog`}
-                    className="h-full w-full bg-slate-100 object-contain transition duration-200 group-hover:brightness-95"
-                    onError={() => setImgSrc(FALLBACK_IMG)}
-                  />
-                </button>
+        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
+          <section className="order-1 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div className="relative aspect-[4/3] w-full bg-slate-100">
+              <button
+                type="button"
+                onClick={() => setPhotoOpen(true)}
+                className="group absolute inset-0 block h-full w-full cursor-zoom-in bg-slate-100 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/20"
+                aria-label={`Open larger photo of ${name}`}
+              >
+                <img
+                  src={imgSrc}
+                  alt={`${name}, adoptable dog`}
+                  className="h-full w-full bg-slate-100 object-contain transition duration-200 group-hover:brightness-95"
+                  onError={() => setImgSrc(FALLBACK_IMG)}
+                />
+              </button>
 
-                <button
-                  type="button"
-                  onClick={onToggleSaved}
-                  className={[
-                    "absolute bottom-4 right-4 z-10 inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
-                    saved
-                      ? "border-rose-600 bg-rose-600 text-white"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  {saved ? "♥ Saved" : "♡ Save"}
-                </button>
-              </div>
-
-              <div className="border-t border-slate-200 px-5 py-4">
-                <div className="text-lg font-extrabold text-slate-900">{name}</div>
-                <div className="mt-1 text-sm text-slate-600">
-                  {breed} • {age} • {dog.size || "Size unknown"} •{" "}
-                  {dog.energy_level || "Energy unknown"}
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={onToggleSaved}
+                className={[
+                  "absolute bottom-4 right-4 z-10 inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
+                  saved
+                    ? "border-rose-600 bg-rose-600 text-white"
+                    : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
+                ].join(" ")}
+              >
+                {saved ? "♥ Saved" : "♡ Save"}
+              </button>
             </div>
 
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="text-sm font-extrabold text-slate-900">About</div>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700">{description}</p>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl font-extrabold text-slate-900">{name}</h1>
-
-                  <p className="mt-2 text-slate-600">
-                    {breed} • {age} • {dog.size || "Size unknown"} •{" "}
-                    {dog.energy_level || "Energy unknown"}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={onToggleSaved}
-                  className={[
-                    "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition",
-                    saved
-                      ? "border-rose-600 bg-rose-600 text-white"
-                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-                  ].join(" ")}
-                >
-                  {saved ? "♥ Saved" : "♡ Save"}
-                </button>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div className="text-sm font-extrabold text-slate-900">Hooman Finder’s role</div>
-                <p className="mt-2 text-sm text-slate-700">
-                  Hooman Finder helps you compare fit, but the rescue manages applications, fees,
-                  availability, and final adoption decisions.
-                </p>
-              </div>
-
-              <div className="mt-5">
-                <div className="text-sm font-extrabold text-slate-900">Ready to take the next step?</div>
-                <p className="mt-1 text-sm text-slate-600">
-                  You’ll be redirected to the rescue’s official listing, website, or application page.
-                </p>
-
-                <a
-                  href={applyLink || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={`mt-3 inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold ${
-                    applyLink
-                      ? "bg-slate-900 text-white hover:bg-slate-800"
-                      : "cursor-not-allowed bg-slate-200 text-slate-500"
-                  }`}
-                  onClick={(e) => {
-                    if (!applyLink) e.preventDefault();
-                  }}
-                >
-                  {applyLabel}
-                </a>
-              </div>
-
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="text-sm font-extrabold text-slate-900">Before you inquire</div>
-                <ul className="mt-3 space-y-2 text-sm leading-5 text-slate-700">
-                  <li className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>Read the dog’s full bio and match notes.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>Check known needs like kids, cats, dogs, potty training, and energy.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>Make sure the location and travel distance work for you.</span>
-                  </li>
-                  <li className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                    <span>Contact the rescue directly for current availability and adoption requirements.</span>
-                  </li>
-                </ul>
-                <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
-                  Listing info can change. Dog availability, adoption fees, and requirements may
-                  change quickly. Always confirm details directly with the rescue before applying
-                  or visiting.
-                </p>
-              </div>
-
-              <div className="mt-6 border-t border-slate-200 pt-5">
-                <div className="text-sm font-extrabold text-slate-900">Listed by</div>
-                <div className="mt-3 flex items-center gap-3">
-                  {shelterLogo ? (
-                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 sm:h-16 sm:w-36">
-                      <img
-                        src={shelterLogo}
-                        alt={`${shelterName} logo`}
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-lg font-extrabold text-slate-500 sm:h-16 sm:w-36">
-                      {shelterName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div>
-                    <div className="font-semibold text-slate-900">{shelterName}</div>
-                    <div className="text-sm text-slate-600">{location}</div>
-                  </div>
-                </div>
+            <div className="border-t border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
+              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{name}</h1>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {quickFacts.map((fact) => (
+                  <QuickFact key={`${fact.label}-${fact.value}`} label={fact.label} value={fact.value} />
+                ))}
               </div>
             </div>
+          </section>
 
-            <section className="rounded-3xl border border-sky-200 bg-sky-50/70 p-5 shadow-sm sm:p-6">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
-                Bringing your dog home
-              </div>
-              <h2 className="mt-2 text-xl font-extrabold text-slate-900">
-                Expect an adjustment period
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-slate-700">
-                Even potty-trained dogs may have accidents while settling into a new home. New
-                routines, smells, people, and stress can all affect behavior at first. A dog may
-                be quiet, nervous, extra clingy, bark or whine, test rules, or need time to show
-                their real personality.
-              </p>
+          <section className="order-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="text-sm font-extrabold text-slate-900">Ready to take the next step?</div>
+            <p className="mt-1 text-sm leading-5 text-slate-600">
+              Hooman Finder helps you compare fit, but the rescue manages applications, fees,
+              availability, and final adoption decisions.
+            </p>
 
-              <div className="mt-4 rounded-2xl border border-sky-200 bg-white/80 p-4">
-                <div className="text-sm font-extrabold text-slate-900">
-                  The 3-3-3 rule is a rough guide
-                </div>
-                <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
-                  <div>
-                    <span className="font-bold text-sky-800">First 3 days:</span> decompress
-                  </div>
-                  <div>
-                    <span className="font-bold text-sky-800">First 3 weeks:</span> learn routines
-                  </div>
-                  <div>
-                    <span className="font-bold text-sky-800">First 3 months:</span> feel more settled
-                  </div>
-                </div>
-                <p className="mt-3 text-xs leading-5 text-slate-600">
-                  Every dog is different, so this is a guide, not a guarantee. Patience and
-                  consistency help.
-                </p>
-              </div>
+            <a
+              href={applyLink || "#"}
+              target="_blank"
+              rel="noreferrer"
+              className={`mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
+                applyLink
+                  ? "bg-slate-900 text-white hover:bg-slate-800"
+                  : "cursor-not-allowed bg-slate-200 text-slate-500"
+              }`}
+              onClick={(e) => {
+                if (!applyLink) e.preventDefault();
+              }}
+            >
+              {applyLabel}
+            </a>
 
-              <div className="mt-4">
-                <h3 className="text-sm font-extrabold text-slate-900">
-                  Quick tips for the first few weeks
-                </h3>
-                <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm leading-5 text-slate-700 sm:grid-cols-2">
-                  <li>• Keep the first few days calm and predictable.</li>
-                  <li>• Set up a quiet safe space.</li>
-                  <li>• Take potty breaks more often than you think you need to.</li>
-                  <li>• Supervise indoors at first.</li>
-                  <li>• Reward outdoor potty trips and calm behavior.</li>
-                  <li>• Introduce new people, pets, and places slowly.</li>
-                </ul>
-                <p className="mt-3 text-sm leading-5 text-slate-700">
-                  Ask the rescue, vet, or trainer for help if concerns feel severe or do not
-                  improve.
-                </p>
-              </div>
-            </section>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Opens the rescue’s official listing, website, or application page.
+            </p>
+          </section>
 
-            {bioMatchClues.length ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-lg font-extrabold text-slate-900">
-                      Bio-based match clues
-                    </div>
-                    <p className="mt-1 text-sm leading-6 text-slate-600">
-                      Helpful compatibility clues pulled from the rescue bio.
-                    </p>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setAiInfoOpen(true)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                    aria-label="Learn about bio-based match clues"
-                  >
-                    i
-                  </button>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {bioMatchClues.map((clue) => (
-                    <BioClue key={clue.key} clue={clue} />
-                  ))}
-                </div>
-
-                {aiDisclosure?.needsReview ? (
-                  <button
-                    type="button"
-                    onClick={() => setAiInfoOpen(true)}
-                    className="mt-4 w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
-                  >
-                    This listing may have limited or messy bio details. Tap to see how these clues
-                    should be interpreted.
-                  </button>
-                ) : (
-                  <p className="mt-4 text-xs leading-5 text-slate-500">
-                    These are helpful clues, not guarantees. Confirm details directly with the
-                    rescue before applying.
-                  </p>
-                )}
-              </div>
-            ) : null}
-
-            <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          {bioMatchClues.length ? (
+            <section className="order-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-lg font-extrabold text-slate-900">Traits & bio clues</div>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Official structured details first. Bio-based estimates fill in helpful gaps.
+                  <div className="text-lg font-extrabold text-slate-900">
+                    Bio-based match clues
+                  </div>
+                  <p className="mt-1 text-sm leading-5 text-slate-600">
+                    Helpful compatibility clues pulled from the rescue bio.
                   </p>
                 </div>
 
-                {hasBioTraitData ? (
-                  <button
-                    type="button"
-                    onClick={() => setAiInfoOpen(true)}
-                    className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                    aria-label="Learn about bio-based trait estimates"
-                  >
-                    i
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setAiInfoOpen(true)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  aria-label="Learn about bio-based match clues"
+                >
+                  i
+                </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-2 gap-3">
-                <TraitCard label="Size" trait={getSimpleTrait({ value: dog.size })} />
-                <TraitCard label="Energy" trait={getSimpleTrait({ value: dog.energy_level })} />
-                <TraitCard
-                  label="Potty trained"
-                  trait={getTraitDisplay({
-                    structuredValue: dog.potty_trained,
-                    bioValue: dog.bio_potty_trained,
-                  })}
-                />
-                <TraitCard
-                  label="Good with dogs"
-                  trait={getTraitDisplay({
-                    structuredValue: dog.good_with_dogs,
-                    bioValue: dog.bio_good_with_dogs,
-                  })}
-                />
-                <TraitCard
-                  label="Good with cats"
-                  trait={getTraitDisplay({
-                    structuredValue: dog.good_with_cats,
-                    bioValue: dog.bio_good_with_cats,
-                  })}
-                />
-                <TraitCard
-                  label="Good with kids"
-                  trait={getTraitDisplay({
-                    structuredValue: dog.good_with_kids,
-                    bioValue: dog.bio_good_with_kids,
-                  })}
-                />
+              <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {bioMatchClues.map((clue) => (
+                  <BioClue key={clue.key} clue={clue} />
+                ))}
+              </div>
+
+              {aiDisclosure?.needsReview ? (
+                <button
+                  type="button"
+                  onClick={() => setAiInfoOpen(true)}
+                  className="mt-4 w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-semibold leading-5 text-amber-900 hover:bg-amber-100"
+                >
+                  This listing may have limited or messy bio details. Tap to see how these clues
+                  should be interpreted.
+                </button>
+              ) : (
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  These are helpful clues, not guarantees. Confirm details directly with the rescue.
+                </p>
+              )}
+            </section>
+          ) : null}
+
+          <section className="order-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-extrabold text-slate-900">Traits & bio clues</div>
+                <p className="mt-1 text-sm leading-5 text-slate-600">
+                  Official details first. Bio estimates fill in helpful gaps.
+                </p>
               </div>
 
               {hasBioTraitData ? (
-                <p className="mt-4 text-xs leading-5 text-slate-500">
-                  ✨ Estimated from the rescue bio when structured details aren’t available.
-                </p>
+                <button
+                  type="button"
+                  onClick={() => setAiInfoOpen(true)}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+                  aria-label="Learn about bio-based trait estimates"
+                >
+                  i
+                </button>
               ) : null}
             </div>
-          </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3">
+              <TraitCard label="Size" trait={getSimpleTrait({ value: dog.size })} />
+              <TraitCard label="Energy" trait={getSimpleTrait({ value: dog.energy_level })} />
+              <TraitCard
+                label="Potty trained"
+                trait={getTraitDisplay({
+                  structuredValue: dog.potty_trained,
+                  bioValue: dog.bio_potty_trained,
+                })}
+              />
+              <TraitCard
+                label="Good with dogs"
+                trait={getTraitDisplay({
+                  structuredValue: dog.good_with_dogs,
+                  bioValue: dog.bio_good_with_dogs,
+                })}
+              />
+              <TraitCard
+                label="Good with cats"
+                trait={getTraitDisplay({
+                  structuredValue: dog.good_with_cats,
+                  bioValue: dog.bio_good_with_cats,
+                })}
+              />
+              <TraitCard
+                label="Good with kids"
+                trait={getTraitDisplay({
+                  structuredValue: dog.good_with_kids,
+                  bioValue: dog.bio_good_with_kids,
+                })}
+              />
+            </div>
+
+            {hasBioTraitData ? (
+              <p className="mt-4 text-xs leading-5 text-slate-500">
+                ✨ Estimated from the rescue bio when structured details aren’t available.
+              </p>
+            ) : null}
+          </section>
+
+          <section className="order-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="text-lg font-extrabold text-slate-900">About {name}</div>
+            <p
+              id="dog-bio-text"
+              className="mt-3 text-sm leading-6 text-slate-700 sm:hidden"
+            >
+              {bioExpanded || !bioIsLong ? description : bioPreview}
+            </p>
+            <p className="mt-3 hidden text-sm leading-6 text-slate-700 sm:block">
+              {description}
+            </p>
+
+            {bioIsLong ? (
+              <button
+                type="button"
+                onClick={() => setBioExpanded((isExpanded) => !isExpanded)}
+                className="mt-3 inline-flex min-h-10 items-center rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50 sm:hidden"
+                aria-expanded={bioExpanded}
+                aria-controls="dog-bio-text"
+              >
+                {bioExpanded ? "Show less" : "Read more"}
+              </button>
+            ) : null}
+          </section>
+
+          <section className="order-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="text-sm font-extrabold text-slate-900">Listed by</div>
+            <div className="mt-3 flex items-center gap-3">
+              {shelterLogo ? (
+                <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 sm:h-16 sm:w-36">
+                  <img
+                    src={shelterLogo}
+                    alt={`${shelterName} logo`}
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : (
+                <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-lg font-extrabold text-slate-500 sm:h-16 sm:w-36">
+                  {shelterName.charAt(0).toUpperCase()}
+                </div>
+              )}
+
+              <div>
+                <div className="font-semibold text-slate-900">{shelterName}</div>
+                <div className="text-sm text-slate-600">{location}</div>
+              </div>
+            </div>
+          </section>
+
+          <section className="order-7 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div className="text-sm font-extrabold text-slate-900">Before you inquire</div>
+            <ul className="mt-3 space-y-2 text-sm leading-5 text-slate-700">
+              <li className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                <span>Read the dog’s full bio and match notes.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                <span>Check known needs like kids, cats, dogs, potty training, and energy.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                <span>Make sure the location and travel distance work for you.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                <span>Contact the rescue directly for current availability and adoption requirements.</span>
+              </li>
+            </ul>
+            <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+              Listing info can change. Dog availability, adoption fees, and requirements may
+              change quickly. Always confirm details directly with the rescue before applying
+              or visiting.
+            </p>
+          </section>
+
+          <section className="order-8 rounded-3xl border border-sky-200 bg-sky-50/70 p-5 shadow-sm sm:p-6">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
+              Bringing your dog home
+            </div>
+            <h2 className="mt-2 text-xl font-extrabold text-slate-900">
+              Expect an adjustment period
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-700">
+              Even potty-trained dogs may have accidents while settling into a new home. New
+              routines, smells, people, and stress can all affect behavior at first. A dog may
+              be quiet, nervous, extra clingy, bark or whine, test rules, or need time to show
+              their real personality.
+            </p>
+
+            <div className="mt-4 rounded-2xl border border-sky-200 bg-white/80 p-4">
+              <div className="text-sm font-extrabold text-slate-900">
+                The 3-3-3 rule is a rough guide
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-2 text-sm text-slate-700 sm:grid-cols-3">
+                <div>
+                  <span className="font-bold text-sky-800">First 3 days:</span> decompress
+                </div>
+                <div>
+                  <span className="font-bold text-sky-800">First 3 weeks:</span> learn routines
+                </div>
+                <div>
+                  <span className="font-bold text-sky-800">First 3 months:</span> feel more settled
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-5 text-slate-600">
+                Every dog is different, so this is a guide, not a guarantee. Patience and
+                consistency help.
+              </p>
+            </div>
+
+            <div className="mt-4">
+              <h3 className="text-sm font-extrabold text-slate-900">
+                Quick tips for the first few weeks
+              </h3>
+              <ul className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 text-sm leading-5 text-slate-700 sm:grid-cols-2">
+                <li>• Keep the first few days calm and predictable.</li>
+                <li>• Set up a quiet safe space.</li>
+                <li>• Take potty breaks more often than you think you need to.</li>
+                <li>• Supervise indoors at first.</li>
+                <li>• Reward outdoor potty trips and calm behavior.</li>
+                <li>• Introduce new people, pets, and places slowly.</li>
+              </ul>
+              <p className="mt-3 text-sm leading-5 text-slate-700">
+                Ask the rescue, vet, or trainer for help if concerns feel severe or do not
+                improve.
+              </p>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -938,6 +945,17 @@ function BioClue({ clue }) {
           <div className="mt-1 text-xs leading-5 text-slate-600">{clue.detail}</div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function QuickFact({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-0.5 text-sm font-extrabold leading-5 text-slate-900">{value}</div>
     </div>
   );
 }
