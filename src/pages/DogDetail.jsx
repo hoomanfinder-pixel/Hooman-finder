@@ -145,6 +145,13 @@ function displayApplyLink(dog) {
   );
 }
 
+function displayApplyLabel(dog) {
+  if (!displayApplyLink(dog)) return "Application link unavailable";
+  if (dog?.shelters?.apply_url) return "Apply or inquire through rescue";
+  if (dog?.source_url) return "Visit rescue listing";
+  return "Contact the rescue";
+}
+
 function parseAiTraits(raw) {
   if (!raw) return null;
   if (typeof raw === "object") return raw;
@@ -466,6 +473,7 @@ export default function DogDetail() {
   const shelterLogo = displayShelterLogo(dog);
   const location = displayLocation(dog);
   const applyLink = displayApplyLink(dog);
+  const applyLabel = displayApplyLabel(dog);
   const description = cleanText(dog.description) || "No description provided yet.";
 
   const aiTraits = parseAiTraits(dog.ai_traits);
@@ -667,15 +675,15 @@ export default function DogDetail() {
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="text-sm font-extrabold text-slate-900">Hooman Finder’s role</div>
                 <p className="mt-2 text-sm text-slate-700">
-                  Hooman Finder helps you discover dogs that may fit your lifestyle. We do not
-                  process adoptions directly — when you’re ready, apply through the shelter or rescue.
+                  Hooman Finder helps you compare fit, but the rescue manages applications, fees,
+                  availability, and final adoption decisions.
                 </p>
               </div>
 
               <div className="mt-5">
-                <div className="text-sm font-extrabold text-slate-900">Apply to adopt</div>
+                <div className="text-sm font-extrabold text-slate-900">Ready to take the next step?</div>
                 <p className="mt-1 text-sm text-slate-600">
-                  You’ll be redirected to the shelter’s official website or application page.
+                  You’ll be redirected to the rescue’s official listing, website, or application page.
                 </p>
 
                 <a
@@ -691,8 +699,30 @@ export default function DogDetail() {
                     if (!applyLink) e.preventDefault();
                   }}
                 >
-                  {applyLink ? "Apply on shelter site" : "Application link unavailable"}
+                  {applyLabel}
                 </a>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="text-sm font-extrabold text-slate-900">Before you inquire</div>
+                <ul className="mt-3 space-y-2 text-sm leading-5 text-slate-700">
+                  <li className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>Read the dog’s full bio and match notes.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>Check known needs like kids, cats, dogs, potty training, and energy.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>Make sure the location and travel distance work for you.</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
+                    <span>Contact the rescue directly for current availability and adoption requirements.</span>
+                  </li>
+                </ul>
               </div>
 
               <div className="mt-6 border-t border-slate-200 pt-5">
