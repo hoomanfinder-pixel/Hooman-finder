@@ -486,6 +486,7 @@ export default function DogDetail() {
   const applyLink = displayApplyLink(dog);
   const applyLabel = displayApplyLabel(dog);
   const description = cleanText(dog.description) || "No description provided yet.";
+  const coreFactsLine = [breed, age, dog.size, dog.energy_level].filter(Boolean).join(" • ");
   const bioIsLong = description.length > BIO_PREVIEW_LENGTH;
   const bioPreview = getPreviewText(description);
   const quickFacts = [
@@ -507,7 +508,7 @@ export default function DogDetail() {
     hasUsefulBioValue(dog.bio_potty_trained);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-stone-50">
       {photoOpen ? (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-3 py-5 backdrop-blur-sm sm:px-4 sm:py-6"
@@ -611,7 +612,7 @@ export default function DogDetail() {
         </div>
       ) : null}
 
-      <div className="mx-auto max-w-6xl px-4 py-6">
+      <div className="mx-auto max-w-5xl px-4 py-5 sm:py-6">
         <div className="flex items-center justify-between">
           <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
             ← Back to dogs
@@ -622,9 +623,9 @@ export default function DogDetail() {
           </Link>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
-          <section className="order-1 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-            <div className="relative aspect-[4/3] w-full bg-slate-100">
+        <section className="mt-4 overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="relative aspect-[5/4] w-full bg-slate-100 lg:aspect-auto lg:min-h-[360px]">
               <button
                 type="button"
                 onClick={() => setPhotoOpen(true)}
@@ -634,7 +635,7 @@ export default function DogDetail() {
                 <img
                   src={imgSrc}
                   alt={`${name}, adoptable dog`}
-                  className="h-full w-full bg-slate-100 object-contain transition duration-200 group-hover:brightness-95"
+                  className="h-full w-full bg-slate-100 object-cover transition duration-200 group-hover:brightness-95"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />
               </button>
@@ -653,43 +654,59 @@ export default function DogDetail() {
               </button>
             </div>
 
-            <div className="border-t border-slate-200 px-5 py-4 sm:px-6 sm:py-5">
-              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{name}</h1>
+            <div className="flex flex-col justify-center border-t border-slate-200 bg-gradient-to-b from-white to-stone-50/70 px-5 py-5 sm:px-7 sm:py-7 lg:border-l lg:border-t-0">
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                Adoptable dog profile
+              </div>
+              <h1 className="mt-2 text-3xl font-extrabold leading-tight text-slate-950 sm:text-4xl">
+                {name}
+              </h1>
+              {coreFactsLine ? (
+                <p className="mt-2 text-sm leading-5 text-slate-600 sm:text-base">
+                  {coreFactsLine}
+                </p>
+              ) : null}
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {quickFacts.map((fact) => (
                   <QuickFact key={`${fact.label}-${fact.value}`} label={fact.label} value={fact.value} />
                 ))}
               </div>
+
+              <div className="mt-5 rounded-3xl border border-slate-200 bg-white/85 p-4 shadow-sm">
+                <div className="text-sm font-extrabold text-slate-900">
+                  Ready to take the next step?
+                </div>
+                <p className="mt-1 text-sm leading-5 text-slate-600">
+                  Hooman Finder helps you compare fit. The rescue manages applications, fees,
+                  availability, and final adoption decisions.
+                </p>
+
+                <a
+                  href={applyLink || "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
+                    applyLink
+                      ? "bg-slate-900 text-white hover:bg-slate-800"
+                      : "cursor-not-allowed bg-slate-200 text-slate-500"
+                  }`}
+                  onClick={(e) => {
+                    if (!applyLink) e.preventDefault();
+                  }}
+                >
+                  {applyLabel}
+                </a>
+
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  Opens the rescue’s official listing, website, or application page.
+                </p>
+              </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          <section className="order-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <div className="text-sm font-extrabold text-slate-900">Ready to take the next step?</div>
-            <p className="mt-1 text-sm leading-5 text-slate-600">
-              Hooman Finder helps you compare fit, but the rescue manages applications, fees,
-              availability, and final adoption decisions.
-            </p>
-
-            <a
-              href={applyLink || "#"}
-              target="_blank"
-              rel="noreferrer"
-              className={`mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
-                applyLink
-                  ? "bg-slate-900 text-white hover:bg-slate-800"
-                  : "cursor-not-allowed bg-slate-200 text-slate-500"
-              }`}
-              onClick={(e) => {
-                if (!applyLink) e.preventDefault();
-              }}
-            >
-              {applyLabel}
-            </a>
-
-            <p className="mt-3 text-xs leading-5 text-slate-500">
-              Opens the rescue’s official listing, website, or application page.
-            </p>
-          </section>
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
 
           {bioMatchClues.length ? (
             <section className="order-3 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -797,7 +814,7 @@ export default function DogDetail() {
             ) : null}
           </section>
 
-          <section className="order-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+          <section className="order-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2">
             <div className="text-lg font-extrabold text-slate-900">About {name}</div>
             <p
               id="dog-bio-text"
@@ -873,7 +890,7 @@ export default function DogDetail() {
             </p>
           </section>
 
-          <section className="order-8 rounded-3xl border border-sky-200 bg-sky-50/70 p-5 shadow-sm sm:p-6">
+          <section className="order-8 rounded-3xl border border-sky-200 bg-sky-50/70 p-5 shadow-sm sm:p-6 lg:col-span-2">
             <div className="text-xs font-black uppercase tracking-[0.16em] text-sky-700">
               Bringing your dog home
             </div>
