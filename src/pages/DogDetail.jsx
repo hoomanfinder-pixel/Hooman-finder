@@ -490,17 +490,20 @@ export default function DogDetail() {
     <div className="min-h-screen bg-slate-50">
       {photoOpen ? (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/78 px-4 py-6 backdrop-blur-sm"
-          onMouseDown={() => setPhotoOpen(false)}
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-3 py-5 backdrop-blur-sm sm:px-4 sm:py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${name} expanded photo`}
+          onClick={() => setPhotoOpen(false)}
         >
           <div
             className="relative flex max-h-full w-full max-w-5xl items-center justify-center"
-            onMouseDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
               onClick={() => setPhotoOpen(false)}
-              className="absolute right-0 top-0 z-10 inline-flex h-11 w-11 -translate-y-3 translate-x-1 items-center justify-center rounded-full bg-white text-2xl font-bold leading-none text-slate-900 shadow-lg hover:bg-slate-100 sm:-translate-y-5 sm:translate-x-5"
+              className="absolute right-1 top-1 z-10 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white text-2xl font-bold leading-none text-slate-900 shadow-lg transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 sm:-translate-y-5 sm:translate-x-5"
               aria-label="Close enlarged photo"
             >
               ×
@@ -509,7 +512,7 @@ export default function DogDetail() {
             <img
               src={imgSrc}
               alt={`${name}, enlarged adoptable dog photo`}
-              className="max-h-[86vh] w-auto max-w-full rounded-2xl bg-white object-contain shadow-2xl"
+              className="max-h-[88vh] max-w-full rounded-2xl bg-white object-contain shadow-2xl"
               onError={() => setImgSrc(FALLBACK_IMG)}
             />
           </div>
@@ -606,13 +609,13 @@ export default function DogDetail() {
                 <button
                   type="button"
                   onClick={() => setPhotoOpen(true)}
-                  className="absolute inset-0 block h-full w-full cursor-zoom-in bg-slate-100"
+                  className="group absolute inset-0 block h-full w-full cursor-zoom-in bg-slate-100 transition focus:outline-none focus-visible:ring-4 focus-visible:ring-slate-900/20"
                   aria-label={`Open larger photo of ${name}`}
                 >
                   <img
                     src={imgSrc}
                     alt={`${name}, adoptable dog`}
-                    className="h-full w-full bg-slate-100 object-contain"
+                    className="h-full w-full bg-slate-100 object-contain transition duration-200 group-hover:brightness-95"
                     onError={() => setImgSrc(FALLBACK_IMG)}
                   />
                 </button>
