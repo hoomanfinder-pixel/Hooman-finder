@@ -723,6 +723,11 @@ export default function DogDetail() {
                     <span>Contact the rescue directly for current availability and adoption requirements.</span>
                   </li>
                 </ul>
+                <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
+                  Listing info can change. Dog availability, adoption fees, and requirements may
+                  change quickly. Always confirm details directly with the rescue before applying
+                  or visiting.
+                </p>
               </div>
 
               <div className="mt-6 border-t border-slate-200 pt-5">
