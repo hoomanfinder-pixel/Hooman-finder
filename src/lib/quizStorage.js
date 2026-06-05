@@ -4,8 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.v1";
+const SESSION_STORAGE_PREFIX = "hoomanFinder.quizResponses.session.v1";
 const CREATED_STORAGE_PREFIX = "hoomanFinder.quizResponsesCreated.v1";
+const ACTIVE_SESSION_KEY = "hoomanFinderActiveQuizSession";
 const sessionClients = new Map();
 
 const REMOTE_QUIZ_COLUMNS = new Set([
@@ -54,25 +55,37 @@ function canUseLocalStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
 }
 
-function readJson(key, fallback) {
-  if (!canUseLocalStorage()) return fallback;
+function canUseSessionStorage() {
+  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+}
+
+function readJsonFrom(storage, key, fallback) {
+  if (!storage) return fallback;
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = storage.getItem(key);
     return raw ? JSON.parse(raw) : fallback;
   } catch {
     return fallback;
   }
 }
 
-function writeJson(key, value) {
-  if (!canUseLocalStorage()) return;
+function writeJsonTo(storage, key, value) {
+  if (!storage) return;
 
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    storage.setItem(key, JSON.stringify(value));
   } catch {
     // Local persistence is best-effort; Supabase save errors are still surfaced.
   }
+}
+
+function readSessionJson(key, fallback) {
+  return readJsonFrom(canUseSessionStorage() ? window.sessionStorage : null, key, fallback);
+}
+
+function writeSessionJson(key, value) {
+  writeJsonTo(canUseSessionStorage() ? window.sessionStorage : null, key, value);
 }
 
 function hasCreatedRemoteRow(sessionId) {
@@ -83,6 +96,31 @@ function hasCreatedRemoteRow(sessionId) {
 function markCreatedRemoteRow(sessionId) {
   if (!canUseLocalStorage()) return;
   window.localStorage.setItem(storageKey(CREATED_STORAGE_PREFIX, sessionId), "true");
+}
+
+export function getActiveQuizSessionId() {
+  try {
+    if (canUseSessionStorage()) {
+      const sessionValue = window.sessionStorage.getItem(ACTIVE_SESSION_KEY);
+      if (sessionValue) return sessionValue;
+    }
+  } catch {
+    return "";
+  }
+
+  return "";
+}
+
+export function setActiveQuizSessionId(sessionId) {
+  if (!sessionId) return;
+
+  try {
+    if (canUseSessionStorage()) {
+      window.sessionStorage.setItem(ACTIVE_SESSION_KEY, sessionId);
+    }
+  } catch {
+    // Active-session tracking is best-effort.
+  }
 }
 
 function clientForSession(sessionId) {
@@ -174,7 +212,10 @@ async function updateQuizResponses(sessionId, payload) {
 export async function loadQuizResponses(sessionId) {
   if (!sessionId) throw new Error("Missing session id");
 
-  const answersById = readJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), {});
+  setActiveQuizSessionId(sessionId);
+
+  const sessionAnswers = readSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), null);
+  const answersById = sessionAnswers || {};
   return { answersById: answersById || {}, row: null };
 }
 
@@ -186,7 +227,8 @@ export async function saveQuizResponses(sessionId, patch) {
   if (!sessionId) throw new Error("Missing session id");
 
   const safePatch = normalizeQuizPatch(patch);
-  writeJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), safePatch);
+  setActiveQuizSessionId(sessionId);
+  writeSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), safePatch);
 
   const payload = toRemotePayload(sessionId, safePatch);
 

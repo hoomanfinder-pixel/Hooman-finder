@@ -279,10 +279,10 @@ export default function Dogs() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
-        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2.5 px-3.5 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-3.5 py-2 sm:px-6 lg:px-8">
           <Link
             to="/"
-            className="flex h-11 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/75 p-1.5 ring-1 ring-stone-950/8"
+            className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl bg-white/75 p-1.5 ring-1 ring-stone-950/8 sm:h-10 sm:w-14"
             aria-label="Go home"
           >
             <img
@@ -295,7 +295,7 @@ export default function Dogs() {
           <button
             type="button"
             onClick={toggleFilters}
-            className="mx-auto inline-flex min-h-11 w-full max-w-[14rem] items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-white shadow-sm hover:bg-stone-800"
+            className="mx-auto inline-flex min-h-9 w-full max-w-[12rem] items-center justify-center rounded-full bg-stone-950 px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-white shadow-sm hover:bg-stone-800 sm:min-h-10 sm:text-[11px]"
           >
             Filter
             {activeFilterCount > 0 ? (
@@ -308,14 +308,14 @@ export default function Dogs() {
           <div className="flex items-center justify-end gap-2">
             <Link
               to="/saved"
-              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
+              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
             >
               Saved
             </Link>
 
             <Link
               to="/quiz"
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-sm hover:bg-stone-800"
+              className="inline-flex min-h-9 items-center justify-center rounded-full bg-stone-950 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm hover:bg-stone-800 sm:min-h-10 sm:px-4 sm:text-[11px]"
             >
               Quiz
             </Link>
@@ -323,36 +323,36 @@ export default function Dogs() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8">
-        <section className="pb-3">
+      <main className="mx-auto w-full max-w-7xl px-3.5 py-2.5 sm:px-6 sm:py-5 lg:px-8">
+        <section className="pb-1.5">
           <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
             Available dogs
           </p>
 
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="max-w-2xl text-[2.5rem] font-black leading-[0.88] text-[#050505] sm:text-6xl">
+              <h1 className="max-w-2xl text-[2.2rem] font-black leading-[0.88] text-[#050505] sm:text-5xl">
                 Find your next favorite face.
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#6f6a66] sm:text-base">
+              <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:text-base sm:leading-6">
                 Scroll real adoptable dogs, save favorites, and take the quiz when you’re ready for better matches.
               </p>
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+          <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5">
               {loading ? "Loading" : `${filteredDogs.length} showing`}
             </span>
 
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5">
               {visibleTotal} available
             </span>
 
             <Link
               to="/quiz"
-              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 hover:bg-white"
+              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5 hover:bg-white"
             >
               Find my match
             </Link>

@@ -9,7 +9,12 @@ import {
   getQuestionsForMode,
   getCompletionCounts,
 } from "../lib/quizQuestions";
-import { loadQuizResponses, saveQuizResponses } from "../lib/quizStorage";
+import {
+  getActiveQuizSessionId,
+  loadQuizResponses,
+  saveQuizResponses,
+  setActiveQuizSessionId,
+} from "../lib/quizStorage";
 
 function ensureSessionId(existing) {
   if (existing) return existing;
@@ -95,7 +100,10 @@ export default function Quiz() {
   }, []);
 
   const sessionFromUrl = searchParams.get("session");
-  const sessionId = useMemo(() => ensureSessionId(sessionFromUrl), [sessionFromUrl]);
+  const sessionId = useMemo(
+    () => ensureSessionId(sessionFromUrl || getActiveQuizSessionId()),
+    [sessionFromUrl]
+  );
 
   const [answersById, setAnswersById] = useState({});
   const [loading, setLoading] = useState(true);
@@ -109,6 +117,8 @@ export default function Quiz() {
   const completion = useMemo(() => getCompletionCounts(mode, answersById), [mode, answersById]);
 
   useEffect(() => {
+    setActiveQuizSessionId(sessionId);
+
     if (!sessionFromUrl || sessionFromUrl !== sessionId) {
       const next = new URLSearchParams(searchParams);
       next.set("session", sessionId);

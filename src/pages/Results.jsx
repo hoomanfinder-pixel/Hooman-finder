@@ -5,7 +5,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import DogCard from "../components/DogCard";
 import SiteFooter from "../components/SiteFooter";
 
-import { loadQuizResponses } from "../lib/quizStorage";
+import {
+  getActiveQuizSessionId,
+  loadQuizResponses,
+  setActiveQuizSessionId,
+} from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { supabase } from "../lib/supabase";
 import { QUIZ_MODES } from "../lib/quizQuestions";
@@ -79,8 +83,9 @@ function getShelterName(dog) {
 
 export default function Results() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get("session") || "";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sessionFromUrl = searchParams.get("session") || "";
+  const sessionId = sessionFromUrl || getActiveQuizSessionId();
 
   const [answersById, setAnswersById] = useState({});
   const [dogs, setDogs] = useState([]);
@@ -99,6 +104,19 @@ export default function Results() {
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
   const [dogsOnly, setDogsOnly] = useState(false);
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    setActiveQuizSessionId(sessionId);
+
+    if (!sessionFromUrl) {
+      const next = new URLSearchParams(searchParams);
+      next.set("session", sessionId);
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionFromUrl, sessionId]);
 
   useEffect(() => {
     let mounted = true;
@@ -260,10 +278,10 @@ export default function Results() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3.5 py-2 sm:px-6 lg:px-8">
           <Link
             to="/"
-            className="flex h-11 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/75 p-1.5 ring-1 ring-stone-950/8"
+            className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl bg-white/75 p-1.5 ring-1 ring-stone-950/8 sm:h-10 sm:w-14"
             aria-label="Go home"
           >
             <img
@@ -276,57 +294,16 @@ export default function Results() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={goDealbreakers}
-              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
-            >
-              Deal breakers
-            </button>
-
-            <button
-              type="button"
               onClick={goRefine}
-              className="inline-flex min-h-11 items-center rounded-full bg-stone-950 px-5 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-sm hover:bg-stone-800"
+              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
             >
               Refine
             </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-4xl px-3.5 pb-28 pt-4 sm:px-6 sm:py-8">
-        <section className="pb-3">
-          <Link
-            to="/dogs"
-            className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
-          >
-            ← Back to browse
-          </Link>
-
-          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
-                Your matches
-              </p>
-
-              <h1 className="mt-2 max-w-2xl text-[2.45rem] font-black leading-[0.9] text-[#050505] sm:text-6xl">
-                Your best-fit dogs, ranked.
-              </h1>
-
-              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#6f6a66] sm:text-base">
-                Top matches based on your quiz answers and the dog details currently available from rescues.
-              </p>
-
-              {err ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  {err}
-                </div>
-              ) : null}
-            </div>
 
             <button
               type="button"
               onClick={toggleFilters}
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.2em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
+              className="inline-flex min-h-9 items-center rounded-full bg-stone-950 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm hover:bg-stone-800 sm:min-h-10 sm:px-4 sm:text-[11px]"
             >
               Filter
               {activeFilterCount > 0 ? (
@@ -336,20 +313,53 @@ export default function Results() {
               ) : null}
             </button>
           </div>
+        </div>
+      </header>
 
-          <div className="mt-4 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-            <span className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2">
+      <main className="mx-auto w-full max-w-7xl px-3.5 pb-28 pt-2.5 sm:px-6 sm:py-5 lg:px-8">
+        <section className="pb-1.5">
+          <Link
+            to="/dogs"
+            className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
+          >
+            ← Back to browse
+          </Link>
+
+          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
+                Your matches
+              </p>
+
+              <h1 className="mt-1 max-w-2xl text-[2rem] font-black leading-[0.9] text-[#050505] sm:text-5xl">
+                Your best-fit dogs, ranked.
+              </h1>
+
+              <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:text-base sm:leading-6">
+                Top matches based on your quiz answers and the dog details currently available from rescues.
+              </p>
+
+              {err ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {err}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-2.5 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+            <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
               {loading ? "Loading" : `${filteredRows.length} matches found`}
             </span>
 
-            <span className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2">
+            <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
               {rankedRows.length || 0} ranked
             </span>
 
             <button
               type="button"
               onClick={goDealbreakers}
-              className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2 hover:bg-white sm:hidden"
+              className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5 hover:bg-white sm:hidden"
             >
               Deal breakers
             </button>
@@ -531,7 +541,7 @@ export default function Results() {
               ) : null}
             </div>
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {filteredRows.map((row, idx) => (
                 <DogCard
                   key={row.dog?.id ?? idx}

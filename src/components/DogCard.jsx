@@ -331,9 +331,14 @@ export default function DogCard({
 
   const dogLink = useMemo(() => {
     const base = `/dog/${dog?.id}`;
-    const search = sessionId ? `?session=${encodeURIComponent(sessionId)}` : "";
+    const params = new URLSearchParams();
+    if (sessionId) params.set("session", sessionId);
+    if (showMatch && sessionId) params.set("from", "results");
+    else if (cardVariant === "saved") params.set("from", "saved");
+    else params.set("from", "dogs");
+    const search = params.toString() ? `?${params.toString()}` : "";
     return `${base}${search}`;
-  }, [dog?.id, sessionId]);
+  }, [cardVariant, dog?.id, sessionId, showMatch]);
 
   const linkState = useMemo(() => {
     if (!showMatch) return null;
@@ -564,14 +569,16 @@ export default function DogCard({
   }
 
   if (cardVariant === "match") {
+    const rankLabel = rank === 1 && matchState.kind === "match" ? "Top match" : `#${rank || "?"} match`;
+
     return (
       <>
         <Link
           to={dogLink}
           state={linkState}
-          className="group relative block overflow-hidden rounded-[1.75rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+          className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.75rem]"
         >
-          <div className="relative aspect-[4/5] min-h-[360px] w-full overflow-hidden bg-stone-200 sm:aspect-[16/13]">
+          <div className="relative aspect-[3/4] min-h-[250px] w-full overflow-hidden bg-stone-200 sm:min-h-[330px]">
             {imgSrc ? (
               <img
                 src={imgSrc}
@@ -583,21 +590,19 @@ export default function DogCard({
               <PlaceholderPhoto name={dog?.name} />
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/30 to-black/08" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/22 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/24 to-black/08" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
 
-            <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap gap-1.5">
-                {rank === 1 && matchState.kind === "match" ? (
-                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-stone-950 shadow-sm">
-                    Top match
-                  </span>
-                ) : null}
+            <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap gap-1">
+                <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-stone-950 shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]">
+                  {rankLabel}
+                </span>
 
                 {showMatch && tier ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] shadow-sm backdrop-blur",
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]",
                       tier.className,
                     ].join(" ")}
                     title={matchState.pillText}
@@ -609,7 +614,7 @@ export default function DogCard({
                 {urgency !== "Standard" ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] shadow-sm",
+                      "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
                       urgencyStyle(urgency),
                     ].join(" ")}
                   >
@@ -621,55 +626,24 @@ export default function DogCard({
               {heartButton}
             </div>
 
-            {matchState.showScoreCircle && Number.isFinite(Number(scorePct)) ? (
-              <div className="absolute right-4 top-16 hidden h-14 w-14 items-center justify-center rounded-full border border-[#dfe7d7]/70 bg-black/35 text-center text-[#dfe7d7] backdrop-blur sm:flex">
-                <div>
-                  <div className="text-base font-black leading-none">
-                    {Math.round(Number(scorePct))}%
-                  </div>
-                  <div className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.12em]">
-                    Match
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            <div className="absolute inset-x-0 bottom-0 p-4 text-white sm:p-5">
-              <p className="mb-1 truncate text-[10px] font-semibold uppercase tracking-[0.2em] text-white/62">
+            <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
+              <p className="mb-1 truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/65 sm:text-[10px]">
                 {shelterName(dog)}
               </p>
 
-              <h2 className="truncate text-[2.15rem] font-black leading-none text-white drop-shadow-sm sm:text-5xl">
+              <h2 className="truncate text-[1.65rem] font-black leading-none text-white drop-shadow-sm sm:text-3xl">
                 {dog?.name || "Unnamed"}
               </h2>
 
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {lifestyleTags.map((tag) => (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {lifestyleTags.slice(0, 3).map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2.5 py-1 text-[10px] font-bold text-white ring-1 ring-white/18 backdrop-blur"
+                    className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2 py-1 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:text-[10px]"
                   >
                     {tag}
                   </span>
                 ))}
-              </div>
-
-              <p className="mt-3 line-clamp-2 text-xs font-medium leading-5 text-white/82 sm:text-sm">
-                {buildDescription(dog)}
-              </p>
-
-              <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-                <span className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-stone-950 transition group-hover:bg-stone-100">
-                  View profile
-                </span>
-
-                <button
-                  type="button"
-                  onClick={openFromClick}
-                  className="inline-flex items-center justify-center rounded-full border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
-                >
-                  Why
-                </button>
               </div>
             </div>
           </div>

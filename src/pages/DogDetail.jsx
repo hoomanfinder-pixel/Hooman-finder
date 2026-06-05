@@ -3,7 +3,11 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { computeRankedMatches } from "../lib/matchingLogic";
-import { loadQuizResponses } from "../lib/quizStorage";
+import {
+  getActiveQuizSessionId,
+  loadQuizResponses,
+  setActiveQuizSessionId,
+} from "../lib/quizStorage";
 import { supabase } from "../lib/supabase";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -385,7 +389,9 @@ export default function DogDetail() {
   const { id } = useParams();
   const routerLocation = useLocation();
   const [searchParams] = useSearchParams();
-  const sessionId = searchParams.get("session") || "";
+  const sessionFromUrl = searchParams.get("session") || "";
+  const fromParam = searchParams.get("from") || "";
+  const sessionId = sessionFromUrl || getActiveQuizSessionId();
 
   const [dog, setDog] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -400,6 +406,10 @@ export default function DogDetail() {
   const [matchInfoOpen, setMatchInfoOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+
+  useEffect(() => {
+    if (sessionId) setActiveQuizSessionId(sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     const sync = () => setSaved(isSavedId(id));
@@ -593,6 +603,22 @@ export default function DogDetail() {
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);
   const matchReasons = getMatchReasons(quizMatch, dog);
+  let backLink = "/dogs";
+  let backLabel = "← Back to dogs";
+
+  if (fromParam === "results" && sessionId) {
+    backLink = `/results?session=${encodeURIComponent(sessionId)}`;
+    backLabel = "← Back to matches";
+  } else if (fromParam === "saved") {
+    backLink = "/saved";
+    backLabel = "← Back to saved dogs";
+  } else if (fromParam === "dogs") {
+    backLink = "/dogs";
+    backLabel = "← Back to dogs";
+  } else if (sessionId) {
+    backLink = `/results?session=${encodeURIComponent(sessionId)}`;
+    backLabel = "← Back to matches";
+  }
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -781,8 +807,8 @@ export default function DogDetail() {
 
       <div className="mx-auto max-w-5xl px-4 py-5 sm:py-6">
         <div className="flex items-center justify-between">
-          <Link to="/dogs" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
-            ← Back to dogs
+          <Link to={backLink} className="text-sm font-semibold text-slate-700 hover:text-slate-900">
+            {backLabel}
           </Link>
 
           <Link to="/saved" className="text-sm font-semibold text-slate-700 hover:text-slate-900">
