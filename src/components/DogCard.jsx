@@ -285,8 +285,8 @@ function buildLifestyleTags(dog, ageLabel) {
 function PlaceholderPhoto({ name }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-[#eee8da] to-[#dfe7d7] text-center">
-      <div className="text-3xl">🐶</div>
-      <div className="mt-2 px-3 text-xs font-bold uppercase tracking-[0.14em] text-stone-500">
+      <div className="text-3xl" aria-hidden="true">🐶</div>
+      <div className="mt-2 px-3 text-xs font-black uppercase tracking-[0.18em] text-stone-500">
         {name || "Dog photo"}
       </div>
     </div>
@@ -411,7 +411,7 @@ export default function DogCard({
               onMouseDown={closeModal}
             >
               <div
-                className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#f4f1ea] p-5 shadow-2xl ring-1 ring-white/25 sm:max-w-lg sm:p-6"
+                className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#f5f1e9] p-5 shadow-2xl ring-1 ring-white/25 sm:max-w-lg sm:p-6"
                 onMouseDown={(e) => e.stopPropagation()}
               >
                 <button
@@ -424,11 +424,11 @@ export default function DogCard({
                 </button>
 
                 <div className="pr-12">
-                  <div className="text-[10px] font-black uppercase tracking-[0.24em] text-stone-500">
+                  <div className="text-[10px] font-black uppercase tracking-[0.28em] text-stone-500">
                     {matchState.eyebrow}
                   </div>
 
-                  <h2 className="mt-2 text-[2rem] font-semibold leading-[0.95] tracking-[-0.06em] text-stone-950 sm:text-4xl">
+                  <h2 className="mt-2 text-[2rem] font-black leading-[0.95] text-stone-950 sm:text-4xl">
                     {matchState.headline}
                   </h2>
 
@@ -528,7 +528,7 @@ export default function DogCard({
           </div>
 
           <div className="min-w-0 py-1">
-            <h3 className="truncate text-xl font-semibold leading-none tracking-[-0.04em] text-stone-950">
+            <h3 className="truncate text-xl font-black leading-none text-stone-950">
               {dog?.name || "Unnamed"}
             </h3>
 
@@ -543,7 +543,7 @@ export default function DogCard({
                 .map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full bg-[#f4f1ea] px-2 py-1 text-[10px] font-bold text-stone-600 ring-1 ring-stone-950/5"
+                    className="rounded-full bg-[#f5f1e9] px-2 py-1 text-[10px] font-bold text-stone-600 ring-1 ring-stone-950/5"
                   >
                     {tag}
                   </span>
@@ -569,9 +569,9 @@ export default function DogCard({
         <Link
           to={dogLink}
           state={linkState}
-          className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+          className="group relative block overflow-hidden rounded-[1.75rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
         >
-          <div className="relative aspect-[4/4.7] min-h-[360px] w-full overflow-hidden bg-stone-200 sm:aspect-[16/13]">
+          <div className="relative aspect-[4/5] min-h-[360px] w-full overflow-hidden bg-stone-200 sm:aspect-[16/13]">
             {imgSrc ? (
               <img
                 src={imgSrc}
@@ -583,13 +583,13 @@ export default function DogCard({
               <PlaceholderPhoto name={dog?.name} />
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/92 via-black/35 to-black/15" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/30 to-black/08" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/22 via-transparent to-transparent" />
 
             <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1.5">
                 {rank === 1 && matchState.kind === "match" ? (
-                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] text-stone-950 shadow-sm">
+                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-stone-950 shadow-sm">
                     Top match
                   </span>
                 ) : null}
@@ -597,7 +597,7 @@ export default function DogCard({
                 {showMatch && tier ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-sm backdrop-blur",
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] shadow-sm backdrop-blur",
                       tier.className,
                     ].join(" ")}
                     title={matchState.pillText}
@@ -609,7 +609,7 @@ export default function DogCard({
                 {urgency !== "Standard" ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.14em] shadow-sm",
+                      "inline-flex items-center rounded-full px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] shadow-sm",
                       urgencyStyle(urgency),
                     ].join(" ")}
                   >
@@ -639,7 +639,7 @@ export default function DogCard({
                 {shelterName(dog)}
               </p>
 
-              <h2 className="truncate text-4xl font-semibold leading-none tracking-[-0.06em] text-white drop-shadow-sm">
+              <h2 className="truncate text-[2.15rem] font-black leading-none text-white drop-shadow-sm sm:text-5xl">
                 {dog?.name || "Unnamed"}
               </h2>
 
@@ -647,7 +647,7 @@ export default function DogCard({
                 {lifestyleTags.map((tag) => (
                   <span
                     key={tag}
-                    className="inline-flex items-center rounded-full bg-white/14 px-2.5 py-1 text-[10px] font-bold text-white ring-1 ring-white/18 backdrop-blur"
+                    className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2.5 py-1 text-[10px] font-bold text-white ring-1 ring-white/18 backdrop-blur"
                   >
                     {tag}
                   </span>
@@ -659,14 +659,14 @@ export default function DogCard({
               </p>
 
               <div className="mt-4 grid grid-cols-[1fr_auto] gap-2">
-                <span className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-stone-950 transition group-hover:bg-stone-100">
+                <span className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-stone-950 transition group-hover:bg-stone-100">
                   View profile
                 </span>
 
                 <button
                   type="button"
                   onClick={openFromClick}
-                  className="inline-flex items-center justify-center rounded-xl border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
+                  className="inline-flex items-center justify-center rounded-full border border-white/45 bg-white/10 px-3 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white backdrop-blur transition hover:bg-white hover:text-stone-950"
                 >
                   Why
                 </button>
@@ -685,9 +685,9 @@ export default function DogCard({
       <Link
         to={dogLink}
         state={linkState}
-        className="group relative block overflow-hidden rounded-[1.25rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+        className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.75rem]"
       >
-        <div className="relative aspect-[3/4] min-h-[210px] w-full overflow-hidden bg-stone-200 sm:min-h-[300px]">
+        <div className="relative aspect-[3/4] min-h-[250px] w-full overflow-hidden bg-stone-200 sm:min-h-[330px]">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -699,15 +699,15 @@ export default function DogCard({
             <PlaceholderPhoto name={dog?.name} />
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/24 to-black/10" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/24 to-black/08" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
 
           <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-wrap gap-1">
               {urgency !== "Standard" ? (
                 <span
                   className={[
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-extrabold uppercase tracking-[0.12em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
+                    "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
                     urgencyStyle(urgency),
                   ].join(" ")}
                 >
@@ -720,19 +720,19 @@ export default function DogCard({
           </div>
 
           <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
-            <p className="mb-1 truncate text-[9px] font-semibold uppercase tracking-[0.16em] text-white/65 sm:text-[10px]">
+            <p className="mb-1 truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/65 sm:text-[10px]">
               {shelterName(dog)}
             </p>
 
-            <h2 className="truncate text-2xl font-semibold leading-none tracking-[-0.055em] text-white drop-shadow-sm sm:text-3xl">
+            <h2 className="truncate text-[1.65rem] font-black leading-none text-white drop-shadow-sm sm:text-3xl">
               {dog?.name || "Unnamed"}
             </h2>
 
-            <div className="mt-2 flex flex-wrap gap-1">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {lifestyleTags.slice(0, 3).map((tag) => (
                 <span
                   key={tag}
-                  className="inline-flex max-w-full items-center truncate rounded-full bg-white/15 px-2 py-0.5 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]"
+                  className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2 py-1 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:text-[10px]"
                 >
                   {tag}
                 </span>

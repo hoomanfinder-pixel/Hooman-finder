@@ -1,5 +1,5 @@
 // src/pages/Dogs.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DogCard from "../components/DogCard";
 import SiteFooter from "../components/SiteFooter";
@@ -109,6 +109,7 @@ export default function Dogs() {
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersRef = useRef(null);
 
   const [rescueFilter, setRescueFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
@@ -263,19 +264,48 @@ export default function Dogs() {
     setDogsOnly(false);
   }
 
+  function toggleFilters() {
+    setFiltersOpen((current) => {
+      const next = !current;
+      if (next) {
+        window.requestAnimationFrame(() => {
+          filtersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      return next;
+    });
+  }
+
   return (
-    <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6 lg:px-8">
-          <Link to="/" className="shrink-0" aria-label="Go home">
+    <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
+      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
+        <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2.5 px-3.5 py-3 sm:px-6 lg:px-8">
+          <Link
+            to="/"
+            className="flex h-11 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/75 p-1.5 ring-1 ring-stone-950/8"
+            aria-label="Go home"
+          >
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-9 w-auto object-contain sm:h-11"
+              className="h-full w-full object-contain"
             />
           </Link>
 
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleFilters}
+            className="mx-auto inline-flex min-h-11 w-full max-w-[14rem] items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-[11px] font-black uppercase tracking-[0.22em] text-white shadow-sm hover:bg-stone-800"
+          >
+            Filter
+            {activeFilterCount > 0 ? (
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] text-stone-950">
+                {activeFilterCount}
+              </span>
+            ) : null}
+          </button>
+
+          <div className="flex items-center justify-end gap-2">
             <Link
               to="/saved"
               className="hidden rounded-full border border-stone-950/15 bg-white/55 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
@@ -285,7 +315,7 @@ export default function Dogs() {
 
             <Link
               to="/quiz"
-              className="inline-flex items-center justify-center rounded-full bg-stone-950 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white hover:bg-stone-800"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-4 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-sm hover:bg-stone-800"
             >
               Quiz
             </Link>
@@ -294,34 +324,21 @@ export default function Dogs() {
       </header>
 
       <main className="mx-auto w-full max-w-7xl px-3.5 py-4 sm:px-6 sm:py-8 lg:px-8">
-        <section className="pb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-stone-500">
-            Browse adoptable dogs
+        <section className="pb-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
+            Available dogs
           </p>
 
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="max-w-2xl text-[2.45rem] font-semibold leading-[0.88] tracking-[-0.065em] text-stone-950 sm:text-6xl">
+              <h1 className="max-w-2xl text-[2.5rem] font-black leading-[0.88] text-[#050505] sm:text-6xl">
                 Find your next favorite face.
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#6f6a66] sm:text-base">
                 Scroll real adoptable dogs, save favorites, and take the quiz when you’re ready for better matches.
               </p>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((current) => !current)}
-              className="inline-flex w-full items-center justify-center rounded-2xl border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
-            >
-              {filtersOpen ? "Hide filters" : "Filter"}
-              {activeFilterCount > 0 ? (
-                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] text-stone-950">
-                  {activeFilterCount}
-                </span>
-              ) : null}
-            </button>
           </div>
 
           <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
@@ -343,13 +360,16 @@ export default function Dogs() {
         </section>
 
         {filtersOpen ? (
-          <section className="mt-2 rounded-[1.5rem] border border-stone-950/10 bg-white/62 p-4 shadow-sm sm:p-5">
+          <section
+            ref={filtersRef}
+            className="scroll-mt-20 rounded-[1.5rem] border border-stone-950/10 bg-white p-4 shadow-lg shadow-stone-950/5 sm:p-5"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold tracking-[-0.035em] text-stone-950">
+                <h2 className="text-xl font-black text-stone-950">
                   Narrow your search
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-stone-600">
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
                   Keep it broad, then filter by what really matters.
                 </p>
               </div>
@@ -369,7 +389,7 @@ export default function Dogs() {
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   <option value="all">All rescues</option>
                   {rescueOptions.map((rescue) => (
@@ -385,7 +405,7 @@ export default function Dogs() {
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {AGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -400,7 +420,7 @@ export default function Dogs() {
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {SIZE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -415,7 +435,7 @@ export default function Dogs() {
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {ENERGY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -440,7 +460,7 @@ export default function Dogs() {
                     "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
                       ? "border-stone-950 bg-stone-950 text-white"
-                      : "border-stone-950/15 bg-[#f4f1ea] text-stone-600",
+                      : "border-stone-950/15 bg-[#f5f1e9] text-stone-600",
                   ].join(" ")}
                 >
                   <input
@@ -457,7 +477,7 @@ export default function Dogs() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-4 w-full rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="mt-4 w-full rounded-full bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white hover:bg-stone-800"
             >
               Show {filteredDogs.length} dogs
             </button>
@@ -470,7 +490,7 @@ export default function Dogs() {
           </div>
         ) : filteredDogs.length === 0 ? (
           <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5">
-            <h2 className="text-2xl font-semibold tracking-[-0.035em] text-stone-950">
+            <h2 className="text-2xl font-black text-stone-950">
               No dogs match those filters yet.
             </h2>
 
@@ -513,7 +533,7 @@ export default function Dogs() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
               {filteredDogs.map((dog) => (
                 <DogCard
                   key={dog.id}

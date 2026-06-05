@@ -2,7 +2,7 @@
 import React from "react";
 
 function Badge({ status }) {
-  const base = "rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em]";
+  const base = "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]";
 
   if (status === "complete") {
     return <span className={`${base} bg-[#dfe7d7] text-[#0f2742]`}>Complete</span>;
@@ -12,7 +12,7 @@ function Badge({ status }) {
     return <span className={`${base} bg-[#fff6d8] text-[#6f5312]`}>In progress</span>;
   }
 
-  return <span className={`${base} bg-white/70 text-[#0f2742]/55`}>Not started</span>;
+  return <span className={`${base} bg-[#f5f1e9] text-[#0f2742]/55`}>Not started</span>;
 }
 
 export default function AccordionSection({
@@ -28,22 +28,22 @@ export default function AccordionSection({
     <section
       id={id}
       className={[
-        "overflow-hidden rounded-[1.35rem] border shadow-sm transition",
+        "overflow-hidden rounded-[1.35rem] border shadow-sm shadow-stone-950/5 transition",
         isOpen
-          ? "border-[#0f4f88]/22 bg-white/62"
-          : "border-[#0f2742]/10 bg-white/44",
+          ? "border-[#0f4f88]/22 bg-white"
+          : "border-[#0f2742]/10 bg-white/72",
       ].join(" ")}
     >
       <button
         type="button"
         onClick={onToggle}
-        className="w-full px-4 py-3 text-left"
+        className="w-full px-3 py-2.5 text-left sm:px-4"
         aria-expanded={isOpen}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-black tracking-[-0.02em] text-[#0f2742]">
+              <h2 className="text-sm font-black text-[#0f2742] sm:text-base">
                 {title}
               </h2>
 
@@ -51,7 +51,7 @@ export default function AccordionSection({
             </div>
 
             {summary ? (
-              <div className="mt-1 text-sm font-medium text-[#0f2742]/62">
+              <div className="mt-0.5 text-xs font-semibold text-[#6f6a66] sm:text-sm">
                 {summary}
               </div>
             ) : null}
@@ -59,10 +59,10 @@ export default function AccordionSection({
 
           <div
             className={[
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-lg font-bold transition",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-base font-black transition",
               isOpen
                 ? "border-[#0f4f88]/20 bg-[#dfe7d7] text-[#0f2742]"
-                : "border-[#0f2742]/10 bg-white/72 text-[#0f2742]/60",
+                : "border-[#0f2742]/10 bg-[#f5f1e9] text-[#0f2742]/60",
             ].join(" ")}
           >
             {isOpen ? "⌄" : "›"}
@@ -70,7 +70,7 @@ export default function AccordionSection({
         </div>
       </button>
 
-      {isOpen ? <div className="space-y-3 px-3 pb-3 sm:px-4 sm:pb-4">{children}</div> : null}
+      {isOpen ? <div className="space-y-2 px-2.5 pb-2.5 sm:px-3 sm:pb-3">{children}</div> : null}
     </section>
   );
 }

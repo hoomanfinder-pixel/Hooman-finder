@@ -27,6 +27,16 @@ const fallbackDogImages = [
   "/home-hero-dogs.jpg",
 ];
 
+function dateSeed(date = new Date()) {
+  const key = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return key.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+}
+
 function urgencyClass(level) {
   switch (level) {
     case "Critical":
@@ -41,6 +51,39 @@ function urgencyClass(level) {
 
 function dogProfilePath(dog) {
   return dog?.id ? `/dog/${dog.id}` : "/dogs";
+}
+
+function rotatedPick(dogs, seed, usedIds = new Set()) {
+  const available = dogs.filter((dog) => !usedIds.has(String(dog?.id)));
+  const pool = available.length ? available : dogs;
+
+  if (!pool.length) return null;
+
+  return pool[seed % pool.length];
+}
+
+function pickDailyFeaturedDogs(dogs) {
+  const pool = Array.isArray(dogs) ? dogs.filter((dog) => dog?.id) : [];
+  const urgentPool = pool.filter((dog) =>
+    ["Critical", "High", "Urgent"].includes(dog?.urgency_level)
+  );
+  const seed = dateSeed();
+  const usedIds = new Set();
+
+  const first = rotatedPick(pool, seed, usedIds);
+  if (first?.id) usedIds.add(String(first.id));
+
+  const availableUrgentDogs = urgentPool.filter((dog) => !usedIds.has(String(dog?.id)));
+  const second = rotatedPick(
+    availableUrgentDogs.length ? availableUrgentDogs : pool,
+    seed + 1,
+    usedIds
+  );
+  if (second?.id) usedIds.add(String(second.id));
+
+  const third = rotatedPick(pool, seed + 2, usedIds);
+
+  return [first, second, third].filter(Boolean);
 }
 
 export default function Home() {
@@ -87,11 +130,10 @@ export default function Home() {
             if (aRank !== bRank) return aRank - bRank;
 
             return new Date(b?.created_at || 0) - new Date(a?.created_at || 0);
-          })
-          .slice(0, 3);
+          });
 
         if (isMounted) {
-          setFeaturedDogs(sortedDogs);
+          setFeaturedDogs(pickDailyFeaturedDogs(sortedDogs));
           setDogLoadFailed(false);
         }
       } catch (error) {
@@ -120,18 +162,18 @@ export default function Home() {
   }, [featuredDogs]);
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
+    <div className="min-h-screen bg-[#f5f1e9] text-stone-950">
       <header className="absolute left-0 right-0 top-0 z-30">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link
             to="/"
             aria-label="Go to Hooman Finder homepage"
-            className="inline-flex items-center"
+            className="inline-flex h-12 w-16 items-center justify-center rounded-2xl bg-white/88 p-1.5 shadow-sm ring-1 ring-white/45 backdrop-blur-sm sm:h-14 sm:w-20"
           >
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-10 w-auto rounded-sm bg-white/82 p-0.5 shadow-sm backdrop-blur-sm sm:h-12"
+              className="h-full w-full object-contain"
             />
           </Link>
 
@@ -146,7 +188,7 @@ export default function Home() {
 
             <Link
               to="/quiz"
-              className="border border-white/60 px-4 py-2 text-white backdrop-blur-sm transition hover:bg-white hover:text-stone-950"
+              className="rounded-full bg-stone-950 px-5 py-2.5 font-black tracking-[0.18em] text-white shadow-sm ring-1 ring-white/25 transition hover:bg-white hover:text-stone-950"
             >
               Quiz
             </Link>
@@ -155,7 +197,7 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative min-h-[92vh] overflow-hidden bg-stone-950 text-white">
+        <section className="relative min-h-[90vh] overflow-hidden bg-stone-950 text-white">
           {/* Blurred fill layer so mobile does not look empty when the full image is shown */}
           <img
             src="/home-hero-dogs.jpg"
@@ -172,45 +214,45 @@ export default function Home() {
           />
 
           {/* Lighter overlays so dog faces stay visible on low brightness */}
-          <div className="absolute inset-0 bg-stone-950/28 sm:bg-stone-950/50" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/74 via-stone-950/18 to-stone-950/04 sm:from-stone-950/86 sm:via-stone-950/34 sm:to-stone-950/18" />
+          <div className="absolute inset-0 bg-stone-950/34 sm:bg-stone-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/82 via-stone-950/24 to-stone-950/06 sm:from-stone-950/88 sm:via-stone-950/34 sm:to-stone-950/18" />
           <div className="absolute inset-0 bg-gradient-to-r from-stone-950/28 via-stone-950/08 to-stone-950/18 sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
 
-          <div className="relative z-10 flex min-h-[92vh] items-end">
-            <div className="mx-auto w-full max-w-7xl px-4 pb-10 pt-32 sm:px-6 sm:pb-14 lg:px-8">
+          <div className="relative z-10 flex min-h-[90vh] items-end">
+            <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-28 sm:px-6 sm:pb-14 lg:px-8">
               <div className="max-w-3xl">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-white/76">
+                <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/76">
                   Michigan + Midwest rescue dogs
                 </p>
 
-                <h1 className="mt-5 max-w-2xl text-5xl font-semibold leading-[0.9] tracking-[-0.06em] text-white sm:text-7xl lg:text-8xl">
+                <h1 className="mt-4 max-w-2xl text-[3.15rem] font-black leading-[0.9] text-white sm:text-7xl lg:text-8xl">
                   Find a dog who fits your real life.
                 </h1>
 
-                <p className="mt-6 max-w-xl text-base leading-7 text-white/82 sm:text-lg">
+                <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/84 sm:text-lg">
                   Discover adoptable dogs by personality, lifestyle fit, and
                   urgency — then apply directly through the rescue or shelter.
                 </p>
 
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                   <Link
                     to="/dogs"
-                    className="inline-flex items-center justify-center border border-white bg-white px-6 py-3 text-sm font-semibold text-stone-950 transition hover:bg-transparent hover:text-white"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white bg-white px-7 py-3 text-sm font-black text-stone-950 transition hover:bg-transparent hover:text-white"
                   >
                     View adoptable dogs →
                   </Link>
 
                   <Link
                     to="/quiz"
-                    className="inline-flex items-center justify-center border border-white/50 px-6 py-3 text-sm font-semibold text-white transition hover:border-white hover:bg-white hover:text-stone-950"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/60 bg-black/18 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition hover:border-white hover:bg-white hover:text-stone-950"
                   >
                     Take the matching quiz
                   </Link>
                 </div>
               </div>
 
-              <div className="mt-10 border-t border-white/24 pt-4">
-                <p className="max-w-xl text-xs uppercase leading-6 tracking-[0.22em] text-white/64">
+              <div className="mt-8 border-t border-white/24 pt-4">
+                <p className="max-w-xl text-[11px] font-bold uppercase leading-6 tracking-[0.22em] text-white/62">
                   Personality-first adoption discovery. Hooman Finder helps with
                   discovery and fit. The rescue handles the adoption.
                 </p>
@@ -219,14 +261,14 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="bg-[#f4f1ea] px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
+        <section className="bg-[#f5f1e9] px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="border-b border-stone-950/20 pb-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
                 How it works
               </p>
 
-              <h2 className="mt-3 max-w-2xl text-4xl font-semibold leading-none tracking-[-0.055em] text-stone-950 sm:text-6xl">
+              <h2 className="mt-3 max-w-2xl text-4xl font-black leading-none text-stone-950 sm:text-6xl">
                 Less scrolling. Better fit.
               </h2>
             </div>
@@ -247,7 +289,7 @@ export default function Home() {
                   </div>
 
                   <div className="min-w-0">
-                    <h3 className="max-w-xl text-3xl font-semibold leading-none tracking-[-0.05em] text-stone-950 sm:text-4xl lg:text-5xl">
+                    <h3 className="max-w-xl text-3xl font-black leading-none text-stone-950 sm:text-4xl lg:text-5xl">
                       {row.title}
                     </h3>
 
@@ -290,7 +332,7 @@ export default function Home() {
 
                   <Link
                     to={dogProfilePath(row.dog)}
-                    className="home-step-image group relative overflow-hidden rounded-[1.5rem] border border-stone-950/10 bg-white/60 p-2 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
+                    className="home-step-image group relative overflow-hidden rounded-[1.85rem] border border-stone-950/10 bg-white/60 p-2 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-lg"
                     aria-label={
                       row.dog?.name
                         ? `View ${row.dog.name}'s profile`
@@ -317,7 +359,7 @@ export default function Home() {
                               Hooman Finder
                             </p>
 
-                            <p className="mt-1 truncate text-2xl font-semibold leading-none tracking-[-0.04em] text-white drop-shadow-sm">
+                            <p className="mt-1 truncate text-2xl font-black leading-none text-white drop-shadow-sm">
                               {row.dog?.name || "View dogs"}
                             </p>
                           </div>
@@ -354,11 +396,11 @@ export default function Home() {
 
           <div className="relative z-10 mx-auto max-w-7xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
             <div className="max-w-2xl">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/60">
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-white/60">
                 Start here
               </p>
 
-              <h2 className="mt-4 text-5xl font-semibold leading-[0.9] tracking-[-0.055em] text-white sm:text-7xl">
+              <h2 className="mt-4 text-5xl font-black leading-[0.9] text-white sm:text-7xl">
                 Not sure where to start?
               </h2>
 
@@ -370,7 +412,7 @@ export default function Home() {
               <div className="mt-8">
                 <Link
                   to="/quiz"
-                  className="inline-flex items-center justify-center border border-white bg-white px-7 py-3 text-sm font-semibold text-stone-950 transition hover:bg-transparent hover:text-white"
+                  className="inline-flex items-center justify-center rounded-full border border-white bg-white px-7 py-3 text-sm font-black text-stone-950 transition hover:bg-transparent hover:text-white"
                 >
                   Find my match →
                 </Link>
@@ -380,7 +422,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-stone-950/10 bg-[#f4f1ea] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+      <footer className="border-t border-stone-950/10 bg-[#f5f1e9] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 sm:block">
             <img src="/logo.png" alt="Hooman Finder" className="h-8 w-auto sm:h-10" />

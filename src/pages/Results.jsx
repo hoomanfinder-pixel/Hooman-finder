@@ -1,5 +1,5 @@
 // src/pages/Results.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import DogCard from "../components/DogCard";
@@ -87,6 +87,7 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersRef = useRef(null);
 
   const [rescueFilter, setRescueFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
@@ -234,6 +235,18 @@ export default function Results() {
     setDogsOnly(false);
   }
 
+  function toggleFilters() {
+    setFiltersOpen((current) => {
+      const next = !current;
+      if (next) {
+        window.requestAnimationFrame(() => {
+          filtersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+      return next;
+    });
+  }
+
   function goRefine() {
     navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}`);
   }
@@ -245,14 +258,18 @@ export default function Results() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-          <Link to="/" className="shrink-0" aria-label="Go home">
+    <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
+      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
+        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <Link
+            to="/"
+            className="flex h-11 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/75 p-1.5 ring-1 ring-stone-950/8"
+            aria-label="Go home"
+          >
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-9 w-auto object-contain sm:h-11"
+              className="h-full w-full object-contain"
             />
           </Link>
 
@@ -268,7 +285,7 @@ export default function Results() {
             <button
               type="button"
               onClick={goRefine}
-              className="inline-flex rounded-full bg-stone-950 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.14em] text-white hover:bg-stone-800"
+              className="inline-flex min-h-11 items-center rounded-full bg-stone-950 px-5 py-3 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-sm hover:bg-stone-800"
             >
               Refine
             </button>
@@ -276,26 +293,26 @@ export default function Results() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-4xl px-3.5 py-4 sm:px-6 sm:py-8">
-        <section className="pb-4">
+      <main className="mx-auto w-full max-w-4xl px-3.5 pb-28 pt-4 sm:px-6 sm:py-8">
+        <section className="pb-3">
           <Link
             to="/dogs"
-            className="text-[10px] font-bold uppercase tracking-[0.24em] text-stone-500 hover:text-stone-950"
+            className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
           >
             ← Back to browse
           </Link>
 
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-stone-500">
+              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
                 Your matches
               </p>
 
-              <h1 className="mt-2 max-w-2xl text-[2.5rem] font-semibold leading-[0.9] tracking-[-0.065em] text-stone-950 sm:text-6xl">
+              <h1 className="mt-2 max-w-2xl text-[2.45rem] font-black leading-[0.9] text-[#050505] sm:text-6xl">
                 Your best-fit dogs, ranked.
               </h1>
 
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-stone-600 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-[#6f6a66] sm:text-base">
                 Top matches based on your quiz answers and the dog details currently available from rescues.
               </p>
 
@@ -308,10 +325,10 @@ export default function Results() {
 
             <button
               type="button"
-              onClick={() => setFiltersOpen((current) => !current)}
-              className="inline-flex w-full items-center justify-center rounded-2xl border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
+              onClick={toggleFilters}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-full border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.2em] text-white hover:bg-transparent hover:text-stone-950 sm:w-auto"
             >
-              {filtersOpen ? "Hide filters" : "Filter"}
+              Filter
               {activeFilterCount > 0 ? (
                 <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] text-stone-950">
                   {activeFilterCount}
@@ -320,19 +337,19 @@ export default function Results() {
             </button>
           </div>
 
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+          <div className="mt-4 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+            <span className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2">
               {loading ? "Loading" : `${filteredRows.length} matches found`}
             </span>
 
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+            <span className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2">
               {rankedRows.length || 0} ranked
             </span>
 
             <button
               type="button"
               onClick={goDealbreakers}
-              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 hover:bg-white sm:hidden"
+              className="rounded-full border border-stone-950/10 bg-white/70 px-3 py-2 hover:bg-white sm:hidden"
             >
               Deal breakers
             </button>
@@ -340,13 +357,16 @@ export default function Results() {
         </section>
 
         {filtersOpen ? (
-          <section className="mt-2 rounded-[1.5rem] border border-stone-950/10 bg-white/62 p-4 shadow-sm sm:p-5">
+          <section
+            ref={filtersRef}
+            className="mt-2 scroll-mt-20 rounded-[1.5rem] border border-stone-950/10 bg-white p-4 shadow-lg shadow-stone-950/5 sm:p-5"
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-semibold tracking-[-0.035em] text-stone-950">
+                <h2 className="text-xl font-black text-stone-950">
                   Fine-tune matches
                 </h2>
-                <p className="mt-1 text-sm leading-6 text-stone-600">
+                <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
                   Narrow the ranked list without losing your quiz scoring.
                 </p>
               </div>
@@ -366,7 +386,7 @@ export default function Results() {
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   <option value="all">All rescues</option>
                   {rescueOptions.map((rescue) => (
@@ -382,7 +402,7 @@ export default function Results() {
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {AGE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -397,7 +417,7 @@ export default function Results() {
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {SIZE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -412,7 +432,7 @@ export default function Results() {
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f4f1ea] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
                   {ENERGY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -437,7 +457,7 @@ export default function Results() {
                     "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
                       ? "border-stone-950 bg-stone-950 text-white"
-                      : "border-stone-950/15 bg-[#f4f1ea] text-stone-600",
+                      : "border-stone-950/15 bg-[#f5f1e9] text-stone-600",
                   ].join(" ")}
                 >
                   <input
@@ -454,7 +474,7 @@ export default function Results() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-4 w-full rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="mt-4 w-full rounded-full bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white hover:bg-stone-800"
             >
               Show {filteredRows.length} matches
             </button>
@@ -467,7 +487,7 @@ export default function Results() {
           </div>
         ) : filteredRows.length === 0 ? (
           <div className="mt-5 rounded-[1.6rem] border border-stone-950/10 bg-white/62 p-5">
-            <h2 className="text-2xl font-semibold tracking-[-0.035em] text-stone-950">
+            <h2 className="text-2xl font-black text-stone-950">
               No dogs match your current filters.
             </h2>
 

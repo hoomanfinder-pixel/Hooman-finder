@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+@source "../src";
+@source "../index.html";
 
 html,
 body,
@@ -8,4 +11,5 @@ body,
 
 body {
   margin: 0;
+  background: #f5f1e9;
 }
