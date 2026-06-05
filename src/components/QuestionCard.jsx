@@ -49,7 +49,6 @@ export default function QuestionCard({
       inputMode={question.inputMode}
       placeholder={question.placeholder}
       type={question.type}
-      preferCompactGrid={question.mode === "dealbreakers"}
     />
   );
 }

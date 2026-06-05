@@ -56,27 +56,28 @@ export default function OptionSelect({
   inputMode = "text",
   placeholder = "",
   type = "single",
-  preferCompactGrid = false,
 }) {
   const normalizedExclusive = useMemo(
     () => (exclusiveValues || []).map(String),
     [exclusiveValues]
   );
-  const compactOptions = useMemo(() => {
+  const optionLayout = useMemo(() => {
     if (type === "text") return false;
-    if (!Array.isArray(options) || options.length < 2 || options.length > 6) return false;
-    if (options.some((opt) => opt?.help)) return false;
+    if (!Array.isArray(options) || options.length < 2) return false;
 
     const labels = options.map((opt) => String(opt?.label || ""));
+    const longCount = labels.filter((label) => label.length > 42).length;
+    const veryLongCount = labels.filter((label) => label.length > 58).length;
     const averageLength =
       labels.reduce((sum, label) => sum + label.length, 0) / labels.length;
+    const useSingleColumn =
+      longCount > labels.length / 2 || veryLongCount >= 2 || averageLength > 42;
 
-    if (preferCompactGrid) {
-      return averageLength <= 28 && labels.filter((label) => label.length > 42).length === 0;
-    }
-
-    return averageLength <= 20 && labels.every((label) => label.length <= 28);
-  }, [options, preferCompactGrid, type]);
+    return {
+      useTwoColumns: !useSingleColumn,
+      lastOptionCanSpan: options.length % 2 === 1 && options.length > 2,
+    };
+  }, [options, type]);
 
   const isSelected = (optValue) => {
     if (multiple) return Array.isArray(value) && value.map(String).includes(String(optValue));
@@ -145,13 +146,21 @@ export default function OptionSelect({
           />
         </label>
       ) : (
-        <div className={compactOptions ? "grid grid-cols-2 gap-1.5" : "grid gap-1.5"}>
-          {options.map((opt) => {
+        <div
+          className={
+            optionLayout?.useTwoColumns
+              ? "grid grid-cols-2 gap-1.5"
+              : "grid gap-1.5"
+          }
+        >
+          {options.map((opt, index) => {
             const selected = isSelected(opt.value);
             const key = opt.key ?? String(opt.value);
             const mark = multiple ? "check" : "radio";
-            const label = String(opt?.label || "");
-            const shouldSpan = compactOptions && label.length > 28;
+            const shouldSpan =
+              optionLayout?.useTwoColumns &&
+              optionLayout.lastOptionCanSpan &&
+              index === options.length - 1;
 
             return (
               <button
@@ -159,8 +168,8 @@ export default function OptionSelect({
                 type="button"
                 onClick={() => toggle(opt.value)}
                 className={[
-                  "w-full rounded-2xl border px-2.5 py-2 text-left transition sm:px-3",
-                  compactOptions ? "min-h-11" : "min-h-[46px]",
+                  "w-full rounded-2xl border px-2 py-1.5 text-left transition sm:px-3 sm:py-2",
+                  "min-h-10 sm:min-h-11",
                   shouldSpan ? "col-span-2" : "",
                   selected
                     ? "border-[#0f4f88]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#0f4f88]/10"
@@ -168,10 +177,10 @@ export default function OptionSelect({
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     <div
                       className={[
-                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm",
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs sm:h-7 sm:w-7 sm:text-sm",
                         selected ? "bg-white/80" : "bg-[#f5f1e9]",
                       ].join(" ")}
                       aria-hidden="true"
@@ -180,7 +189,7 @@ export default function OptionSelect({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="text-[13px] font-extrabold leading-tight text-[#0f2742] sm:text-sm">
+                      <div className="text-xs font-extrabold leading-tight text-[#0f2742] sm:text-sm">
                         {opt.label}
                       </div>
 

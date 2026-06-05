@@ -1,6 +1,9 @@
 // src/pages/DogDetail.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import { computeRankedMatches } from "../lib/matchingLogic";
+import { loadQuizResponses } from "../lib/quizStorage";
 import { supabase } from "../lib/supabase";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -353,15 +356,48 @@ function getAiDisclosure(aiTraits) {
   };
 }
 
+function isRealMatchScore(match) {
+  if (match?.breakdown?.enoughQuizInfo === false) return false;
+  return Number.isFinite(Number(match?.scorePct));
+}
+
+function getMatchReasons(match, dog) {
+  const topReasons = Array.isArray(match?.breakdown?.topReasons)
+    ? match.breakdown.topReasons.filter(Boolean)
+    : [];
+
+  if (topReasons.length) return topReasons.slice(0, 6);
+
+  const fallback = [];
+  if (dog?.size) fallback.push("Size fit");
+  if (dog?.energy_level) fallback.push("Energy fit");
+  if (dog?.age_years || dog?.age_text) fallback.push("Age fit");
+  if (dog?.good_with_kids === true || dog?.good_with_dogs === true || dog?.good_with_cats === true) {
+    fallback.push("Pets/kids compatibility");
+  }
+  if (dog?.potty_trained === true) fallback.push("Training expectations");
+  if (dog?.description) fallback.push("Good home/lifestyle fit");
+
+  return fallback.slice(0, 6);
+}
+
 export default function DogDetail() {
   const { id } = useParams();
+  const routerLocation = useLocation();
+  const [searchParams] = useSearchParams();
+  const sessionId = searchParams.get("session") || "";
 
   const [dog, setDog] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [imgSrc, setImgSrc] = useState(FALLBACK_IMG);
   const [saved, setSaved] = useState(() => isSavedId(id));
+  const [quizMatch, setQuizMatch] = useState(() => {
+    const stateMatch = routerLocation.state?.match;
+    return isRealMatchScore(stateMatch) ? stateMatch : null;
+  });
   const [aiInfoOpen, setAiInfoOpen] = useState(false);
+  const [matchInfoOpen, setMatchInfoOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
 
@@ -418,6 +454,43 @@ export default function DogDetail() {
     };
   }, [id]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadMatch() {
+      if (!sessionId || !dog) {
+        setQuizMatch(null);
+        return;
+      }
+
+      const stateMatch = routerLocation.state?.match;
+      if (isRealMatchScore(stateMatch)) {
+        setQuizMatch(stateMatch);
+      }
+
+      try {
+        const { answersById } = await loadQuizResponses(sessionId);
+        const [row] = computeRankedMatches([dog], answersById || {});
+        const nextMatch = row
+          ? { scorePct: row.scorePct, breakdown: row.breakdown }
+          : null;
+
+        if (!isMounted) return;
+        setQuizMatch(isRealMatchScore(nextMatch) ? nextMatch : null);
+      } catch {
+        if (isMounted && !isRealMatchScore(stateMatch)) {
+          setQuizMatch(null);
+        }
+      }
+    }
+
+    loadMatch();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [dog, routerLocation.state, sessionId]);
+
   const resolvedImage = useMemo(() => pickDogImage(dog), [dog]);
 
   useEffect(() => {
@@ -442,6 +515,17 @@ export default function DogDetail() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [photoOpen]);
+
+  useEffect(() => {
+    if (!matchInfoOpen) return undefined;
+
+    function onKeyDown(event) {
+      if (event.key === "Escape") setMatchInfoOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [matchInfoOpen]);
 
   function onToggleSaved() {
     const nextSaved = toggleSavedId(id);
@@ -506,9 +590,92 @@ export default function DogDetail() {
     hasUsefulBioValue(dog.bio_good_with_cats) ||
     hasUsefulBioValue(dog.bio_first_time_friendly) ||
     hasUsefulBioValue(dog.bio_potty_trained);
+  const matchScorePct = Number(quizMatch?.scorePct);
+  const hasQuizMatch = isRealMatchScore(quizMatch);
+  const matchReasons = getMatchReasons(quizMatch, dog);
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {matchInfoOpen && hasQuizMatch
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/55 px-3 pb-3 pt-12 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="match-modal-title"
+              onMouseDown={() => setMatchInfoOpen(false)}
+            >
+              <div
+                className="max-h-[86vh] w-full max-w-md overflow-y-auto rounded-[2rem] bg-[#f5f1e9] p-5 shadow-2xl ring-1 ring-white/30 sm:p-6"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+                      {Math.round(matchScorePct)}% match
+                    </div>
+                    <h2
+                      id="match-modal-title"
+                      className="mt-2 text-3xl font-extrabold leading-none text-slate-950"
+                    >
+                      Why you matched
+                    </h2>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setMatchInfoOpen(false)}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-xl font-bold leading-none text-slate-500 shadow-sm ring-1 ring-slate-950/5 hover:bg-slate-100 hover:text-slate-950"
+                    aria-label="Close why you matched"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <p className="mt-4 text-sm font-semibold leading-6 text-slate-700">
+                  This score is based on your quiz answers and the dog details currently
+                  available from the rescue.
+                </p>
+
+                {matchReasons.length ? (
+                  <div className="mt-5">
+                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
+                      Compatibility highlights
+                    </div>
+                    <ul className="mt-3 space-y-2">
+                      {matchReasons.map((reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2.5 rounded-2xl border border-slate-950/8 bg-white/78 px-3.5 py-3 text-sm font-bold leading-5 text-slate-800 shadow-sm"
+                        >
+                          <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-slate-950">
+                            ✓
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <p className="mt-5 rounded-2xl bg-white/62 px-4 py-3 text-xs font-semibold leading-5 text-slate-600 ring-1 ring-slate-950/5">
+                  Some details are estimated from the rescue bio and may need confirmation
+                  with the rescue.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => setMatchInfoOpen(false)}
+                  className="mt-5 inline-flex min-h-12 w-full items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
       {photoOpen ? (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-3 py-5 backdrop-blur-sm sm:px-4 sm:py-6"
@@ -640,6 +807,20 @@ export default function DogDetail() {
                 />
               </button>
 
+              {hasQuizMatch ? (
+                <button
+                  type="button"
+                  onClick={() => setMatchInfoOpen(true)}
+                  className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-[#f5f1e9]/94 px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-lg ring-1 ring-white/50 backdrop-blur transition hover:bg-white sm:px-4"
+                  aria-label={`Open why you matched. ${Math.round(matchScorePct)} percent match`}
+                >
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px]">
+                    ✓
+                  </span>
+                  <span>{Math.round(matchScorePct)}% match</span>
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={onToggleSaved}
@@ -658,9 +839,22 @@ export default function DogDetail() {
               <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
                 Adoptable dog profile
               </div>
-              <h1 className="mt-2 text-3xl font-extrabold leading-tight text-slate-950 sm:text-4xl">
-                {name}
-              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <h1 className="text-3xl font-extrabold leading-tight text-slate-950 sm:text-4xl">
+                  {name}
+                </h1>
+
+                {hasQuizMatch ? (
+                  <button
+                    type="button"
+                    onClick={() => setMatchInfoOpen(true)}
+                    className="hidden rounded-full border border-[#0f2742]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-sm hover:bg-[#eef3e8] lg:inline-flex"
+                    aria-label={`Open why you matched. ${Math.round(matchScorePct)} percent match`}
+                  >
+                    {Math.round(matchScorePct)}% match
+                  </button>
+                ) : null}
+              </div>
               {coreFactsLine ? (
                 <p className="mt-2 text-sm leading-5 text-slate-600 sm:text-base">
                   {coreFactsLine}
