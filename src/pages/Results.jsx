@@ -316,16 +316,26 @@ export default function Results() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-3.5 pb-28 pt-2.5 sm:px-6 sm:py-5 lg:px-8">
-        <section className="pb-1.5">
-          <Link
-            to="/dogs"
-            className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
-          >
-            ← Back to browse
-          </Link>
+      <main className="mx-auto w-full max-w-7xl px-3.5 pb-28 pt-1.5 sm:px-6 sm:py-5 lg:px-8">
+        <section className="pb-1 sm:pb-1.5">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              to="/dogs"
+              className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
+            >
+              ← Back to browse
+            </Link>
 
-          <div className="mt-1.5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <button
+              type="button"
+              onClick={goDealbreakers}
+              className="inline-flex shrink-0 rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-stone-600 hover:bg-white sm:hidden"
+            >
+              Edit Quiz
+            </button>
+          </div>
+
+          <div className="mt-1 flex flex-col gap-1.5 sm:mt-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
                 Your matches
@@ -335,7 +345,7 @@ export default function Results() {
                 Your best-fit dogs, ranked.
               </h1>
 
-              <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:text-base sm:leading-6">
+              <p className="mt-1 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:mt-1.5 sm:text-base sm:leading-6">
                 Top matches based on your quiz answers and the dog details currently available from rescues.
               </p>
 
@@ -347,7 +357,7 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="mt-2.5 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+          <div className="mt-2 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500 sm:mt-2.5">
             <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
               {loading ? "Loading" : `${filteredRows.length} matches found`}
             </span>
@@ -355,14 +365,6 @@ export default function Results() {
             <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
               {rankedRows.length || 0} ranked
             </span>
-
-            <button
-              type="button"
-              onClick={goDealbreakers}
-              className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5 hover:bg-white sm:hidden"
-            >
-              Deal breakers
-            </button>
           </div>
         </section>
 
