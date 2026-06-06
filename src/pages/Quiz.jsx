@@ -369,7 +369,7 @@ export default function Quiz() {
           )}
         </main>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#0f2742]/10 bg-[#f5f1e9]/96 px-3 pb-3 pt-2 shadow-2xl backdrop-blur sm:px-5">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#0f2742]/10 bg-[#f5f1e9]/96 px-3 pb-2.5 pt-2 shadow-2xl backdrop-blur sm:px-5 sm:pb-3">
           <div className="mx-auto max-w-3xl">
             <div className="grid grid-cols-[1fr_1.1fr] gap-2">
               <button
@@ -399,16 +399,21 @@ export default function Quiz() {
               )}
             </div>
 
-            <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-semibold text-[#0f2742]/55">
-              <button
-                type="button"
-                onClick={mode === QUIZ_MODES.DEALBREAKERS ? goResults : goDealbreakers}
-                className="underline underline-offset-4 hover:text-[#0f2742]"
-              >
-                {mode === QUIZ_MODES.DEALBREAKERS
-                  ? "Skip to matches"
-                  : "Back to Deal Breakers"}
-              </button>
+            <div
+              className={[
+                "mt-1 flex items-center gap-2 text-[10px] font-semibold text-[#0f2742]/55",
+                mode === QUIZ_MODES.DEALBREAKERS ? "justify-center" : "justify-between",
+              ].join(" ")}
+            >
+              {mode === QUIZ_MODES.REFINE ? (
+                <button
+                  type="button"
+                  onClick={goDealbreakers}
+                  className="underline underline-offset-4 hover:text-[#0f2742]"
+                >
+                  Back to Deal Breakers
+                </button>
+              ) : null}
 
               <span>You can update these later.</span>
             </div>
