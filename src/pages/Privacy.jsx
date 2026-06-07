@@ -1,14 +1,18 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
+import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
 export default function Privacy() {
-  useEffect(() => {
-    document.title = "Privacy Policy | Hooman Finder";
-  }, []);
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <SEO
+        title="Privacy Policy | Hooman Finder"
+        description="Read how Hooman Finder handles quiz answers, saved dogs, and contact information."
+        canonicalPath="/privacy"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Rescue dogs looking for their future home"
+      />
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3" aria-label="Go home">

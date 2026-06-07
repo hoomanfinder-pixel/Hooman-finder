@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import DogCard from "../components/DogCard";
+import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
 import {
@@ -277,6 +278,14 @@ export default function Results() {
 
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
+      <SEO
+        title="Your Dog Adoption Matches | Hooman Finder"
+        description="View your ranked adoptable dog matches based on your quiz answers and available dog details."
+        canonicalPath="/results"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Dog adoption matches from Hooman Finder"
+        noindex
+      />
       <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3.5 py-2 sm:px-6 lg:px-8">
           <Link

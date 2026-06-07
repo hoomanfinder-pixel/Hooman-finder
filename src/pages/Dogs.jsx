@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DogCard from "../components/DogCard";
+import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 import { supabase } from "../lib/supabase";
 
@@ -121,10 +122,6 @@ export default function Dogs() {
   const [kidsOnly, setKidsOnly] = useState(false);
   const [catsOnly, setCatsOnly] = useState(false);
   const [dogsOnly, setDogsOnly] = useState(false);
-
-  useEffect(() => {
-    document.title = "Browse Adoptable Dogs | Hooman Finder";
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -276,6 +273,13 @@ export default function Dogs() {
 
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
+      <SEO
+        title="Browse Adoptable Dogs | Hooman Finder"
+        description="Browse real adoptable dogs and save favorites while you explore which dogs may fit your home, lifestyle, and care preferences."
+        canonicalPath="/dogs"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Adoptable dogs available through Hooman Finder"
+      />
       <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
         <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-2 px-3.5 py-2 sm:px-6 lg:px-8">
           <Link

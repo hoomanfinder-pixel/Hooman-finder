@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
+import SEO from "../components/SEO";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import {
   getActiveQuizSessionId,
@@ -516,13 +517,32 @@ export default function DogDetail() {
     setImgSrc(resolvedImage || FALLBACK_IMG);
   }, [resolvedImage]);
 
-  useEffect(() => {
-    if (dog?.name) {
-      document.title = `${dog.name} - Adoptable Dog | Hooman Finder`;
-    } else if (!loading && (loadError || !dog)) {
-      document.title = "Dog Not Found | Hooman Finder";
-    }
-  }, [dog, loading, loadError]);
+  const seoDogName = dog?.name?.trim();
+  const seoBreed = dog ? displayBreed(dog) : "Dog";
+  const seoShelter = dog ? displayShelterName(dog) : "a rescue or shelter";
+  const seoTitle = seoDogName
+    ? `${seoDogName} - Adoptable ${seoBreed} | Hooman Finder`
+    : !loading && (loadError || !dog)
+      ? "Dog Not Found | Hooman Finder"
+      : "Adoptable Dog | Hooman Finder";
+  const seoDescription = seoDogName
+    ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View details, photos, and adoption fit information on Hooman Finder.`
+    : "View adoptable dog details, photos, and adoption fit information on Hooman Finder.";
+  const seoImage = resolvedImage?.startsWith("https://") ? resolvedImage : "/home-hero-dogs.jpg";
+  const seoImageAlt = seoDogName
+    ? `${seoDogName}, adoptable ${seoBreed}`
+    : "Adoptable dog on Hooman Finder";
+  const seoNoindex = Boolean(sessionFromUrl) || (!loading && (loadError || !dog));
+  const seo = (
+    <SEO
+      title={seoTitle}
+      description={seoDescription}
+      canonicalPath={id ? `/dog/${id}` : "/dogs"}
+      ogImage={seoImage}
+      ogImageAlt={seoImageAlt}
+      noindex={seoNoindex}
+    />
+  );
 
   useEffect(() => {
     if (!photoOpen) return undefined;
@@ -554,6 +574,7 @@ export default function DogDetail() {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50">
+        {seo}
         <div className="mx-auto max-w-6xl px-4 py-8 text-slate-600">
           Loading dog…
         </div>
@@ -564,6 +585,7 @@ export default function DogDetail() {
   if (loadError || !dog) {
     return (
       <div className="min-h-screen bg-slate-50">
+        {seo}
         <div className="mx-auto max-w-6xl px-4 py-8">
           <Link to="/dogs" className="text-sm font-semibold text-slate-700">
             ← Back to dogs
@@ -631,6 +653,7 @@ export default function DogDetail() {
 
   return (
     <div className="min-h-screen bg-stone-50">
+      {seo}
       {matchInfoOpen && hasQuizMatch
         ? createPortal(
             <div
@@ -734,7 +757,7 @@ export default function DogDetail() {
 
             <img
               src={imgSrc}
-              alt={`${name}, enlarged adoptable dog photo`}
+              alt={`${name}, enlarged adoptable ${breed} photo`}
               className="max-h-[88vh] max-w-full rounded-2xl bg-white object-contain shadow-2xl"
               onError={() => setImgSrc(FALLBACK_IMG)}
             />
@@ -836,7 +859,7 @@ export default function DogDetail() {
               >
                 <img
                   src={imgSrc}
-                  alt={`${name}, adoptable dog`}
+                  alt={`${name}, adoptable ${breed}`}
                   className="h-full w-full bg-slate-100 object-cover transition duration-200 group-hover:brightness-95"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />

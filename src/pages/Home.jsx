@@ -1,6 +1,7 @@
 // src/pages/Home.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import SEO from "../components/SEO";
 import { supabase } from "../lib/supabase";
 
 const HOW_IT_WORKS = [
@@ -91,10 +92,6 @@ export default function Home() {
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
 
   useEffect(() => {
-    document.title = "Hooman Finder | Rescue Dog Adoption Matching";
-  }, []);
-
-  useEffect(() => {
     let isMounted = true;
 
     async function loadFeaturedDogs() {
@@ -163,6 +160,13 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-stone-950">
+      <SEO
+        title="Hooman Finder | Dog Adoption Matching Quiz"
+        description="Find adoptable dogs that fit your lifestyle with a smarter dog adoption matching quiz built to help reduce mismatches and returns."
+        canonicalPath="/"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Rescue dogs looking for their future home"
+      />
       <header className="absolute left-0 right-0 top-0 z-30">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link

@@ -1,6 +1,7 @@
 // src/pages/About.jsx
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
+import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
 export default function About() {
@@ -8,6 +9,13 @@ export default function About() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
+      <SEO
+        title="About Hooman Finder | Dog Adoption Matching"
+        description="Learn how Hooman Finder helps adopters discover rescue dogs that may fit their lifestyle, home, and adoption preferences."
+        canonicalPath="/about"
+        ogImage="/hero-dog.jpg"
+        ogImageAlt="Adoptable rescue dog"
+      />
       {/* Top bar */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">

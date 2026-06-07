@@ -254,6 +254,12 @@ function displayBreed(dog) {
   return dog?.breed || "Mixed breed";
 }
 
+function dogPhotoAlt(dog) {
+  const name = dog?.name || "Unnamed dog";
+  const breed = displayBreed(dog);
+  return `${name}, adoptable ${breed}`;
+}
+
 function buildDescription(dog) {
   const raw =
     dog?.description ||
@@ -317,6 +323,7 @@ export default function DogCard({
   const urgency = dog?.urgency_level || "Standard";
   const applyLink = displayApplyLink(dog);
   const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
+  const imgAlt = dogPhotoAlt(dog);
   const cardVariant = showMatch ? "match" : variant;
 
   const matchState = useMemo(
@@ -521,7 +528,7 @@ export default function DogCard({
             {imgSrc ? (
               <img
                 src={imgSrc}
-                alt={dog?.name || "Dog"}
+                alt={imgAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
                 loading="lazy"
               />
@@ -591,7 +598,7 @@ export default function DogCard({
             {imgSrc ? (
               <img
                 src={imgSrc}
-                alt={dog?.name || "Dog"}
+                alt={imgAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
                 loading="lazy"
               />
@@ -674,7 +681,7 @@ export default function DogCard({
           {imgSrc ? (
             <img
               src={imgSrc}
-              alt={dog?.name || "Dog"}
+              alt={imgAlt}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
               loading="lazy"
             />

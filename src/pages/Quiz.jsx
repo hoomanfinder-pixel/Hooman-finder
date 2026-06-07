@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import AccordionSection from "../components/AccordionSection";
+import SEO from "../components/SEO";
 import QuestionCard from "../components/QuestionCard";
 import {
   QUIZ_MODES,
@@ -94,10 +95,6 @@ export default function Quiz() {
 
   const modeParam = searchParams.get("mode") || QUIZ_MODES.DEALBREAKERS;
   const mode = modeParam === QUIZ_MODES.REFINE ? QUIZ_MODES.REFINE : QUIZ_MODES.DEALBREAKERS;
-
-  useEffect(() => {
-    document.title = "Dog Adoption Matching Quiz | Hooman Finder";
-  }, []);
 
   const sessionFromUrl = searchParams.get("session");
   const sessionId = useMemo(
@@ -255,6 +252,14 @@ export default function Quiz() {
 
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#0f2742]">
+      <SEO
+        title="Dog Adoption Matching Quiz | Hooman Finder"
+        description="Take a lifestyle-based dog adoption quiz to find adoptable dogs that better match your home, routine, experience level, and preferences."
+        canonicalPath="/quiz"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Rescue dogs looking for a good lifestyle match"
+        noindex={Boolean(sessionFromUrl)}
+      />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-32 pt-1.5 sm:px-5 sm:pb-32 sm:pt-3">
         <header className="sticky top-0 z-30 -mx-3 border-b border-[#0f2742]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
           <div className="flex items-center justify-between gap-2.5">

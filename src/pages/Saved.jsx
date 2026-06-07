@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import DogCard from "../components/DogCard";
+import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -37,10 +38,6 @@ export default function Saved() {
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
   const [error, setError] = useState("");
-
-  useEffect(() => {
-    document.title = "Saved Adoptable Dogs | Hooman Finder";
-  }, []);
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -107,6 +104,14 @@ export default function Saved() {
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
+      <SEO
+        title="Saved Adoptable Dogs | Hooman Finder"
+        description="Review the adoptable dogs you saved while browsing Hooman Finder."
+        canonicalPath="/saved"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Saved adoptable dogs on Hooman Finder"
+        noindex
+      />
       <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <button
