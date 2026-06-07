@@ -109,6 +109,12 @@ function getRelationshipId(animal, relationshipName) {
   return data?.id || null;
 }
 
+function clean(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
 function findIncludedResource(included, type, id) {
   if (!Array.isArray(included) || !id) return null;
 
@@ -135,7 +141,11 @@ function getOrgForAnimal(animal, included) {
 }
 
 function getPictureForAnimal(animal, included) {
-  const pictures = getRelationshipData(animal, "pictures");
+  const pictures =
+    getRelationshipData(animal, "pictures") ||
+    getRelationshipData(animal, "picture") ||
+    getRelationshipData(animal, "photos") ||
+    getRelationshipData(animal, "images");
 
   if (!Array.isArray(pictures) || pictures.length === 0) {
     return null;
@@ -155,18 +165,34 @@ function getPrimaryPhoto(animal, included) {
   const attrs = picture?.attributes || {};
 
   return (
+    attrs.urlSecureFullsize ||
+    attrs.urlFullsize ||
+    attrs.urlSecureLarge ||
+    attrs.urlLarge ||
     attrs.large?.url ||
     attrs.original?.url ||
     attrs.medium?.url ||
     attrs.small?.url ||
     attrs.url ||
-    null
+    clean(animal?.attributes?.pictureUrl) ||
+    clean(animal?.attributes?.imageUrl) ||
+    clean(animal?.attributes?.photoUrl) ||
+    clean(animal?.attributes?.pictureThumbnailUrl)
   );
 }
 
 function getAdoptionUrl(animal) {
   const attrs = animal?.attributes || {};
-  return attrs.url || attrs.webpageUrl || attrs.link || null;
+  return (
+    attrs.url ||
+    attrs.webpageUrl ||
+    attrs.animalUrl ||
+    attrs.adoptionUrl ||
+    attrs.link ||
+    (animal?.id
+      ? `https://www.rescuegroups.org/animals/detail?AnimalID=${animal.id}`
+      : null)
+  );
 }
 
 function getBreed(attrs) {
@@ -217,6 +243,14 @@ function rescueNameMatches(apiOrgName, targetRescueName) {
   const targetName = normalizeName(targetRescueName);
 
   return apiName.includes(targetName) || targetName.includes(apiName);
+}
+
+function rescueMatchesDog(dog, rescue) {
+  if (rescue.rescueGroupsOrgId) {
+    return String(dog.rescuegroups_org_id || "") === String(rescue.rescueGroupsOrgId);
+  }
+
+  return rescueNameMatches(dog.shelter_name, rescue.name);
 }
 
 function mapAnimalToDogRow(animal, included, rescue) {
@@ -315,15 +349,21 @@ async function fetchWithTimeout(url, options, timeoutMs) {
 }
 
 function buildRequestBody(rescue, pageNumber) {
+  const orgFilter = rescue.rescueGroupsOrgId
+    ? {
+        fieldName: "orgs.id",
+        operation: "equals",
+        criteria: String(rescue.rescueGroupsOrgId),
+      }
+    : {
+        fieldName: "orgs.name",
+        operation: "contains",
+        criteria: rescue.name,
+      };
+
   return {
     data: {
-      filters: [
-        {
-          fieldName: "orgs.name",
-          operation: "contains",
-          criteria: rescue.name,
-        },
-      ],
+      filters: [orgFilter],
       sort: [
         {
           fieldName: "animals.updatedDate",
@@ -335,17 +375,43 @@ function buildRequestBody(rescue, pageNumber) {
           "name",
           "descriptionText",
           "descriptionHtml",
+          "description",
           "breedString",
           "breedPrimary",
+          "primaryBreed",
+          "breed",
+          "breeds",
           "sizeGroup",
+          "sizeCurrent",
+          "size",
           "sex",
+          "gender",
           "ageString",
           "ageGroup",
+          "age",
           "ageYears",
           "url",
+          "webpageUrl",
+          "animalUrl",
+          "adoptionUrl",
+          "link",
           "updatedDate",
+          "pictureUrl",
+          "imageUrl",
+          "photoUrl",
+          "pictureThumbnailUrl",
         ],
-        pictures: ["large", "original", "medium", "small", "url"],
+        pictures: [
+          "urlSecureFullsize",
+          "urlFullsize",
+          "urlSecureLarge",
+          "urlLarge",
+          "large",
+          "original",
+          "medium",
+          "small",
+          "url",
+        ],
         orgs: ["name", "city", "state", "url", "website"],
       },
       include: ["pictures", "orgs"],
@@ -406,7 +472,7 @@ async function fetchDogsForRescue(rescue) {
       .map((animal) => mapAnimalToDogRow(animal, included, rescue))
       .filter((dog) => {
         if (!dog.name || !dog.photo_url) return false;
-        return rescueNameMatches(dog.shelter_name, rescue.name);
+        return rescueMatchesDog(dog, rescue);
       });
 
     for (const dog of mappedDogsForPage) {
@@ -438,20 +504,92 @@ async function fetchDogsForRescue(rescue) {
 async function upsertDogs(dogs) {
   if (dogs.length === 0) {
     console.log("No dogs to insert/update.");
-    return;
+    return { inserted: 0, updated: 0, skipped: 0 };
   }
 
   console.log(`Inserting/updating ${dogs.length} dogs in Supabase...`);
 
-  const { error } = await supabase.from("dogs").upsert(dogs, {
-    onConflict: "rescuegroups_id",
-  });
+  const rescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
+  const { data: existingDogs, error: findError } = await supabase
+    .from("dogs")
+    .select("id, rescuegroups_id, external_id")
+    .in("rescuegroups_id", rescueGroupsIds);
 
-  if (error) {
-    throw new Error(`Supabase upsert error: ${error.message}`);
+  if (findError) {
+    throw new Error(`Supabase existing dog lookup error: ${findError.message}`);
   }
 
-  console.log(`Upsert complete: ${dogs.length} dogs.`);
+  const { data: existingByExternalId, error: externalIdFindError } = await supabase
+    .from("dogs")
+    .select("id, rescuegroups_id, external_id")
+    .eq("source", "rescuegroups")
+    .in("external_id", rescueGroupsIds);
+
+  if (externalIdFindError) {
+    throw new Error(
+      `Supabase existing dog external_id lookup error: ${externalIdFindError.message}`
+    );
+  }
+
+  const existingByRescueGroupsId = new Map(
+    (existingDogs || []).map((dog) => [String(dog.rescuegroups_id), dog])
+  );
+
+  for (const dog of existingByExternalId || []) {
+    if (dog.external_id && !existingByRescueGroupsId.has(String(dog.external_id))) {
+      existingByRescueGroupsId.set(String(dog.external_id), dog);
+    }
+  }
+
+  let inserted = 0;
+  let updated = 0;
+  let skipped = 0;
+
+  for (const dog of dogs) {
+    const existingDog = existingByRescueGroupsId.get(String(dog.rescuegroups_id));
+
+    try {
+      if (existingDog) {
+        const updateRow = { ...dog };
+        delete updateRow.energy_level;
+        delete updateRow.activity_level;
+        delete updateRow.urgency_level;
+        delete updateRow.imported_status;
+
+        if (!updateRow.shelter_id) {
+          delete updateRow.shelter_id;
+        }
+
+        const { error } = await supabase
+          .from("dogs")
+          .update(updateRow)
+          .eq("id", existingDog.id);
+
+        if (error) {
+          throw error;
+        }
+
+        updated += 1;
+      } else {
+        const { error } = await supabase.from("dogs").insert(dog);
+
+        if (error) {
+          throw error;
+        }
+
+        inserted += 1;
+      }
+    } catch (error) {
+      skipped += 1;
+      console.error(`Could not sync ${dog.name}: ${error.message}`);
+    }
+  }
+
+  console.log(
+    `Upsert complete. Inserted ${inserted}. Updated ${updated}. Skipped ${skipped}.`
+  );
+
+  return { inserted, updated, skipped };
 }
 
 async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) {
@@ -474,9 +612,20 @@ async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) 
       unavailable_reason: "No longer returned by RescueGroups API",
       last_checked_at: new Date().toISOString(),
     })
-    .eq("shelter_id", rescue.supabaseShelterId)
+    .eq("source", "rescuegroups")
     .eq("adoptable", true)
     .not("rescuegroups_id", "in", `(${quotedIds})`);
+
+  if (rescue.supabaseShelterId) {
+    query = query.eq("shelter_id", rescue.supabaseShelterId);
+  } else if (rescue.rescueGroupsOrgId) {
+    query = query.eq("rescuegroups_org_id", String(rescue.rescueGroupsOrgId));
+  } else {
+    console.log(
+      `Skipping unavailable update for ${rescue.name}: missing shelter and RescueGroups org IDs.`
+    );
+    return;
+  }
 
   const { error } = await query;
 
@@ -498,20 +647,20 @@ async function main() {
 
   for (const rescue of enabledRescues) {
     try {
-      if (!rescue.supabaseShelterId) {
-        console.log(`Skipping ${rescue.name}: missing supabaseShelterId.`);
+      if (!rescue.supabaseShelterId && !rescue.rescueGroupsOrgId) {
+        console.log(`Skipping ${rescue.name}: missing shelter and RescueGroups org IDs.`);
         continue;
       }
 
       const dogs = await fetchDogsForRescue(rescue);
 
-      await upsertDogs(dogs);
+      const syncResult = await upsertDogs(dogs);
 
       const seenRescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
 
       await markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds);
 
-      totalUpserted += dogs.length;
+      totalUpserted += syncResult.inserted + syncResult.updated;
     } catch (error) {
       console.error(`Error syncing ${rescue.name}: ${error.message}`);
     }

@@ -9,6 +9,14 @@ const RESCUES = [
     supabaseShelterId: "2bd4355c-93f6-4f8d-8e47-4b734a24e953",
     enabled: true,
   },
+  {
+    name: "Detroit Animal Care and Control",
+    city: "Detroit",
+    state: "MI",
+    rescueGroupsOrgId: "8883",
+    supabaseShelterId: null,
+    enabled: true,
+  },
 
   // Peace Love and Paws did not return usable dogs from RescueGroups yet.
   // Keep it disabled until we confirm whether they are listed in RescueGroups
