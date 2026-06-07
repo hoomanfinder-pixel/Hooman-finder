@@ -16,6 +16,7 @@ const RESCUEGROUPS_API_URL =
 
 const DACC_ORG_ID = "8883";
 const DACC_ORG_NAME = "Detroit Animal Care and Control";
+const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 const API_TIMEOUT_MS = 30000;
@@ -132,15 +133,6 @@ function getPictureCount(animal, included) {
   return pickPhotoUrl(animal, included) ? 1 : 0;
 }
 
-function getAdoptionUrl(animal) {
-  return (
-    clean(attr(animal, "url")) ||
-    clean(attr(animal, "webpageUrl")) ||
-    clean(attr(animal, "link")) ||
-    `https://www.rescuegroups.org/animals/detail?AnimalID=${animal.id}`
-  );
-}
-
 function getBreed(animal) {
   return (
     clean(attr(animal, "breedString")) ||
@@ -187,7 +179,7 @@ function mapAnimalPreview(animal, included) {
   const orgAttrs = org?.attributes || {};
   const name = clean(attr(animal, "name")) || "Unnamed Dog";
   const photoUrl = pickPhotoUrl(animal, included);
-  const adoptionUrl = getAdoptionUrl(animal);
+  const adoptionUrl = DACC_ADOPT_URL;
   const updatedDate = clean(attr(animal, "updatedDate"));
   const nowPlaceholder = "<dry-run timestamp>";
 
@@ -231,7 +223,7 @@ function mapAnimalPreview(animal, included) {
       source_url: adoptionUrl,
       adoption_url: adoptionUrl,
       shelter_name: clean(orgAttrs.name) || DACC_ORG_NAME,
-      shelter_website: clean(orgAttrs.url) || clean(orgAttrs.website),
+      shelter_website: DACC_ADOPT_URL,
       placement_type: "Shelter",
       placement_city: clean(attr(animal, "locationCity")) || clean(orgAttrs.city) || "Detroit",
       placement_state: clean(attr(animal, "locationState")) || clean(orgAttrs.state) || "MI",

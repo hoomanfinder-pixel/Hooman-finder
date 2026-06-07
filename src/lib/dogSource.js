@@ -1,4 +1,6 @@
 const UNAVAILABLE_ORG_LABEL = "Listing organization unavailable";
+const DACC_RESCUEGROUPS_ORG_ID = "8883";
+export const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 
 function clean(value) {
   if (value === null || value === undefined) return "";
@@ -11,6 +13,26 @@ export function normalizeExternalUrl(raw) {
   if (trimmed.startsWith("//")) return `https:${trimmed}`;
   if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
   return trimmed;
+}
+
+function isDaccDog(dog) {
+  return clean(dog?.rescuegroups_org_id) === DACC_RESCUEGROUPS_ORG_ID;
+}
+
+function isKnownBrokenUrlForDog(url, dog) {
+  if (!url) return false;
+  if (!isDaccDog(dog)) return false;
+
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.hostname === "www.rescuegroups.org" &&
+      parsed.pathname === "/animals/detail" &&
+      parsed.searchParams.has("AnimalID")
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function hasDogLevelSource(dog) {
@@ -56,9 +78,12 @@ export function getDogSourceLocation(dog, fallback = "Location unknown") {
 }
 
 export function getDogApplyLink(dog) {
+  if (isDaccDog(dog)) return DACC_ADOPT_URL;
+
   const dogLevelUrl =
-    normalizeExternalUrl(dog?.adoption_url) ||
-    normalizeExternalUrl(dog?.source_url) ||
+    [dog?.adoption_url, dog?.source_url]
+      .map(normalizeExternalUrl)
+      .find((url) => url && !isKnownBrokenUrlForDog(url, dog)) ||
     normalizeExternalUrl(dog?.shelter_website);
 
   if (dogLevelUrl) return dogLevelUrl;
@@ -67,6 +92,12 @@ export function getDogApplyLink(dog) {
     normalizeExternalUrl(dog?.shelters?.apply_url) ||
     normalizeExternalUrl(dog?.shelters?.website)
   );
+}
+
+export function getDogApplyLabel(dog) {
+  if (!getDogApplyLink(dog)) return "Application link unavailable";
+  if (isDaccDog(dog)) return "View DACC adoptable dogs";
+  return "View official listing";
 }
 
 export function getDogSourceFilterId(dog) {

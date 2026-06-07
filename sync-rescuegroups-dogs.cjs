@@ -14,6 +14,8 @@ const RESCUEGROUPS_API_KEY = process.env.RESCUEGROUPS_API_KEY;
 const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
 
+const DACC_RESCUEGROUPS_ORG_ID = "8883";
+const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const API_TIMEOUT_MS = 30000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
@@ -195,6 +197,14 @@ function getAdoptionUrl(animal) {
   );
 }
 
+function getPublicListingUrl(animal, orgId) {
+  if (String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID) {
+    return DACC_ADOPT_URL;
+  }
+
+  return getAdoptionUrl(animal);
+}
+
 function getBreed(attrs) {
   return (
     attrs.breedString ||
@@ -266,7 +276,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
       : null;
 
   const name = attrs.name || "Unnamed Dog";
-  const adoptionUrl = getAdoptionUrl(animal);
+  const adoptionUrl = getPublicListingUrl(animal, orgId);
   const photoUrl = getPrimaryPhoto(animal, included);
   const now = new Date().toISOString();
 
@@ -309,7 +319,10 @@ function mapAnimalToDogRow(animal, included, rescue) {
     adoption_url: adoptionUrl,
 
     shelter_name: orgAttrs.name || rescue.name,
-    shelter_website: orgAttrs.url || orgAttrs.website || null,
+    shelter_website:
+      String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID
+        ? DACC_ADOPT_URL
+        : orgAttrs.url || orgAttrs.website || null,
     shelter_id: rescue.supabaseShelterId,
 
     placement_type: "Shelter",

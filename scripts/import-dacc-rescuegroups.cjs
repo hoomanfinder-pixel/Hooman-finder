@@ -20,6 +20,7 @@ const DACC_ORG_ID = "8883";
 const DACC_ORG_NAME = "Detroit Animal Care and Control";
 const DACC_CITY = "Detroit";
 const DACC_STATE = "MI";
+const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 const API_TIMEOUT_MS = 30000;
@@ -139,21 +140,6 @@ function pickPhotoUrl(animal, included) {
   );
 }
 
-function getAdoptionUrl(animal) {
-  const animalId = clean(animal?.id);
-
-  return (
-    clean(attr(animal, "url")) ||
-    clean(attr(animal, "webpageUrl")) ||
-    clean(attr(animal, "animalUrl")) ||
-    clean(attr(animal, "adoptionUrl")) ||
-    clean(attr(animal, "link")) ||
-    (animalId
-      ? `https://www.rescuegroups.org/animals/detail?AnimalID=${animalId}`
-      : null)
-  );
-}
-
 function getBreed(animal) {
   return (
     clean(attr(animal, "breedString")) ||
@@ -236,7 +222,6 @@ function mapAnimalToDogRow(animal, included) {
   const orgAttrs = org?.attributes || {};
   const externalId = String(animal.id);
   const name = clean(attr(animal, "name")) || "Unnamed Dog";
-  const adoptionUrl = getAdoptionUrl(animal);
   const now = new Date().toISOString();
   const city = clean(attr(animal, "locationCity")) || clean(orgAttrs.city) || DACC_CITY;
   const state =
@@ -265,10 +250,10 @@ function mapAnimalToDogRow(animal, included) {
     adoptable: true,
     adoption_pending: false,
     availability_status: "available",
-    source_url: adoptionUrl,
-    adoption_url: adoptionUrl,
+    source_url: DACC_ADOPT_URL,
+    adoption_url: DACC_ADOPT_URL,
     shelter_name: clean(orgAttrs.name) || DACC_ORG_NAME,
-    shelter_website: clean(orgAttrs.url) || clean(orgAttrs.website),
+    shelter_website: DACC_ADOPT_URL,
     placement_type: "Shelter",
     placement_city: city,
     placement_state: state,

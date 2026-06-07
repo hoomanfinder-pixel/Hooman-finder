@@ -7,10 +7,10 @@ import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
 import {
   getDogApplyLink,
+  getDogApplyLabel,
   getDogSourceLocation,
   getDogSourceLogo,
   getDogSourceName,
-  normalizeExternalUrl,
 } from "../lib/dogSource";
 import {
   getActiveQuizSessionId,
@@ -147,11 +147,7 @@ function displayApplyLink(dog) {
 }
 
 function displayApplyLabel(dog) {
-  if (!displayApplyLink(dog)) return "Application link unavailable";
-  if (normalizeExternalUrl(dog?.adoption_url) || normalizeExternalUrl(dog?.source_url)) {
-    return "View official listing";
-  }
-  return "Contact the listing organization";
+  return getDogApplyLabel(dog);
 }
 
 function parseAiTraits(raw) {
