@@ -6,6 +6,13 @@ import SEO from "../components/SEO";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
 import {
+  getDogApplyLink,
+  getDogSourceLocation,
+  getDogSourceLogo,
+  getDogSourceName,
+  normalizeExternalUrl,
+} from "../lib/dogSource";
+import {
   getActiveQuizSessionId,
   loadQuizResponses,
   setActiveQuizSessionId,
@@ -66,15 +73,6 @@ function normalizeImageUrl(raw) {
   return `/${trimmed}`;
 }
 
-function normalizeExternalUrl(raw) {
-  if (!raw || typeof raw !== "string") return "";
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("//")) return `https:${trimmed}`;
-  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
-  return trimmed;
-}
-
 function pickDogImage(dog) {
   const candidates = [
     dog?.photo_url,
@@ -133,42 +131,27 @@ function displayBreed(dog) {
 }
 
 function displayShelterName(dog) {
-  return dog?.shelters?.name || dog?.shelter_name || "Shelter/Rescue";
+  return getDogSourceName(dog);
 }
 
 function displayShelterLogo(dog) {
-  return dog?.shelters?.logo_url || "";
+  return getDogSourceLogo(dog);
 }
 
 function displayLocation(dog) {
-  if (dog?.shelters?.city && dog?.shelters?.state) {
-    return `${dog.shelters.city}, ${dog.shelters.state}`;
-  }
-
-  if (dog?.placement_location) return dog.placement_location;
-
-  if (dog?.placement_city && dog?.placement_state) {
-    return `${dog.placement_city}, ${dog.placement_state}`;
-  }
-
-  return "Location unknown";
+  return getDogSourceLocation(dog);
 }
 
 function displayApplyLink(dog) {
-  return normalizeExternalUrl(
-    dog?.shelters?.apply_url ||
-    dog?.shelters?.website ||
-    dog?.source_url ||
-    dog?.shelter_website ||
-    ""
-  );
+  return getDogApplyLink(dog);
 }
 
 function displayApplyLabel(dog) {
   if (!displayApplyLink(dog)) return "Application link unavailable";
-  if (dog?.shelters?.apply_url) return "Apply or inquire through rescue";
-  if (dog?.source_url) return "Visit rescue listing";
-  return "Contact the rescue";
+  if (normalizeExternalUrl(dog?.adoption_url) || normalizeExternalUrl(dog?.source_url)) {
+    return "View official listing";
+  }
+  return "Contact the listing organization";
 }
 
 function parseAiTraits(raw) {

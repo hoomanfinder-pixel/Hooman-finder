@@ -2,6 +2,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
+import {
+  getDogApplyLink,
+  getDogSourceLocation,
+  getDogSourceName,
+} from "../lib/dogSource";
 import { formatAge } from "../utils/formatAge";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -214,40 +219,15 @@ function getMatchState({ dog, scorePct, breakdown }) {
 }
 
 function displayApplyLink(dog) {
-  return normalizeExternalUrl(
-    dog?.shelters?.apply_url ||
-    dog?.shelters?.website ||
-    dog?.source_url ||
-    dog?.shelter_website ||
-    ""
-  );
-}
-
-function normalizeExternalUrl(raw) {
-  if (!raw || typeof raw !== "string") return "";
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("//")) return `https:${trimmed}`;
-  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
-  return trimmed;
+  return getDogApplyLink(dog);
 }
 
 function displayLocation(dog) {
-  if (dog?.shelters?.city && dog?.shelters?.state) {
-    return `${dog.shelters.city}, ${dog.shelters.state}`;
-  }
-
-  if (dog?.placement_location) return dog.placement_location;
-
-  if (dog?.placement_city && dog?.placement_state) {
-    return `${dog.placement_city}, ${dog.placement_state}`;
-  }
-
-  return "Apply through rescue";
+  return getDogSourceLocation(dog, "Apply through listing organization");
 }
 
 function shelterName(dog) {
-  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
+  return getDogSourceName(dog);
 }
 
 function displayBreed(dog) {
