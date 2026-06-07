@@ -31,6 +31,18 @@ export default function SiteFooter() {
             >
               Contact
             </Link>
+            <Link
+              to="/privacy"
+              className="text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+            >
+              Privacy
+            </Link>
+            <Link
+              to="/terms"
+              className="text-slate-700 hover:text-slate-900 underline-offset-4 hover:underline"
+            >
+              Terms
+            </Link>
           </div>
         </div>
 

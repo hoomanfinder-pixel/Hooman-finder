@@ -12,6 +12,8 @@ import JoinShelters from "./pages/JoinShelters.jsx";
 import Saved from "./pages/Saved.jsx";
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
+import Privacy from "./pages/Privacy.jsx";
+import Terms from "./pages/Terms.jsx";
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
 
       <Route path="/about" element={<About />} />
       <Route path="/contact" element={<Contact />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
 
       {/* Dog profile page (support BOTH /dog/:id and /dogs/:id so nothing breaks) */}
       <Route path="/dog/:id" element={<DogDetail />} />

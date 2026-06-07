@@ -92,7 +92,7 @@ export default function Shelter() {
   }
 
   const locationLine = [shelter.city, shelter.state].filter(Boolean).join(", ");
-  const applyUrl = shelter.apply_url || shelter.website || "";
+  const applyUrl = normalizeExternalUrl(shelter.apply_url || shelter.website || "");
 
   return (
     <div className="min-h-screen bg-white">
@@ -175,4 +175,13 @@ export default function Shelter() {
       </div>
     </div>
   );
+}
+
+function normalizeExternalUrl(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
+  return trimmed;
 }

@@ -64,6 +64,15 @@ function normalizeImageUrl(raw) {
   return `/${trimmed}`;
 }
 
+function normalizeExternalUrl(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
+  return trimmed;
+}
+
 function pickDogImage(dog) {
   const candidates = [
     dog?.photo_url,
@@ -144,7 +153,7 @@ function displayLocation(dog) {
 }
 
 function displayApplyLink(dog) {
-  return (
+  return normalizeExternalUrl(
     dog?.shelters?.apply_url ||
     dog?.shelters?.website ||
     dog?.source_url ||

@@ -214,13 +214,22 @@ function getMatchState({ dog, scorePct, breakdown }) {
 }
 
 function displayApplyLink(dog) {
-  return (
+  return normalizeExternalUrl(
     dog?.shelters?.apply_url ||
     dog?.shelters?.website ||
     dog?.source_url ||
     dog?.shelter_website ||
     ""
   );
+}
+
+function normalizeExternalUrl(raw) {
+  if (!raw || typeof raw !== "string") return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
+  return trimmed;
 }
 
 function displayLocation(dog) {
