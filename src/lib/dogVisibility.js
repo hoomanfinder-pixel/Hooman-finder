@@ -1,5 +1,13 @@
-const ACTIVE_STATUSES = new Set(["active", "available"]);
+const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
 const VERIFIED_CONFIDENCE = new Set(["current", "trusted", "verified"]);
+const TRUSTED_EXTERNAL_ID_SOURCES = new Set(["rescuegroups"]);
+const TRUSTED_LISTING_HOSTS = [
+  "rescuegroups.org",
+  "petfinder.com",
+  "adoptapet.com",
+  "shelterluv.com",
+  "petango.com",
+];
 
 function clean(value) {
   return value === null || value === undefined ? "" : String(value).trim();
@@ -11,15 +19,28 @@ function lower(value) {
 
 function hasReliableUrl(value) {
   const url = clean(value);
-  return url.startsWith("https://") || url.startsWith("http://");
+
+  if (!url.startsWith("https://")) return false;
+
+  try {
+    const { hostname } = new URL(url);
+    return TRUSTED_LISTING_HOSTS.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`)
+    );
+  } catch {
+    return false;
+  }
 }
 
 function hasRescueGroupsIdentity(dog) {
-  return Boolean(clean(dog?.external_id) || clean(dog?.rescuegroups_id));
+  return Boolean(clean(dog?.rescuegroups_id) || clean(dog?.rescuegroups_org_id));
 }
 
 function hasTrustedSyncedSource(dog) {
-  return lower(dog?.source) === "rescuegroups" && hasRescueGroupsIdentity(dog);
+  return (
+    hasRescueGroupsIdentity(dog) ||
+    (TRUSTED_EXTERNAL_ID_SOURCES.has(lower(dog?.source)) && Boolean(clean(dog?.external_id)))
+  );
 }
 
 function hasVerifiedListingSource(dog) {

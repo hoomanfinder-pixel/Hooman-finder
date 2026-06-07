@@ -139,7 +139,7 @@ export default function Results() {
           .from("dogs")
           .select(DOG_SELECT)
           .eq("adoptable", true)
-          .in("availability_status", ["available", "active"])
+          .in("availability_status", ["available", "active", "unknown"])
           .order("created_at", { ascending: false });
 
         if (error) throw error;

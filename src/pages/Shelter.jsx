@@ -48,7 +48,7 @@ export default function Shelter() {
           .select("*, shelters ( id, name, city, state, apply_url, website, logo_url )")
           .eq("shelter_id", id)
           .eq("adoptable", true)
-          .in("availability_status", ["available", "active"])
+          .in("availability_status", ["available", "active", "unknown"])
           .order("name", { ascending: true });
 
         if (dogsRes.error) throw dogsRes.error;

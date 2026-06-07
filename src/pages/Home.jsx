@@ -100,12 +100,12 @@ export default function Home() {
         const { data, error } = await supabase
           .from("dogs")
           .select(
-            "id, name, photo_url, urgency_level, adoptable, adoption_pending, availability_status, created_at, source, external_id, rescuegroups_id, source_url, adoption_url"
+            "id, name, photo_url, urgency_level, adoptable, adoption_pending, availability_status, created_at, source, external_id, rescuegroups_id, rescuegroups_org_id, source_url, adoption_url, verified, availability_verified, source_confidence"
           )
           .eq("adoptable", true)
           .not("photo_url", "is", null)
           .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .in("availability_status", ["available", "active"])
+          .in("availability_status", ["available", "active", "unknown"])
           .order("created_at", { ascending: false })
           .limit(12);
 

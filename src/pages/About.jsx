@@ -65,9 +65,9 @@ export default function About() {
               </h1>
 
               <p className="mt-4 text-slate-700 leading-relaxed">
-                Hooman Finder helps people feel confident adopting by matching
-                them with rescue dogs that actually fit their lifestyle — so it’s
-                less “endless scrolling” and more “this dog makes sense for me.”
+                Hooman Finder helps people adopt more thoughtfully by matching
+                them with rescue dogs that fit their lifestyle, home, and routine — so it’s
+                less “endless scrolling” and more “this dog makes sense for my life.”
               </p>
 
               <div className="mt-7 flex flex-col sm:flex-row gap-3">
@@ -106,18 +106,17 @@ export default function About() {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-extrabold text-slate-900">Why this matters</h2>
             <p className="mt-3 text-slate-700 leading-relaxed">
-              The U.S. is facing an animal shelter capacity crisis. When shelters
-              are full, dogs can be euthanized simply because there isn’t enough
-              space. Every adoption helps open a spot for the next dog coming in.
+              Adoption works best when the fit is realistic. Mismatches and returns
+              are hard on adopters, shelters, and dogs, so Hooman Finder starts with
+              lifestyle fit before the application step.
             </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-extrabold text-slate-900">Our mission</h2>
             <p className="mt-3 text-slate-700 leading-relaxed">
-              Help more people adopt by making “finding the right rescue dog” feel
-              simpler and more personal. More confident adopters → more adoptions
-              → more open kennels → more lives saved.
+              Help more people find adoptable dogs with confidence by making rescue
+              dog matching simpler, clearer, and more personal.
             </p>
           </div>
 
@@ -125,9 +124,9 @@ export default function About() {
             <h2 className="text-lg font-extrabold text-slate-900">Why I started it</h2>
             <p className="mt-3 text-slate-700 leading-relaxed">
               I’ve always wanted to rescue — and I wanted a faster, more specific
-              way to find the “right” dog who’s already out there waiting.
-              Hooman Finder is my attempt to make adoption feel easier, so more
-              people choose rescue.
+              way to find the “right” dog who’s already out there waiting. Hooman
+              Finder is my attempt to make dog adoption feel more thoughtful, so
+              more rescue dogs land in better-fit homes.
             </p>
 
             <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-3 text-sm text-slate-700">
@@ -144,7 +143,7 @@ export default function About() {
               Ready to meet your match?
             </h3>
             <p className="mt-1 text-sm text-slate-600">
-              Take the quiz and get a ranked list — then apply directly through the shelter.
+              Take the dog adoption quiz and get a ranked list — then apply directly through the shelter.
             </p>
           </div>
 

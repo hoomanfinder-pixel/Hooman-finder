@@ -77,7 +77,7 @@ export default function Saved() {
           .from("dogs")
           .select(DOG_SELECT)
           .in("id", savedIds)
-          .in("availability_status", ["available", "active"]);
+          .in("availability_status", ["available", "active", "unknown"]);
 
         if (fetchError) throw fetchError;
 

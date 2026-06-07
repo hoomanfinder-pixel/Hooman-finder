@@ -145,7 +145,7 @@ export default function Dogs() {
           )
         `)
         .eq("adoptable", true)
-        .in("availability_status", ["available", "active"])
+        .in("availability_status", ["available", "active", "unknown"])
         .order("created_at", { ascending: false });
 
       if (!mounted) return;
