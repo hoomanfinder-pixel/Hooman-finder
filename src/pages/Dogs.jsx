@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import DogCard from "../components/DogCard";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
+import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
 
 const AGE_OPTIONS = [
@@ -144,6 +145,7 @@ export default function Dogs() {
           )
         `)
         .eq("adoptable", true)
+        .in("availability_status", ["available", "active"])
         .order("created_at", { ascending: false });
 
       if (!mounted) return;
@@ -152,7 +154,7 @@ export default function Dogs() {
         console.error("Error fetching dogs:", error);
         setDogs([]);
       } else {
-        const normalizedDogs = Array.isArray(data) ? data.map(normalizeDog) : [];
+        const normalizedDogs = filterPublicDogs(data).map(normalizeDog);
         setDogs(normalizedDogs);
       }
 
@@ -338,7 +340,7 @@ export default function Dogs() {
               </h1>
 
               <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:text-base sm:leading-6">
-                Scroll real adoptable dogs, save favorites, and take the quiz when you’re ready for better matches.
+                Browse adoptable dogs in Michigan, save favorites, and take the quiz when you’re ready for better matches.
               </p>
             </div>
           </div>
@@ -356,7 +358,7 @@ export default function Dogs() {
                   Narrow your search
                 </h2>
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
-                  Keep it broad, then filter by what really matters.
+                  Keep the adoptable dog list broad, then filter by what really matters for your home.
                 </p>
               </div>
 

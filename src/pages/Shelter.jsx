@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import DogCard from "../components/DogCard";
+import { filterPublicDogs } from "../lib/dogVisibility";
 
 function getParam(search, key) {
   const params = new URLSearchParams(search);
@@ -46,13 +47,15 @@ export default function Shelter() {
           .from("dogs")
           .select("*, shelters ( id, name, city, state, apply_url, website, logo_url )")
           .eq("shelter_id", id)
+          .eq("adoptable", true)
+          .in("availability_status", ["available", "active"])
           .order("name", { ascending: true });
 
         if (dogsRes.error) throw dogsRes.error;
 
         if (!cancelled) {
           setShelter(shelterRes.data);
-          setDogs(dogsRes.data || []);
+          setDogs(filterPublicDogs(dogsRes.data));
         }
       } catch (e) {
         if (!cancelled) {

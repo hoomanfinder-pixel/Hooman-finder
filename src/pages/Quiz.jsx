@@ -247,8 +247,8 @@ export default function Quiz() {
 
   const pageSubtitle =
     mode === QUIZ_MODES.DEALBREAKERS
-      ? "Start with the must-haves that matter most for your home."
-      : "Fine-tune your rankings with extra lifestyle and care preferences.";
+      ? "Start this lifestyle-based dog adoption quiz with the home, routine, and experience details that matter most."
+      : "Fine-tune how Hooman Finder ranks adoptable dogs using your lifestyle and care preferences.";
 
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#0f2742]">

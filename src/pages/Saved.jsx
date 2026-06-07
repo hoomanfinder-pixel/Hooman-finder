@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import DogCard from "../components/DogCard";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
+import { filterPublicDogs } from "../lib/dogVisibility";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -75,11 +76,12 @@ export default function Saved() {
         const { data, error: fetchError } = await supabase
           .from("dogs")
           .select(DOG_SELECT)
-          .in("id", savedIds);
+          .in("id", savedIds)
+          .in("availability_status", ["available", "active"]);
 
         if (fetchError) throw fetchError;
 
-        const rows = Array.isArray(data) ? data : [];
+        const rows = filterPublicDogs(data);
         const map = new Map(rows.map((dog) => [String(dog.id), dog]));
         const ordered = savedIds.map((id) => map.get(String(id))).filter(Boolean);
 
@@ -100,7 +102,7 @@ export default function Saved() {
     };
   }, [savedIds]);
 
-  const count = useMemo(() => savedIds.length, [savedIds]);
+  const count = useMemo(() => dogs.length, [dogs]);
 
   return (
     <div className="min-h-screen bg-[#f4f1ea] text-stone-950">

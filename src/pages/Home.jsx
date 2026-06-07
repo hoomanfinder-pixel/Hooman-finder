@@ -2,13 +2,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
+import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
 
 const HOW_IT_WORKS = [
   {
     number: "01",
     title: "Match by lifestyle",
-    text: "Look beyond breed and age to energy, temperament, home needs, and fit.",
+    text: "Use a lifestyle-based dog adoption quiz to compare energy, temperament, home needs, and fit.",
   },
   {
     number: "02",
@@ -18,7 +19,7 @@ const HOW_IT_WORKS = [
   {
     number: "03",
     title: "Apply through rescues",
-    text: "We help you discover dogs. The rescue handles the adoption.",
+    text: "Find better-fit rescue dog matches here, then apply directly through the rescue or shelter.",
   },
 ];
 
@@ -99,12 +100,12 @@ export default function Home() {
         const { data, error } = await supabase
           .from("dogs")
           .select(
-            "id, name, photo_url, urgency_level, adoptable, adoption_pending, availability_status, created_at"
+            "id, name, photo_url, urgency_level, adoptable, adoption_pending, availability_status, created_at, source, external_id, rescuegroups_id, source_url, adoption_url"
           )
           .eq("adoptable", true)
           .not("photo_url", "is", null)
           .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .or("availability_status.is.null,availability_status.eq.available")
+          .in("availability_status", ["available", "active"])
           .order("created_at", { ascending: false })
           .limit(12);
 
@@ -118,7 +119,7 @@ export default function Home() {
           Adopted: 99,
         };
 
-        const sortedDogs = [...(data || [])]
+        const sortedDogs = filterPublicDogs(data)
           .filter((dog) => dog?.photo_url)
           .sort((a, b) => {
             const aRank = urgencyRank[a?.urgency_level] || 50;
@@ -234,8 +235,8 @@ export default function Home() {
                 </h1>
 
                 <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/84 sm:text-lg">
-                  Discover adoptable dogs by personality, lifestyle fit, and
-                  urgency — then apply directly through the rescue or shelter.
+                  Take a dog adoption matching quiz to find adoptable dogs that fit
+                  your lifestyle, then apply directly through the rescue or shelter.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row">
@@ -257,8 +258,8 @@ export default function Home() {
 
               <div className="mt-8 border-t border-white/24 pt-4">
                 <p className="max-w-xl text-[11px] font-bold uppercase leading-6 tracking-[0.22em] text-white/62">
-                  Personality-first adoption discovery. Hooman Finder helps with
-                  discovery and fit. The rescue handles the adoption.
+                  Rescue dog matching built around fit, not endless scrolling. The
+                  rescue handles the adoption.
                 </p>
               </div>
             </div>
@@ -275,6 +276,9 @@ export default function Home() {
               <h2 className="mt-3 max-w-2xl text-4xl font-black leading-none text-stone-950 sm:text-6xl">
                 Less scrolling. Better fit.
               </h2>
+              <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
+                Hooman Finder helps reduce mismatches by pairing real adoptable dogs with your home, routine, and care preferences.
+              </p>
             </div>
 
             <div className="divide-y divide-stone-950/15">
@@ -409,8 +413,7 @@ export default function Home() {
               </h2>
 
               <p className="mt-6 max-w-xl text-base leading-7 text-white/75 sm:text-lg">
-                Take the quiz for guided matches, or browse dogs if you already
-                know what you’re looking for.
+                Take the lifestyle-based dog adoption quiz for guided matches, or browse dogs if you already know what you’re looking for.
               </p>
 
               <div className="mt-8">

@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import SEO from "../components/SEO";
 import { computeRankedMatches } from "../lib/matchingLogic";
+import { isPubliclyVisibleDog } from "../lib/dogVisibility";
 import {
   getActiveQuizSessionId,
   loadQuizResponses,
@@ -518,6 +519,7 @@ export default function DogDetail() {
   }, [resolvedImage]);
 
   const seoDogName = dog?.name?.trim();
+  const dogIsPublic = dog ? isPubliclyVisibleDog(dog) : false;
   const seoBreed = dog ? displayBreed(dog) : "Dog";
   const seoShelter = dog ? displayShelterName(dog) : "a rescue or shelter";
   const seoTitle = seoDogName
@@ -532,7 +534,7 @@ export default function DogDetail() {
   const seoImageAlt = seoDogName
     ? `${seoDogName}, adoptable ${seoBreed}`
     : "Adoptable dog on Hooman Finder";
-  const seoNoindex = Boolean(sessionFromUrl) || (!loading && (loadError || !dog));
+  const seoNoindex = Boolean(sessionFromUrl) || (!loading && (loadError || !dog || !dogIsPublic));
   const seo = (
     <SEO
       title={seoTitle}
@@ -582,7 +584,7 @@ export default function DogDetail() {
     );
   }
 
-  if (loadError || !dog) {
+  if (loadError || !dog || !dogIsPublic) {
     return (
       <div className="min-h-screen bg-slate-50">
         {seo}
@@ -592,10 +594,18 @@ export default function DogDetail() {
           </Link>
 
           <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6">
-            <h1 className="text-xl font-extrabold text-slate-900">Dog not found</h1>
+            <h1 className="text-xl font-extrabold text-slate-900">
+              This dog may no longer be available
+            </h1>
             <p className="mt-2 text-slate-600">
-              {loadError || "This dog may have been removed."}
+              Browse current adoptable dogs instead.
             </p>
+            <Link
+              to="/dogs"
+              className="mt-5 inline-flex rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Browse current adoptable dogs
+            </Link>
           </div>
         </div>
       </div>
@@ -930,7 +940,7 @@ export default function DogDetail() {
                   Ready to take the next step?
                 </div>
                 <p className="mt-1 text-sm leading-5 text-slate-600">
-                  Hooman Finder helps you compare fit. The rescue manages applications, fees,
+                  Hooman Finder helps you compare adoption fit information for {name}. The rescue manages applications, fees,
                   availability, and final adoption decisions.
                 </p>
 
@@ -1124,7 +1134,7 @@ export default function DogDetail() {
               </li>
               <li className="flex gap-2">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                <span>Check known needs like kids, cats, dogs, potty training, and energy.</span>
+                <span>Check known fit details like kids, cats, dogs, potty training, and energy.</span>
               </li>
               <li className="flex gap-2">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />

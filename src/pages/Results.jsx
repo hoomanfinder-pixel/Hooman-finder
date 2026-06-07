@@ -12,6 +12,7 @@ import {
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
+import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
 import { QUIZ_MODES } from "../lib/quizQuestions";
 
@@ -138,13 +139,14 @@ export default function Results() {
           .from("dogs")
           .select(DOG_SELECT)
           .eq("adoptable", true)
+          .in("availability_status", ["available", "active"])
           .order("created_at", { ascending: false });
 
         if (error) throw error;
         if (!mounted) return;
 
         setAnswersById(loadedAnswers || {});
-        setDogs(Array.isArray(data) ? data : []);
+        setDogs(filterPublicDogs(data));
       } catch (e) {
         if (!mounted) return;
         setErr(e?.message || String(e));
@@ -355,7 +357,7 @@ export default function Results() {
               </h1>
 
               <p className="mt-1 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:mt-1.5 sm:text-base sm:leading-6">
-                Top matches based on your quiz answers and the dog details currently available from rescues.
+                Ranked adoptable dog matches based on your quiz answers and the dog details currently available from rescues.
               </p>
 
               {err ? (
@@ -379,7 +381,7 @@ export default function Results() {
                   Fine-tune matches
                 </h2>
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
-                  Narrow the ranked list without losing your quiz scoring.
+                  Narrow your ranked rescue dog matches without losing your quiz scoring.
                 </p>
               </div>
 
