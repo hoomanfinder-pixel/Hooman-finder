@@ -6,6 +6,12 @@ require("dotenv").config({ path: ".env.local" });
 
 const { createClient } = require("@supabase/supabase-js");
 const { RESCUES } = require("./rescuegroups-rescues.cjs");
+const {
+  DACC_ADOPT_URL,
+  DACC_RESCUEGROUPS_ORG_ID,
+  DACC_WEBSITE,
+  attachShelterIdsToDogs,
+} = require("./scripts/rescuegroups-shelter-utils.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,8 +20,6 @@ const RESCUEGROUPS_API_KEY = process.env.RESCUEGROUPS_API_KEY;
 const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
 
-const DACC_RESCUEGROUPS_ORG_ID = "8883";
-const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const API_TIMEOUT_MS = 30000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
@@ -321,7 +325,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
     shelter_name: orgAttrs.name || rescue.name,
     shelter_website:
       String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID
-        ? DACC_ADOPT_URL
+        ? DACC_WEBSITE
         : orgAttrs.url || orgAttrs.website || null,
     shelter_id: rescue.supabaseShelterId,
 
@@ -666,6 +670,8 @@ async function main() {
       }
 
       const dogs = await fetchDogsForRescue(rescue);
+
+      await attachShelterIdsToDogs(supabase, dogs);
 
       const syncResult = await upsertDogs(dogs);
 

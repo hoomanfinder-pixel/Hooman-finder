@@ -1,6 +1,7 @@
 // import-top-recommended-rescues.js
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import shelterUtils from "./scripts/rescuegroups-shelter-utils.cjs";
 
 dotenv.config({ path: ".env.local" });
 
@@ -47,6 +48,7 @@ const TARGET_RESCUES = [
 
 const IMPORT_LIMIT_PER_RESCUE = 75;
 const DEFAULT_PLACEMENT_TYPE = "Shelter";
+const { ensureShelterForSource } = shelterUtils;
 
 if (!SUPABASE_URL) {
   console.error("Missing VITE_SUPABASE_URL in .env.local");
@@ -390,64 +392,14 @@ function normalizeDogRow(animal, org, included, rescue) {
 }
 
 async function ensureShelterForRescue(rescue) {
-  const { data: existingShelters, error: findError } = await supabase
-    .from("shelters")
-    .select("id, name")
-    .eq("rescuegroups_org_id", rescue.orgId)
-    .limit(1);
-
-  if (findError) {
-    throw new Error(
-      `Could not look up shelter for ${rescue.name}: ${findError.message}`
-    );
-  }
-
-  const existingShelter = existingShelters?.[0];
-
-  if (existingShelter?.id) {
-    const { error: updateError } = await supabase
-      .from("shelters")
-      .update({
-        name: rescue.name,
-        rescuegroups_org_id: rescue.orgId,
-        city: rescue.city,
-        state: rescue.state,
-        website: rescue.website,
-        apply_url: rescue.applyUrl || rescue.website,
-        verified: true,
-      })
-      .eq("id", existingShelter.id);
-
-    if (updateError) {
-      throw new Error(
-        `Could not update shelter for ${rescue.name}: ${updateError.message}`
-      );
-    }
-
-    return existingShelter.id;
-  }
-
-  const { data: newShelter, error: insertError } = await supabase
-    .from("shelters")
-    .insert({
-      name: rescue.name,
-      rescuegroups_org_id: rescue.orgId,
-      city: rescue.city,
-      state: rescue.state,
-      website: rescue.website,
-      apply_url: rescue.applyUrl || rescue.website,
-      verified: true,
-    })
-    .select("id")
-    .single();
-
-  if (insertError) {
-    throw new Error(
-      `Could not create shelter for ${rescue.name}: ${insertError.message}`
-    );
-  }
-
-  return newShelter.id;
+  return ensureShelterForSource(supabase, {
+    rescuegroups_org_id: rescue.orgId,
+    name: rescue.name,
+    city: rescue.city,
+    state: rescue.state,
+    website: rescue.website,
+    apply_url: rescue.applyUrl || rescue.website,
+  });
 }
 
 async function fetchDogsForRescueWithFilter(rescue, fieldName) {

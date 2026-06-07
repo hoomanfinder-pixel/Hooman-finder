@@ -11,12 +11,13 @@
 require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
+const { DACC_ADOPT_URL, DACC_WEBSITE } = require("./rescuegroups-shelter-utils.cjs");
+
 const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
 
 const DACC_ORG_ID = "8883";
 const DACC_ORG_NAME = "Detroit Animal Care and Control";
-const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 const API_TIMEOUT_MS = 30000;
@@ -223,7 +224,7 @@ function mapAnimalPreview(animal, included) {
       source_url: adoptionUrl,
       adoption_url: adoptionUrl,
       shelter_name: clean(orgAttrs.name) || DACC_ORG_NAME,
-      shelter_website: DACC_ADOPT_URL,
+      shelter_website: DACC_WEBSITE,
       placement_type: "Shelter",
       placement_city: clean(attr(animal, "locationCity")) || clean(orgAttrs.city) || "Detroit",
       placement_state: clean(attr(animal, "locationState")) || clean(orgAttrs.state) || "MI",

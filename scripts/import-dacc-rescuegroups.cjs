@@ -12,6 +12,11 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
+const {
+  DACC_ADOPT_URL,
+  DACC_WEBSITE,
+  attachShelterIdsToDogs,
+} = require("./rescuegroups-shelter-utils.cjs");
 
 const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
@@ -20,7 +25,6 @@ const DACC_ORG_ID = "8883";
 const DACC_ORG_NAME = "Detroit Animal Care and Control";
 const DACC_CITY = "Detroit";
 const DACC_STATE = "MI";
-const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 const API_TIMEOUT_MS = 30000;
@@ -253,7 +257,7 @@ function mapAnimalToDogRow(animal, included) {
     source_url: DACC_ADOPT_URL,
     adoption_url: DACC_ADOPT_URL,
     shelter_name: clean(orgAttrs.name) || DACC_ORG_NAME,
-    shelter_website: DACC_ADOPT_URL,
+    shelter_website: DACC_WEBSITE,
     placement_type: "Shelter",
     placement_city: city,
     placement_state: state,
@@ -621,6 +625,8 @@ async function main() {
     supabase,
     candidateDogs.map((dog) => dog.rescuegroups_id)
   );
+
+  await attachShelterIdsToDogs(supabase, candidateDogs);
 
   for (const dog of candidateDogs) {
     const existingDog = existingDogs.get(dog.rescuegroups_id);
