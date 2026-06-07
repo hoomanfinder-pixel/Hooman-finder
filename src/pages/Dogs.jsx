@@ -238,8 +238,6 @@ export default function Dogs() {
     dogsOnly,
   ]);
 
-  const visibleTotal = dogs.filter((dog) => dog.urgency_level !== "Adopted").length;
-
   const activeFilterCount = [
     rescueFilter !== "all",
     ageFilter !== "all",
@@ -341,22 +339,6 @@ export default function Dogs() {
             </div>
           </div>
 
-          <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5">
-              {loading ? "Loading" : `${filteredDogs.length} showing`}
-            </span>
-
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5">
-              {visibleTotal} available
-            </span>
-
-            <Link
-              to="/quiz"
-              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-2.5 py-1.5 hover:bg-white"
-            >
-              Find my match
-            </Link>
-          </div>
         </section>
 
         {filtersOpen ? (

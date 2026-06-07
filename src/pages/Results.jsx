@@ -357,15 +357,6 @@ export default function Results() {
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap gap-2 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500 sm:mt-2.5">
-            <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
-              {loading ? "Loading" : `${filteredRows.length} matches found`}
-            </span>
-
-            <span className="rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5">
-              {rankedRows.length || 0} ranked
-            </span>
-          </div>
         </section>
 
         {filtersOpen ? (
