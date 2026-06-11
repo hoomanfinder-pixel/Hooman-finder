@@ -69,7 +69,7 @@ function normalizeSize(value) {
 }
 
 function normalizeEnergyLevel(value) {
-  if (!value) return "Moderate";
+  if (!value) return null;
 
   const text = String(value).toLowerCase();
 
@@ -77,7 +77,7 @@ function normalizeEnergyLevel(value) {
   if (text.includes("low")) return "Low";
   if (text.includes("medium") || text.includes("moderate")) return "Moderate";
 
-  return "Moderate";
+  return null;
 }
 
 function inferAdoptionPending(name) {
@@ -259,6 +259,10 @@ function rescueNameMatches(apiOrgName, targetRescueName) {
   return apiName.includes(targetName) || targetName.includes(apiName);
 }
 
+function hasText(value) {
+  return String(value || "").trim().length > 0;
+}
+
 function rescueMatchesDog(dog, rescue) {
   if (rescue.rescueGroupsOrgId) {
     return String(dog.rescuegroups_org_id || "") === String(rescue.rescueGroupsOrgId);
@@ -310,8 +314,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
     description:
       cleanText(attrs.descriptionText) ||
       cleanText(attrs.descriptionHtml) ||
-      cleanText(attrs.description) ||
-      `${name} is available through ${rescue.name}.`,
+      cleanText(attrs.description),
 
     photo_url: photoUrl,
 
@@ -529,7 +532,7 @@ async function upsertDogs(dogs) {
   const rescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
   const { data: existingDogs, error: findError } = await supabase
     .from("dogs")
-    .select("id, rescuegroups_id, external_id")
+    .select("id, rescuegroups_id, external_id, description")
     .in("rescuegroups_id", rescueGroupsIds);
 
   if (findError) {
@@ -538,7 +541,7 @@ async function upsertDogs(dogs) {
 
   const { data: existingByExternalId, error: externalIdFindError } = await supabase
     .from("dogs")
-    .select("id, rescuegroups_id, external_id")
+    .select("id, rescuegroups_id, external_id, description")
     .eq("source", "rescuegroups")
     .in("external_id", rescueGroupsIds);
 
@@ -568,10 +571,16 @@ async function upsertDogs(dogs) {
     try {
       if (existingDog) {
         const updateRow = { ...dog };
-        delete updateRow.energy_level;
+        if (updateRow.energy_level === null || updateRow.energy_level === undefined) {
+          delete updateRow.energy_level;
+        }
         delete updateRow.activity_level;
         delete updateRow.urgency_level;
         delete updateRow.imported_status;
+
+        if (hasText(existingDog.description)) {
+          delete updateRow.description;
+        }
 
         if (!updateRow.shelter_id) {
           delete updateRow.shelter_id;

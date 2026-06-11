@@ -2,6 +2,10 @@
 
 /**
  * Controlled RescueGroups import for Detroit Animal Care and Control.
+ * BOOTSTRAP/MANUAL IMPORTER ONLY.
+ *
+ * Use sync-rescuegroups-dogs.cjs via `npm run sync:rescuegroups` for the daily
+ * accurate refresh path. That sync marks missing dogs unavailable.
  *
  * Defaults to preview mode. Add --confirm to write to Supabase.
  * This script does not run SQL, delete dogs, scrape other sites, or mark missing
