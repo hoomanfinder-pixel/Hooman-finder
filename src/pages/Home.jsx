@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
+import { getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
 
@@ -39,6 +40,18 @@ function dateSeed(date = new Date()) {
   return key.split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
 }
 
+function seededValue(input) {
+  const text = String(input || "");
+  let hash = 2166136261;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return hash >>> 0;
+}
+
 function urgencyClass(level) {
   switch (level) {
     case "Critical":
@@ -64,8 +77,23 @@ function rotatedPick(dogs, seed, usedIds = new Set()) {
   return pool[seed % pool.length];
 }
 
+function dailyShuffleDogs(dogs) {
+  const today = new Date();
+  const dateKey = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return [...dogs].sort((a, b) => {
+    const aValue = seededValue(`${dateKey}:${a?.id || a?.name || ""}`);
+    const bValue = seededValue(`${dateKey}:${b?.id || b?.name || ""}`);
+    return aValue - bValue;
+  });
+}
+
 function pickDailyFeaturedDogs(dogs) {
-  const pool = Array.isArray(dogs) ? dogs.filter((dog) => dog?.id) : [];
+  const pool = dailyShuffleDogs(Array.isArray(dogs) ? dogs.filter((dog) => dog?.id) : []);
   const urgentPool = pool.filter((dog) =>
     ["Critical", "High", "Urgent"].includes(dog?.urgency_level)
   );
@@ -99,15 +127,24 @@ export default function Home() {
       try {
         const { data, error } = await supabase
           .from("dogs")
-          .select(
-            "id, name, photo_url, urgency_level, adoptable, adoption_pending, availability_status, created_at, source, external_id, rescuegroups_id, rescuegroups_org_id, source_url, adoption_url, verified, availability_verified, source_confidence"
-          )
+          .select(`
+            *,
+            shelters (
+              id,
+              name,
+              city,
+              state,
+              website,
+              apply_url,
+              logo_url
+            )
+          `)
           .eq("adoptable", true)
           .not("photo_url", "is", null)
           .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"])
           .order("created_at", { ascending: false })
-          .limit(12);
+          .limit(48);
 
         if (error) throw error;
 
@@ -156,6 +193,7 @@ export default function Home() {
       ...row,
       dog: featuredDogs[index] || null,
       image: featuredDogs[index]?.photo_url || fallbackDogImages[index],
+      rescueName: featuredDogs[index] ? getDogSourceName(featuredDogs[index], "") : "",
     }));
   }, [featuredDogs]);
 
@@ -326,6 +364,12 @@ export default function Home() {
                           {row.dog.urgency_level}
                         </p>
                       ) : null}
+
+                      {row.rescueName ? (
+                        <p className="rounded-full bg-white/65 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500 ring-1 ring-stone-950/8">
+                          {row.rescueName}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="mt-5">
@@ -370,6 +414,12 @@ export default function Home() {
                             <p className="mt-1 truncate text-2xl font-black leading-none text-white drop-shadow-sm">
                               {row.dog?.name || "View dogs"}
                             </p>
+
+                            {row.rescueName ? (
+                              <p className="mt-1 truncate text-xs font-bold uppercase tracking-[0.14em] text-white/78">
+                                {row.rescueName}
+                              </p>
+                            ) : null}
                           </div>
 
                           <div className="hidden rounded-full bg-white/90 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-950 sm:block">

@@ -13,6 +13,7 @@ import {
 } from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { filterPublicDogs } from "../lib/dogVisibility";
+import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
 import { supabase } from "../lib/supabase";
 import { QUIZ_MODES } from "../lib/quizQuestions";
 
@@ -76,11 +77,11 @@ function normalizeAgeBucket(ageYears, ageText) {
 }
 
 function getShelterId(dog) {
-  return dog?.shelters?.id || dog?.shelter_id || "";
+  return getDogSourceFilterId(dog) || "";
 }
 
 function getShelterName(dog) {
-  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
+  return getDogSourceName(dog);
 }
 
 export default function Results() {

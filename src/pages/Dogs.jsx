@@ -5,6 +5,12 @@ import DogCard from "../components/DogCard";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 import { filterPublicDogs } from "../lib/dogVisibility";
+import {
+  getDogApplyLink,
+  getDogSourceFilterId,
+  getDogSourceName,
+  hasDogLevelSource,
+} from "../lib/dogSource";
 import { supabase } from "../lib/supabase";
 
 const AGE_OPTIONS = [
@@ -72,18 +78,15 @@ function urgencyRank(level) {
 
 function normalizeDog(dog) {
   const joinedShelter = dog?.shelters || null;
+  const dogLevelSource = hasDogLevelSource(dog);
 
   const fallbackShelter =
-    dog?.shelter_name ||
-    dog?.shelter_website ||
-    dog?.placement_city ||
-    dog?.placement_state ||
-    dog?.source_url
+    dogLevelSource
       ? {
-          id: dog.shelter_id || null,
-          name: dog.shelter_name || "Shelter or rescue",
+          id: getDogSourceFilterId(dog) || null,
+          name: getDogSourceName(dog),
           website: dog.shelter_website || dog.source_url || null,
-          apply_url: dog.source_url || dog.shelter_website || null,
+          apply_url: getDogApplyLink(dog) || null,
           logo_url: null,
           city: dog.placement_city || null,
           state: dog.placement_state || null,
@@ -95,16 +98,16 @@ function normalizeDog(dog) {
     age_years: dog.age_years,
     display_age: dog.age_text || (dog.age_years ? `${dog.age_years} years` : null),
     photo_url: dog.photo_url,
-    shelters: joinedShelter || fallbackShelter,
+    shelters: fallbackShelter || joinedShelter,
   };
 }
 
 function getShelterId(dog) {
-  return dog?.shelters?.id || dog?.shelter_id || "";
+  return getDogSourceFilterId(dog) || "";
 }
 
 function getShelterName(dog) {
-  return dog?.shelters?.name || dog?.shelter_name || "Shelter or rescue";
+  return getDogSourceName(dog);
 }
 
 export default function Dogs() {
