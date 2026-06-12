@@ -173,6 +173,21 @@ function truthy(v) {
   return s === "true" || s === "yes" || s === "y" || s === "1";
 }
 
+function bioTraitCredit(value) {
+  const normalized = String(value ?? "").toLowerCase().trim();
+  if (normalized === "yes") return 1;
+  if (normalized === "most_likely") return 0.75;
+  if (normalized === "may_do_well") return 0.5;
+  return 0;
+}
+
+function compatibilityCredit(confirmedValue, bioValue) {
+  if (confirmedValue === true) return 1;
+  if (confirmedValue === false) return 0;
+  if (truthy(confirmedValue)) return 1;
+  return bioTraitCredit(bioValue);
+}
+
 function labelFor(qid) {
   return READABLE_MATCH_REASONS[qid] ?? prettifyId(qid);
 }
@@ -204,6 +219,7 @@ function scoreQuestion(qid, answer, dog) {
   }
 
   let matched = false;
+  let credit = null;
 
   switch (qid) {
     case "size_preference": {
@@ -237,7 +253,8 @@ function scoreQuestion(qid, answer, dog) {
         null;
 
       if (a === "yes" || a === "kids" || a === "children") {
-        matched = truthy(dogKids);
+        credit = compatibilityCredit(dogKids, dog?.bio_good_with_kids);
+        matched = credit > 0;
       } else {
         matched = true;
       }
@@ -246,27 +263,42 @@ function scoreQuestion(qid, answer, dog) {
 
     case "pets_in_home": {
       const picks = normalizeAnswerList(answer);
-      let ok = true;
+      const credits = [];
 
       if (picks.includes("dogs")) {
-        ok = ok && truthy(dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs);
+        credits.push(
+          compatibilityCredit(
+            dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs,
+            dog?.bio_good_with_dogs
+          )
+        );
       }
 
       if (picks.includes("cats")) {
-        ok = ok && truthy(dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats);
+        credits.push(
+          compatibilityCredit(
+            dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats,
+            dog?.bio_good_with_cats
+          )
+        );
       }
 
       if (picks.includes("small_pets") || picks.includes("small_animals")) {
-        ok =
-          ok &&
+        credits.push(
           truthy(
             dog?.good_with_small_animals ??
               dog?.good_with_small_pets ??
               dog?.small_pets_ok
-          );
+          )
+            ? 1
+            : 0
+        );
       }
 
-      matched = ok;
+      credit = credits.length
+        ? credits.reduce((sum, value) => sum + value, 0) / credits.length
+        : 1;
+      matched = credit > 0;
       break;
     }
 
@@ -275,7 +307,22 @@ function scoreQuestion(qid, answer, dog) {
       const dogPotty = dog?.potty_trained ?? dog?.house_trained ?? dog?.houseTrained ?? null;
 
       if (a === "must_be_trained" || a === "required" || a === "must") {
-        matched = truthy(dogPotty);
+        credit = compatibilityCredit(dogPotty, dog?.bio_potty_trained);
+        matched = credit > 0;
+      } else {
+        matched = true;
+      }
+      break;
+    }
+
+    case "first_time_owner": {
+      const a = String(answer).toLowerCase();
+      const dogFirstTime =
+        dog?.first_time_friendly ?? dog?.beginner_friendly ?? dog?.firstTimeFriendly ?? null;
+
+      if (a === "yes") {
+        credit = compatibilityCredit(dogFirstTime, dog?.bio_first_time_friendly);
+        matched = credit > 0;
       } else {
         matched = true;
       }
@@ -322,7 +369,7 @@ function scoreQuestion(qid, answer, dog) {
   }
 
   return {
-    earned: matched ? weight : 0,
+    earned: credit === null ? (matched ? weight : 0) : weight * credit,
     possible: weight,
     reasonLabel: labelFor(qid),
     matched,

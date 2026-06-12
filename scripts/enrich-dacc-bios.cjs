@@ -182,6 +182,43 @@ function extractCautiousNotes(bio) {
   return Array.from(new Set(notes)).join(" ");
 }
 
+function hasDogMayDoWellClue(bio) {
+  const text = clean(bio).toLowerCase();
+  const hasPositiveDogContext =
+    text.includes("may do well living with a fur sibling") ||
+    text.includes("may do well with a fur sibling") ||
+    text.includes("may do well with dogs") ||
+    text.includes("non reactive to dogs") ||
+    text.includes("non-reactive to dogs") ||
+    text.includes("slow and proper intro");
+
+  const hasUnknownLine =
+    text.includes("unknown behavior with dogs/cats/kids") ||
+    text.includes("unknown behavior with dogs") ||
+    text.includes("unknown with dogs");
+
+  return hasPositiveDogContext && !text.includes("must be the only dog") && !text.includes("no dogs")
+    ? { value: "may_do_well", note: hasUnknownLine ? "Bio has positive dog context, but source also says behavior is unknown." : "" }
+    : null;
+}
+
+function hasPatientOwnerClue(bio) {
+  const text = clean(bio).toLowerCase();
+  const clues = [
+    "timid",
+    "needs encouragement",
+    "inexperienced",
+    "hasn’t had a lot of socialization",
+    "hasn't had a lot of socialization",
+    "needs time",
+    "needs patience",
+    "still learning",
+    "world seems new and scary",
+  ];
+
+  return clues.some((clue) => text.includes(clue));
+}
+
 function explicitYes(value) {
   return clean(value).toLowerCase() === "yes";
 }
@@ -206,6 +243,40 @@ function buildTraitUpdates(dog, animal) {
   }
 
   return updates;
+}
+
+function buildBioTraitUpdates(dog, bio) {
+  const updates = {};
+  const logs = [];
+  const dogClue = hasDogMayDoWellClue(bio);
+  const patientOwnerClue = hasPatientOwnerClue(bio);
+
+  if (dogClue) {
+    if (!hasText(dog.bio_good_with_dogs) || dog.bio_good_with_dogs === "unknown") {
+      updates.bio_good_with_dogs = dogClue.value;
+      logs.push("estimated dog compatibility set: may_do_well");
+    } else {
+      logs.push(`skipped estimated dog compatibility; existing bio_good_with_dogs=${dog.bio_good_with_dogs}`);
+    }
+  }
+
+  if (patientOwnerClue) {
+    if (!hasText(dog.bio_first_time_friendly) || dog.bio_first_time_friendly === "unknown") {
+      updates.bio_first_time_friendly = "no";
+      logs.push("first-time/patient-owner clues found");
+    } else {
+      logs.push(
+        `skipped first-time estimate; existing bio_first_time_friendly=${dog.bio_first_time_friendly}`
+      );
+    }
+  }
+
+  if (Object.keys(updates).length > 0) {
+    updates.bio_traits_source = "dacc_sheltermanager_bio_rules";
+    updates.bio_traits_updated_at = new Date().toISOString();
+  }
+
+  return { updates, logs };
 }
 
 function detailUrl(animalId) {
@@ -301,7 +372,12 @@ async function fetchDaccDogs(supabase) {
         good_with_cats,
         good_with_kids,
         potty_trained,
-        first_time_friendly
+        first_time_friendly,
+        bio_good_with_dogs,
+        bio_good_with_cats,
+        bio_good_with_kids,
+        bio_potty_trained,
+        bio_first_time_friendly
       `
     )
     .eq("source", "rescuegroups")
@@ -327,11 +403,14 @@ function buildUpdate(dog, animal, bio, cautiousNote) {
   const traitUpdates = buildTraitUpdates(dog, animal);
   Object.assign(update, traitUpdates);
 
+  const bioTraitResult = buildBioTraitUpdates(dog, bio);
+  Object.assign(update, bioTraitResult.updates);
+
   if (cautiousNote && !hasText(dog.placement_note)) {
     update.placement_note = cautiousNote;
   }
 
-  return update;
+  return { update, logs: bioTraitResult.logs };
 }
 
 async function main() {
@@ -413,7 +492,7 @@ async function main() {
     }
 
     const cautiousNote = extractCautiousNotes(bio);
-    const update = buildUpdate(dog, animal, bio, cautiousNote);
+    const { update, logs } = buildUpdate(dog, animal, bio, cautiousNote);
 
     if (hasText(dog.description) && !isGenericDescription(dog.description)) {
       summary.manualPreserved += 1;
@@ -427,6 +506,11 @@ async function main() {
           .join(",") || "none"
       } note=${update.placement_note ? "yes" : "no"}`
     );
+
+    logs.forEach((message) => console.log(`  ${message}`));
+    if (update.placement_note) {
+      console.log("  notes added");
+    }
 
     if (dog.name.toLowerCase() === "cruise") {
       console.log("CRUISE BEFORE DESCRIPTION:");
