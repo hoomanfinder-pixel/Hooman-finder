@@ -53,8 +53,13 @@ export function getDogSourceName(dog, fallback = UNAVAILABLE_ORG_LABEL) {
 }
 
 export function getDogSourceLogo(dog) {
-  if (hasDogLevelSource(dog)) return "";
-  return clean(dog?.shelters?.logo_url);
+  return (
+    clean(dog?.shelter_logo_url) ||
+    clean(dog?.rescue_logo_url) ||
+    clean(dog?.organization_logo_url) ||
+    clean(dog?.logo_url) ||
+    clean(dog?.shelters?.logo_url)
+  );
 }
 
 export function getDogSourceLocation(dog, fallback = "Location unknown") {

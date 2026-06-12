@@ -396,6 +396,7 @@ export default function DogDetail() {
   const [matchInfoOpen, setMatchInfoOpen] = useState(false);
   const [photoOpen, setPhotoOpen] = useState(false);
   const [bioExpanded, setBioExpanded] = useState(false);
+  const [shelterLogoFailed, setShelterLogoFailed] = useState(false);
 
   useEffect(() => {
     if (sessionId) setActiveQuizSessionId(sessionId);
@@ -413,6 +414,10 @@ export default function DogDetail() {
   }, [id]);
 
   useEffect(() => {
+    setShelterLogoFailed(false);
+  }, [dog?.id, dog?.shelters?.logo_url, dog?.shelter_logo_url, dog?.rescue_logo_url]);
+
+  useEffect(() => {
     let isMounted = true;
 
     async function fetchDog() {
@@ -424,12 +429,14 @@ export default function DogDetail() {
         .select(`
           *,
           shelters (
+            id,
             name,
             website,
             apply_url,
             logo_url,
             city,
-            state
+            state,
+            rescuegroups_org_id
           )
         `)
         .eq("id", id)
@@ -441,7 +448,42 @@ export default function DogDetail() {
         setLoadError(error.message || "Failed to load dog.");
         setDog(null);
       } else {
-        setDog(data);
+        let dogData = data;
+
+        if (!displayShelterLogo(dogData)) {
+          let fallbackShelter = null;
+
+          if (dogData?.rescuegroups_org_id) {
+            const { data: shelterByOrg } = await supabase
+              .from("shelters")
+              .select("id, name, website, apply_url, logo_url, city, state, rescuegroups_org_id")
+              .eq("rescuegroups_org_id", String(dogData.rescuegroups_org_id))
+              .limit(1)
+              .maybeSingle();
+
+            fallbackShelter = shelterByOrg || null;
+          }
+
+          if (!fallbackShelter && dogData?.shelter_name) {
+            const { data: shelterByName } = await supabase
+              .from("shelters")
+              .select("id, name, website, apply_url, logo_url, city, state, rescuegroups_org_id")
+              .eq("name", dogData.shelter_name)
+              .limit(1)
+              .maybeSingle();
+
+            fallbackShelter = shelterByName || null;
+          }
+
+          if (fallbackShelter?.logo_url) {
+            dogData = {
+              ...dogData,
+              shelters: fallbackShelter,
+            };
+          }
+        }
+
+        if (isMounted) setDog(dogData);
       }
 
       setLoading(false);
@@ -1083,12 +1125,13 @@ export default function DogDetail() {
           <section className="order-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="text-sm font-extrabold text-slate-900">Listed by</div>
             <div className="mt-3 flex items-center gap-3">
-              {shelterLogo ? (
+              {shelterLogo && !shelterLogoFailed ? (
                 <div className="flex h-14 w-28 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white p-2 sm:h-16 sm:w-36">
                   <img
                     src={shelterLogo}
                     alt={`${shelterName} logo`}
                     className="h-full w-full object-contain"
+                    onError={() => setShelterLogoFailed(true)}
                   />
                 </div>
               ) : (
