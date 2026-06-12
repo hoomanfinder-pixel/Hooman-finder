@@ -9,6 +9,7 @@
     "dry-run:dacc": "node scripts/dry-run-dacc-rescuegroups.cjs",
     "inspect:dacc-fields": "node scripts/inspect-dacc-rescuegroups-fields.cjs",
     "import:rescuegroups:dacc": "node scripts/import-dacc-rescuegroups.cjs",
+    "enrich:dacc-bios": "node scripts/enrich-dacc-bios.cjs",
     "sync:rescuegroups": "node sync-rescuegroups-dogs.cjs",
     "preview": "vite preview"
   },
