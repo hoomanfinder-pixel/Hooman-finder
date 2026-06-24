@@ -1,0 +1,36 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'sha256-lZtoPiXi27JC95obZGCUNosSMsAbiIHYUreIiRbZorQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+
+[[redirects]]
+  from = "http://hoomanfinder.com/*"
+  to = "https://hoomanfinder.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "http://www.hoomanfinder.com/*"
+  to = "https://hoomanfinder.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.hoomanfinder.com/*"
+  to = "https://hoomanfinder.com/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -7,6 +7,7 @@ import {
   getDogSourceLocation,
   getDogSourceName,
 } from "../lib/dogSource";
+import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge } from "../utils/formatAge";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -299,10 +300,17 @@ export default function DogCard({
 }) {
   const [openModal, setOpenModal] = useState(false);
   const [saved, setSaved] = useState(() => isSavedId(dog?.id));
+  const [imageFailed, setImageFailed] = useState(false);
 
   const urgency = dog?.urgency_level || "Standard";
   const applyLink = displayApplyLink(dog);
-  const imgSrc = dog?.photo_url || dog?.image_url || dog?.photo || "";
+  const rawImgSrc = useMemo(
+    () => [dog?.photo_url, dog?.image_url, dog?.photo, dog?.image, dog?.primary_photo_url]
+      .map((url) => normalizeImageUrl(url, { allowRelative: false }))
+      .find(Boolean) || "",
+    [dog?.image, dog?.image_url, dog?.photo, dog?.photo_url, dog?.primary_photo_url]
+  );
+  const imgSrc = imageFailed ? "" : rawImgSrc;
   const imgAlt = dogPhotoAlt(dog);
   const cardVariant = showMatch ? "match" : variant;
 
@@ -357,6 +365,10 @@ export default function DogCard({
       window.removeEventListener("hooman:saved_changed", sync);
     };
   }, [dog?.id]);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [dog?.id, rawImgSrc]);
 
   function openFromClick(e) {
     e.preventDefault();
@@ -511,6 +523,7 @@ export default function DogCard({
                 alt={imgAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
                 loading="lazy"
+                onError={() => setImageFailed(true)}
               />
             ) : (
               <PlaceholderPhoto name={dog?.name} />
@@ -581,6 +594,7 @@ export default function DogCard({
                 alt={imgAlt}
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
                 loading="lazy"
+                onError={() => setImageFailed(true)}
               />
             ) : (
               <PlaceholderPhoto name={dog?.name} />
@@ -664,6 +678,7 @@ export default function DogCard({
               alt={imgAlt}
               className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
               loading="lazy"
+              onError={() => setImageFailed(true)}
             />
           ) : (
             <PlaceholderPhoto name={dog?.name} />

@@ -4,6 +4,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import DogCard from "../components/DogCard";
 import { filterPublicDogs } from "../lib/dogVisibility";
+import { normalizeExternalUrl } from "../lib/urlSafety";
 
 function getParam(search, key) {
   const params = new URLSearchParams(search);
@@ -178,13 +179,4 @@ export default function Shelter() {
       </div>
     </div>
   );
-}
-
-function normalizeExternalUrl(raw) {
-  if (!raw || typeof raw !== "string") return "";
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  if (trimmed.startsWith("//")) return `https:${trimmed}`;
-  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
-  return trimmed;
 }

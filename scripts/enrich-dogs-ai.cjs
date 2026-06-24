@@ -8,6 +8,12 @@
 // - dogs.bio_good_with_cats = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_first_time_friendly = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_potty_trained = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_energy_level = low / medium_low / medium / medium_high / high / unknown
+// - dogs.bio_shedding_level = low / medium / high / unknown
+// - dogs.bio_max_alone_hours = integer or null
+// - dogs.bio_max_alone_hours_label = 1-2 / 3-4 / 5-6 / 7-8 / unknown
+// - dogs.bio_exercise_needs = low / medium_low / medium / medium_high / high / unknown
+// - dogs.bio_training_needs = low / medium_low / medium / medium_high / high / unknown
 //
 // Run:
 //   node scripts/enrich-dogs-ai.cjs --limit=1 --force
@@ -22,12 +28,15 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v3";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v7";
 const DEFAULT_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "no", "unknown"]);
+const ENERGY_VALUES = new Set(["low", "medium_low", "medium", "medium_high", "high", "unknown"]);
+const SHEDDING_VALUES = new Set(["low", "medium", "high", "unknown"]);
+const ALONE_HOURS_LABELS = new Set(["1-2", "3-4", "5-6", "7-8", "unknown"]);
 
 if (!SUPABASE_URL) throw new Error("Missing VITE_SUPABASE_URL in .env.local");
 if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
@@ -233,6 +242,29 @@ Allowed values for boolean-like traits:
 - "false" = clearly not compatible or clearly not trained
 - "unknown" = not enough info
 
+Allowed values for energy_level, exercise_needs, and training_needs:
+- "low"
+- "medium_low"
+- "medium"
+- "medium_high"
+- "high"
+- "unknown"
+
+Allowed values for shedding_level:
+- "low"
+- "medium"
+- "high"
+- "unknown"
+
+Max alone hours:
+- Use max_alone_hours_estimate.value as an integer from 1 through 8 when there is usable evidence.
+- Use null when there is not enough evidence.
+- Do not estimate one to two hours merely because a dog is affectionate, senior, people-oriented, or enjoys companionship.
+- Use one to two hours only with clear separation anxiety, panic/destruction when alone, severe crate distress, very young puppy needs, severe insecurity requiring constant support, frequent medical monitoring, or explicit should-not-be-left-long wording.
+- Use three to four hours for mild separation concerns, a young dog still learning, moderate anxiety/adjustment needs, or wording that people should be home often without severe distress.
+- Use five to six hours for a calm/low-energy adult or senior, a house-trained or crate-trained dog, a dog who settles independently, and no separation anxiety or destructive behavior evidence.
+- Use seven to eight hours only for an adult/senior with strong evidence of comfort alone or a normal workday, independent settling, and no anxiety concerns.
+
 Compatibility extraction rules:
 - Use "true" when the bio directly says the dog is good with, gets along with, loves, lived with, or does well with that group.
 - Use "likely" when the bio gives strong positive evidence but not a formal guarantee.
@@ -265,14 +297,28 @@ Potty training examples:
 - "not potty trained" => potty_trained false.
 
 First-time-friendly:
-- "true" only with clear easygoing/manageable/beginner-friendly behavior or training evidence.
-- "likely" when the bio strongly suggests manageable/easygoing traits, low or moderate energy, gentle temperament, and no advanced behavior needs.
-- "maybe" for mild positive signs like clear easygoing, calm, gentle, low-maintenance, manageable energy, or eager-to-please wording.
-- "false" only with clear experienced-adopter/breed-experience/major behavior needs.
+- First-time-friendly means likely manageable for someone who has never owned a dog before. It does not simply mean sweet, loving, gentle, or affectionate.
+- "true" only when the bio explicitly says easy, beginner-friendly, great first dog, perfect family dog, low-maintenance, or gives very strong evidence of an easy dog with very few needs.
+- "likely" only when the dog seems manageable for a normal first-time owner, has no major behavior/medical/training/lifestyle red flags, training needs are low/medium_low/medium, and the dog is not high complexity.
+- "maybe" when the dog could work for a committed or patient first-time owner but has meaningful needs such as shyness, normal puppy/young-dog training, slow introductions, manageable medical care, specific home setup, dog/cat incompatibility without other major issues, or mild separation concerns.
+- "false" with clear experienced-adopter/breed-experience/major behavior, medical, handling, training, fear, or lifestyle complexity.
 - "unknown" when generic, copied, mismatched, or not enough behavior detail.
 - "family", "great family dog", or "great addition to any family" must stay unknown by itself. Family language alone is not child-specific and is not first-time-owner evidence.
 
 Other rules:
+- Use description, breed, age_years, age_text, size, gender, activity_level, energy_level, qualities, and existing structured fields as evidence.
+- Never overwrite or reinterpret confirmed shelter/API structured fields. Structured true fields are evidence; missing/null fields are unknown.
+- Be conservative for compatibility fields like cats and kids. It is okay for good_with_cats and good_with_kids to stay unknown when there is no direct evidence.
+- Be less conservative for lifestyle-fit fields. First-time friendliness, energy, exercise needs, training needs, and shedding should usually be inferable from breed, age, size, description, coat, and behavior notes.
+- First-time friendliness should be based on overall needs. Use "false" for incontinence/cannot be housebroken, severe medical management, hospice, blind/deaf plus significant care needs, puppy mill survivor with fear of people, abuse history with fear/handling sensitivity, fearful of being picked up, experienced-owner needs, bite/aggression/reactivity language, resource guarding, escape artist, severe separation anxiety, child restrictions due to fear/behavior, very fearful/timid and still learning trust, may never enjoy touch/petting, requires another dog to function/confidence, severe leash/training issues, special handling needs, high training needs, or very high energy working breed with training needs.
+- Use "maybe" for first-time friendliness when needs are meaningful but manageable: shy/timid at first but warms up, needs patience without severe red flags, moderate training needs, normal puppy/young dog needs, slow introductions, manageable medical needs, older-kids/calmer-home/specific-home setup, not good with dogs/cats but otherwise manageable, or some separation concerns that are not severe.
+- Use "likely" for first-time friendliness only when the dog is described as easygoing, stable, gentle, friendly, affectionate, manageable, good houseguest, or good family dog AND has no major behavior/medical/training red flags AND training needs are low/medium_low/medium AND the dog is not high complexity. Sweet/loving/gentle alone is not enough when complex needs are present.
+- Use "true" for first-time friendliness only when beginner/easy language is explicit or evidence is very strong, with no major red flags. If needs_human_review should be true, avoid "true" and be cautious with "likely".
+- Estimate energy_level from activity_level/energy_level first when present, then from bio language. Do not leave energy unknown when there is clear activity or temperament evidence.
+- Puppies and young dogs should usually be at least medium unless the bio says calm. Working, herding, sporting, hound, shepherd, lab, husky, and active breeds should usually be medium_high or high unless the bio says otherwise. Seniors should usually be low or medium_low unless the bio says energetic.
+- Estimate shedding cautiously from breed/coat. Poodle/Bichon-type coats may be low unless mixed/unclear. Husky, German Shepherd, Golden Retriever, Labrador, Akita, and similar breeds are likely higher shedding. Short-coated breeds like Pit Bull Terrier, Boxer, Chihuahua, and Beagle are often low to medium. Unknown mixed breed should stay unknown unless breed or coat gives enough signal.
+- Estimate exercise_needs from energy, age, breed, and bio language.
+- Estimate training_needs from training progress, manners, leash reactivity, anxiety/fear, puppy age, experienced-adopter language, and bio behavior needs. Avoid unknown unless there is no meaningful information.
 - "research the breed before applying" should lower confidence and suggest review, but it should not erase specific compatibility evidence about kids, dogs, or cats.
 - Do not include the dog's name in ideal_home_summary.
 - If listing is generic, copied, mismatched, or too thin, make ideal_home_summary empty and set needs_human_review true.
@@ -281,6 +327,7 @@ Other rules:
 Return exactly this JSON shape:
 {
   "energy_level": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "shedding_level": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_kids": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_dogs": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_cats": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -293,6 +340,7 @@ Return exactly this JSON shape:
   "needs_yard": { "value": "unknown", "confidence": 0, "evidence": "" },
   "can_be_left_alone": { "value": "unknown", "confidence": 0, "evidence": "" },
   "max_alone_hours_estimate": { "value": null, "confidence": 0, "evidence": "" },
+  "exercise_needs": { "value": "unknown", "confidence": 0, "evidence": "" },
   "training_needs": { "value": "unknown", "confidence": 0, "evidence": "" },
   "home_environment": { "value": "unknown", "confidence": 0, "evidence": "" },
   "affection_level": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -342,6 +390,60 @@ function normalizeTraitObject(obj, fallbackValue = "unknown") {
   return {
     ...obj,
     value: normalizeTraitValue(obj.value, fallbackValue),
+    confidence: normalizeConfidence(obj.confidence),
+    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+  };
+}
+
+function normalizeEnergyLikeValue(value, fallbackValue = "unknown") {
+  const raw = String(value ?? fallbackValue).trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (!raw || raw === "unknown") return "unknown";
+
+  if (["low", "medium_low", "medium", "medium_high", "high"].includes(raw)) return raw;
+  if (["moderate", "average"].includes(raw)) return "medium";
+  if (["moderately_low", "low_medium", "low_to_medium"].includes(raw)) return "medium_low";
+  if (["moderately_high", "medium_to_high", "high_medium"].includes(raw)) return "medium_high";
+  if (raw.includes("very_active") || raw.includes("very_high")) return "high";
+  if (raw.includes("slightly_active")) return "medium_low";
+  if (raw.includes("calm") || raw.includes("couch_potato")) return "low";
+  if (raw.includes("moderate") || raw.includes("medium")) return "medium";
+  if (raw.includes("high")) return "high";
+  if (raw.includes("low")) return "low";
+
+  return fallbackValue;
+}
+
+function normalizeEnergyLikeTraitObject(obj, fallbackValue = "unknown") {
+  if (!obj || typeof obj !== "object") {
+    return { value: fallbackValue, confidence: 0, evidence: "" };
+  }
+
+  return {
+    ...obj,
+    value: normalizeEnergyLikeValue(obj.value, fallbackValue),
+    confidence: normalizeConfidence(obj.confidence),
+    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+  };
+}
+
+function normalizeSheddingValue(value, fallbackValue = "unknown") {
+  const raw = String(value ?? fallbackValue).trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (!raw || raw === "unknown") return "unknown";
+  if (["low", "medium", "high"].includes(raw)) return raw;
+  if (raw === "minimal" || raw === "very_low") return "low";
+  if (raw === "moderate" || raw === "average") return "medium";
+  if (raw === "heavy" || raw === "very_high") return "high";
+  return fallbackValue;
+}
+
+function normalizeSheddingTraitObject(obj, fallbackValue = "unknown") {
+  if (!obj || typeof obj !== "object") {
+    return { value: fallbackValue, confidence: 0, evidence: "" };
+  }
+
+  return {
+    ...obj,
+    value: normalizeSheddingValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
   };
@@ -412,7 +514,8 @@ function containsDifferentDogName(text, currentName) {
 
 function normalizeAiTraits(parsed, dogInput) {
   const normalized = {
-    energy_level: normalizeTraitObject(parsed.energy_level),
+    energy_level: normalizeEnergyLikeTraitObject(parsed.energy_level),
+    shedding_level: normalizeSheddingTraitObject(parsed.shedding_level),
     good_with_kids: normalizeTraitObject(parsed.good_with_kids),
     good_with_dogs: normalizeTraitObject(parsed.good_with_dogs),
     good_with_cats: normalizeTraitObject(parsed.good_with_cats),
@@ -425,7 +528,8 @@ function normalizeAiTraits(parsed, dogInput) {
     needs_yard: normalizeTraitObject(parsed.needs_yard),
     can_be_left_alone: normalizeTraitObject(parsed.can_be_left_alone),
     max_alone_hours_estimate: normalizeNumericTraitObject(parsed.max_alone_hours_estimate),
-    training_needs: normalizeTraitObject(parsed.training_needs),
+    exercise_needs: normalizeEnergyLikeTraitObject(parsed.exercise_needs),
+    training_needs: normalizeEnergyLikeTraitObject(parsed.training_needs),
     home_environment: normalizeTraitObject(parsed.home_environment),
     affection_level: normalizeTraitObject(parsed.affection_level),
     playfulness: normalizeTraitObject(parsed.playfulness),
@@ -498,54 +602,325 @@ function normalizeAiTraits(parsed, dogInput) {
     );
   }
 
-  function hasFirstTimeFriendlyEvidence() {
-    return includesAny([
-      "first time dog owner",
-      "first-time dog owner",
-      "first time owner",
-      "first-time owner",
-      "beginner friendly",
-      "beginner-friendly",
-      "easygoing",
-      "easy going",
-      "easy dog",
-      "low maintenance",
-      "low-maintenance",
-      "calm dog",
-      "calm girl",
-      "calm boy",
-      "very chill",
-      "gentle dog",
-      "gentle girl",
-      "gentle boy",
-      "laid back",
-      "laid-back",
-      "eager to please",
-      "good manners",
-      "bestest manners",
-    ]);
-  }
+  function ageStage() {
+    const n = Number(dogInput.age_years);
+    if (Number.isFinite(n)) {
+      if (n < 1.5) return "puppy";
+      if (n < 3) return "young";
+      if (n >= 7) return "senior";
+      return "adult";
+    }
 
-  function normalizeEnergyValue(value) {
-    const raw = String(value || "").toLowerCase().trim();
-    if (!raw || raw === "unknown") return "unknown";
-    if (raw.includes("low") || raw.includes("calm") || raw.includes("slightly active")) return "low";
-    if (raw.includes("high") || raw.includes("very active")) return "high";
-    if (raw.includes("moderate") || raw.includes("medium")) return "moderate";
+    const text = String(dogInput.age_text || "").toLowerCase();
+    if (text.includes("puppy")) return "puppy";
+    if (text.includes("young")) return "young";
+    if (text.includes("senior")) return "senior";
+    if (text.includes("adult")) return "adult";
     return "unknown";
   }
 
+  function isWorkingHerdingSportingBreed() {
+    return breedIncludesAny(dogInput.breed, [
+      "australian cattle dog",
+      "australian shepherd",
+      "belgian malinois",
+      "border collie",
+      "cattle dog",
+      "collie",
+      "german shepherd",
+      "shepherd",
+      "husky",
+      "siberian husky",
+      "akita",
+      "retriever",
+      "labrador",
+      "golden",
+      "pointer",
+      "hound",
+      "coonhound",
+      "beagle",
+      "weimaraner",
+      "vizsla",
+      "terrier",
+    ]);
+  }
+
+  function hasMajorFirstTimeRedFlag() {
+    return includesAny([
+      "incontinent",
+      "incontinence",
+      "cannot be housebroken",
+      "cannot be fully housebroken",
+      "cannot become housebroken",
+      "can't be housebroken",
+      "can't be fully housebroken",
+      "can not be housebroken",
+      "will never be housebroken",
+      "severe medical",
+      "medical management",
+      "significant medical",
+      "complex medical",
+      "lots of needs",
+      "lot of needs",
+      "hospice",
+      "blind and deaf with",
+      "deaf and blind with",
+      "puppy mill survivor",
+      "fear of people",
+      "afraid of people",
+      "abuse history",
+      "abused",
+      "fearful of being picked up",
+      "does not like to be picked up",
+      "doesn't like to be picked up",
+      "handling sensitivity",
+      "special handling",
+      "experienced owner",
+      "experienced adopter",
+      "experienced dog owner",
+      "breed experience",
+      "severe fear",
+      "very fearful",
+      "extremely fearful",
+      "very timid",
+      "extremely timid",
+      "still learning to trust",
+      "learning people are safe",
+      "shut down",
+      "may never enjoy touch",
+      "may never enjoy petting",
+      "may never like pets",
+      "requires another dog",
+      "needs another dog",
+      "needs a dog friend",
+      "needs another dog friend",
+      "needs a confident dog",
+      "requires a confident dog",
+      "resource guarding",
+      "guards food",
+      "guards toys",
+      "dog reactive",
+      "cat reactive",
+      "reactive to dogs",
+      "reactive to cats",
+      "separation anxiety",
+      "severe separation anxiety",
+      "escape artist",
+      "climbs fences",
+      "jumps fences",
+      "severe leash",
+      "leash reactive",
+      "severe training",
+      "major structure",
+      "needs structure",
+      "bite history",
+      "has bitten",
+      "bite risk",
+      "aggression",
+      "aggressive",
+      "not good with children",
+      "no kids",
+      "no children",
+      "adult-only home",
+      "adult only home",
+      "teens only",
+      "older kids only",
+      "not for first time",
+      "not for a first time",
+      "not for first-time",
+      "not for a first-time",
+    ]);
+  }
+
+  function hasHighComplexityNeeds() {
+    const trainingNeeds = normalizeEnergyLikeValue(normalized.training_needs?.value);
+    const energyValue = normalizeEnergyLikeValue(normalized.energy_level?.value);
+
+    return (
+      trainingNeeds === "medium_high" ||
+      trainingNeeds === "high" ||
+      hasMajorFirstTimeRedFlag() ||
+      includesAny([
+        "special needs",
+        "special care",
+        "daily medication",
+        "medications",
+        "ongoing medical",
+        "medical needs",
+        "mobility issues",
+        "neurological",
+        "diabetes",
+        "seizures",
+        "heartworm",
+        "fearful",
+        "timid",
+        "wary of new people",
+        "cautious with new people",
+        "assertive",
+        "needs lots of patience",
+        "needs a lot of patience",
+        "not good with dogs",
+        "not good with cats",
+        "only dog",
+        "must be the only dog",
+      ]) ||
+      (energyValue === "high" &&
+        isWorkingHerdingSportingBreed() &&
+        includesAny(["needs training", "working on manners", "needs structure", "leash"]))
+    );
+  }
+
+  function hasMildManageableNeeds() {
+    return includesAny([
+      "timid but gentle",
+      "shy but sweet",
+      "shy at first",
+      "needs patience",
+      "patient adopter",
+      "slow introductions",
+      "slow intro",
+      "needs time to warm up",
+      "warms up",
+      "cautious with new people",
+      "wary of new people",
+      "working on manners",
+      "working on leash manners",
+      "young dog",
+      "moderate energy",
+      "medium energy",
+      "older kids",
+      "older children",
+      "calmer home",
+      "quiet home",
+      "specific home",
+      "medical needs",
+      "manageable medical",
+      "not good with dogs",
+      "not good with cats",
+      "no cats",
+      "some separation",
+    ]);
+  }
+
+  function hasExplicitEasyBeginnerSignals() {
+    return includesAny([
+      "easygoing",
+      "easy going",
+      "easy dog",
+      "easy pup",
+      "beginner friendly",
+      "beginner-friendly",
+      "great first dog",
+      "perfect first dog",
+      "good first dog",
+      "great for a first time owner",
+      "great for a first-time owner",
+      "perfect family dog",
+      "low maintenance",
+      "low-maintenance",
+    ]);
+  }
+
+  function hasEasyStableSignals() {
+    return includesAny([
+      "easygoing",
+      "easy going",
+      "easy dog",
+      "manageable",
+      "good houseguest",
+      "stable",
+      "gentle",
+      "calm",
+      "laid back",
+      "laid-back",
+      "affectionate",
+      "friendly",
+      "good family dog",
+      "great family dog",
+      "perfect family dog",
+      "crate trained",
+      "crate-trained",
+      "potty trained",
+      "house trained",
+      "housebroken",
+      "walks well",
+      "walks nicely",
+      "good on leash",
+      "knows basic commands",
+      "knows commands",
+      "good with dogs",
+      "good with cats",
+      "good with kids",
+      "loves people",
+      "people friendly",
+    ]);
+  }
+
+  function hasWarmTemperamentOnly() {
+    return includesAny(["sweet", "loving", "love bug", "snuggly", "cuddly", "affectionate", "gentle"]) &&
+      !hasExplicitEasyBeginnerSignals() &&
+      !includesAny([
+        "crate trained",
+        "crate-trained",
+        "potty trained",
+        "house trained",
+        "housebroken",
+        "walks well",
+        "walks nicely",
+        "good on leash",
+        "knows basic commands",
+        "knows commands",
+        "good houseguest",
+        "manageable",
+        "stable",
+      ]);
+  }
+
   function setEnergy(value, confidence, evidence, force = false) {
-    const normalizedValue = normalizeEnergyValue(value);
-    if (!["low", "moderate", "high"].includes(normalizedValue)) return;
+    const normalizedValue = normalizeEnergyLikeValue(value);
+    if (!ENERGY_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
 
     const currentConfidence = Number(normalized.energy_level?.confidence || 0);
-    const currentValue = normalizeEnergyValue(normalized.energy_level?.value);
+    const currentValue = normalizeEnergyLikeValue(normalized.energy_level?.value);
 
     if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
     if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
 
     normalized.energy_level = {
+      value: normalizedValue,
+      confidence: force ? confidence : Math.max(currentConfidence, confidence),
+      evidence,
+    };
+  }
+
+  function setEnergyLikeTrait(key, value, confidence, evidence, force = false) {
+    const normalizedValue = normalizeEnergyLikeValue(value);
+    if (!ENERGY_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
+
+    const currentConfidence = Number(normalized[key]?.confidence || 0);
+    const currentValue = normalizeEnergyLikeValue(normalized[key]?.value);
+
+    if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
+    if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
+
+    normalized[key] = {
+      value: normalizedValue,
+      confidence: force ? confidence : Math.max(currentConfidence, confidence),
+      evidence,
+    };
+  }
+
+  function setShedding(value, confidence, evidence, force = false) {
+    const normalizedValue = normalizeSheddingValue(value);
+    if (!SHEDDING_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
+
+    const currentConfidence = Number(normalized.shedding_level?.confidence || 0);
+    const currentValue = normalizeSheddingValue(normalized.shedding_level?.value);
+
+    if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
+    if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
+
+    normalized.shedding_level = {
       value: normalizedValue,
       confidence: force ? confidence : Math.max(currentConfidence, confidence),
       evidence,
@@ -571,8 +946,9 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  const existingEnergy = normalizeEnergyValue(dogInput.current_energy_level);
-  const aiEnergy = normalizeEnergyValue(normalized.energy_level?.value);
+  const existingEnergy = normalizeEnergyLikeValue(dogInput.current_energy_level);
+  const aiEnergy = normalizeEnergyLikeValue(normalized.energy_level?.value);
+  const stage = ageStage();
 
   if (aiEnergy === "unknown") {
     normalized.energy_level = {
@@ -585,8 +961,14 @@ function normalizeAiTraits(parsed, dogInput) {
   if (existingEnergy !== "unknown") {
     setEnergy(
       existingEnergy,
-      0.72,
+      0.82,
       `Existing structured energy level is ${existingEnergy}.`
+    );
+    setEnergyLikeTrait(
+      "exercise_needs",
+      existingEnergy,
+      0.72,
+      `Exercise needs inferred from structured energy level ${existingEnergy}.`
     );
   }
 
@@ -606,6 +988,21 @@ function normalizeAiTraits(parsed, dogInput) {
     ])
   ) {
     setEnergy("high", 0.92, "Bio clearly describes high energy or high exercise needs.", true);
+    setEnergyLikeTrait("exercise_needs", "high", 0.9, "Bio clearly describes high exercise needs.", true);
+  } else if (
+    includesAny([
+      "medium high energy",
+      "medium-high energy",
+      "active dog",
+      "active girl",
+      "active boy",
+      "adventure buddy",
+      "running buddy",
+      "hiking buddy",
+    ])
+  ) {
+    setEnergy("medium_high", 0.84, "Bio describes an active dog with above-average exercise needs.", true);
+    setEnergyLikeTrait("exercise_needs", "medium_high", 0.84, "Bio describes an active lifestyle fit.", true);
   } else if (
     includesAny([
       "moderate energy",
@@ -616,7 +1013,20 @@ function normalizeAiTraits(parsed, dogInput) {
       "daily walks",
     ])
   ) {
-    setEnergy("moderate", 0.86, "Bio clearly describes moderate energy or regular exercise needs.", true);
+    setEnergy("medium", 0.86, "Bio clearly describes moderate energy or regular exercise needs.", true);
+    setEnergyLikeTrait("exercise_needs", "medium", 0.8, "Bio describes regular exercise needs.", true);
+  } else if (
+    includesAny([
+      "medium low energy",
+      "medium-low energy",
+      "lower energy",
+      "lower-energy",
+      "short walks",
+      "easy walks",
+    ])
+  ) {
+    setEnergy("medium_low", 0.78, "Bio suggests lower-to-moderate energy.", true);
+    setEnergyLikeTrait("exercise_needs", "medium_low", 0.74, "Bio suggests lower-to-moderate exercise needs.", true);
   } else if (
     includesAny([
       "low energy",
@@ -633,6 +1043,93 @@ function normalizeAiTraits(parsed, dogInput) {
     ])
   ) {
     setEnergy("low", 0.88, "Bio clearly describes low energy or a calm lifestyle.", true);
+    setEnergyLikeTrait("exercise_needs", "low", 0.82, "Bio clearly describes low exercise needs or a calm lifestyle.", true);
+  }
+
+  if (normalizeEnergyLikeValue(normalized.energy_level?.value) === "unknown") {
+    if (stage === "puppy") {
+      setEnergy("medium_high", 0.64, "Puppy age gives an estimate of above-average energy unless the bio says calm.");
+      setEnergyLikeTrait("exercise_needs", "medium_high", 0.6, "Puppy age suggests regular exercise and enrichment needs.");
+      setEnergyLikeTrait("training_needs", "medium_high", 0.68, "Puppy age suggests extra training and structure.");
+      normalized.needs_human_review = true;
+    } else if (stage === "young") {
+      setEnergy("medium", 0.56, "Young adult age gives a moderate baseline energy estimate.");
+      setEnergyLikeTrait("exercise_needs", "medium", 0.54, "Young adult age suggests at least moderate exercise needs.");
+    } else if (stage === "senior" || includesAny(["senior", "older dog", "older girl", "older boy"])) {
+      setEnergy("medium_low", 0.62, "Senior/older-dog language gives a lower-energy estimate unless the bio says otherwise.");
+      setEnergyLikeTrait("exercise_needs", "medium_low", 0.58, "Senior/older-dog language suggests lower-to-moderate exercise needs.");
+    } else if (isWorkingHerdingSportingBreed()) {
+      setEnergy("medium_high", 0.6, "Breed group commonly needs above-average activity.");
+      setEnergyLikeTrait("exercise_needs", "medium_high", 0.62, "Working, herding, sporting, hound, or terrier breed type suggests above-average exercise needs.");
+    } else if (dogInput.size || dogInput.breed || dogInput.description) {
+      setEnergy("medium", 0.48, "Basic age, breed, size, or bio context supports a moderate default energy estimate.");
+      setEnergyLikeTrait("exercise_needs", "medium", 0.46, "Basic profile context supports a moderate default exercise estimate.");
+    }
+  }
+
+  if (normalizeEnergyLikeValue(normalized.exercise_needs?.value) === "unknown") {
+    const energyValue = normalizeEnergyLikeValue(normalized.energy_level?.value);
+    if (energyValue !== "unknown") {
+      setEnergyLikeTrait("exercise_needs", energyValue, 0.56, `Exercise needs inferred from energy level ${energyValue}.`);
+    } else if (isWorkingHerdingSportingBreed()) {
+      setEnergyLikeTrait("exercise_needs", "medium_high", 0.6, "Breed group commonly needs regular exercise and enrichment.");
+    } else if (stage === "senior") {
+      setEnergyLikeTrait("exercise_needs", "medium_low", 0.54, "Senior age suggests lower-to-moderate exercise needs.");
+    } else if (stage !== "unknown") {
+      setEnergyLikeTrait("exercise_needs", "medium", 0.48, "Age gives a moderate exercise-needs baseline.");
+    }
+  }
+
+  const breedText = String(dogInput.breed || "").toLowerCase();
+  const mixedOrUnclearBreed = /\bmix|mixed|unknown\b/.test(breedText);
+
+  if (dogInput.current_shedding_level) {
+    setShedding(dogInput.current_shedding_level, 0.84, `Existing structured shedding level is ${dogInput.current_shedding_level}.`);
+  }
+
+  if (
+    includesAny(["low shedding", "low-shedding", "minimal shedding", "doesn't shed much", "does not shed much"])
+  ) {
+    setShedding("low", 0.86, "Bio directly describes low shedding.", true);
+  } else if (
+    includesAny(["high shedding", "heavy shedding", "sheds a lot", "double coat", "blowing coat"])
+  ) {
+    setShedding("high", 0.86, "Bio directly describes high shedding or a double coat.", true);
+  } else if (
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["hairless", "chinese crested", "xoloitzcuintli", "xolo"])
+  ) {
+    setShedding("low", 0.78, "Hairless or very low-coat breed type indicates low shedding.");
+  } else if (
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["poodle", "bichon", "maltese", "shih tzu", "yorkshire terrier", "yorkie"])
+  ) {
+    setShedding(mixedOrUnclearBreed ? "medium" : "low", mixedOrUnclearBreed ? 0.52 : 0.66, "Breed/coat type gives a cautious shedding estimate.");
+  } else if (
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, [
+      "husky",
+      "german shepherd",
+      "golden retriever",
+      "labrador",
+      "akita",
+      "great pyrenees",
+      "samoyed",
+      "bernese",
+      "newfoundland",
+    ])
+  ) {
+    setShedding("high", 0.68, "Breed/coat type commonly indicates higher shedding.");
+  } else if (
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["pit bull", "boxer", "chihuahua", "doberman", "greyhound"])
+  ) {
+    setShedding("low", 0.58, "Short-coated breed type gives a cautious low shedding estimate.");
+  } else if (
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["beagle", "dachshund"])
+  ) {
+    setShedding("medium", 0.56, "Short-coated breed type gives a cautious medium shedding estimate.");
   }
 
   if (
@@ -714,36 +1211,148 @@ function normalizeAiTraits(parsed, dogInput) {
     setTraitFromBio("needs_yard", "likely", 0.74, "Bio suggests a yard would be a strong fit.");
   }
 
-  if (
+  const ageYearsNumber = Number(dogInput.age_years);
+  const ageTextLower = String(dogInput.age_text || "").toLowerCase();
+  const ageMonthsMatch = ageTextLower.match(/(\d+)\s*months?/);
+  const isVeryYoungPuppy =
+    (Number.isFinite(ageYearsNumber) && ageYearsNumber > 0 && ageYearsNumber <= 0.5) ||
+    (ageMonthsMatch && Number(ageMonthsMatch[1]) <= 6) ||
+    includesAny(["very young puppy", "young puppy", "tiny puppy"]);
+
+  const hasMildAloneConcern = includesAny([
+    "mild separation anxiety",
+    "some separation anxiety",
+    "mild separation concerns",
+    "some separation concerns",
+    "prefers someone home",
+    "prefers people home",
+    "would prefer someone home",
+    "does best when someone is home",
+    "still learning to be alone",
+    "working on alone time",
+    "adjusting to alone time",
+    "moderate anxiety",
+  ]);
+
+  const hasSevereAloneConcern =
+    isVeryYoungPuppy ||
     includesAny([
-      "separation anxiety",
-      "anxious when left alone",
-      "does not like to be left alone",
-      "doesn't like to be left alone",
+      "severe separation anxiety",
+      "panic when left alone",
+      "panics when left alone",
+      "destructive when left alone",
+      "destroys things when alone",
       "cannot be left alone",
       "can't be left alone",
-    ])
-  ) {
-    setTraitFromBio("anxiety_or_fear", "true", 0.88, "Bio directly describes separation anxiety or alone-time anxiety.");
-  }
+      "should not be left alone long",
+      "shouldn't be left alone long",
+      "constant supervision",
+      "constant support",
+      "severe crate distress",
+      "panics in the crate",
+      "crate panic",
+      "needs frequent monitoring",
+      "frequent medical monitoring",
+      "needs someone home at all times",
+    ]) ||
+    (!hasMildAloneConcern &&
+      includesAny([
+        "separation anxiety",
+        "anxious when left alone",
+        "does not like to be left alone",
+        "doesn't like to be left alone",
+      ]));
 
-  if (
+  const hasStrongWorkdayEvidence =
+    ["adult", "senior"].includes(stage) &&
+    !hasSevereAloneConcern &&
+    !hasMildAloneConcern &&
     includesAny([
       "handles alone time beautifully",
+      "comfortable alone",
       "does well alone",
-      "can be left alone",
       "fine when left alone",
-    ])
-  ) {
-    setTraitFromBio("can_be_left_alone", "true", 0.84, "Bio describes the dog doing well when left alone.");
+      "settles well alone",
+      "relaxes independently",
+      "comfortable for a full workday",
+      "normal workday",
+      "full workday",
+      "eight hours alone",
+      "8 hours alone",
+    ]);
+
+  const hasModerateAloneEvidence =
+    ["adult", "senior"].includes(stage) &&
+    !hasSevereAloneConcern &&
+    !hasMildAloneConcern &&
+    (normalizeEnergyLikeValue(normalized.energy_level?.value) === "low" ||
+      normalizeEnergyLikeValue(normalized.energy_level?.value) === "medium_low" ||
+      includesAny([
+        "crate trained",
+        "crate-trained",
+        "house trained",
+        "housebroken",
+        "calm",
+        "low energy",
+        "laid back",
+        "laid-back",
+        "settles well",
+        "independent",
+        "relaxed",
+        "leisurely walks",
+        "couch potato",
+      ]));
+
+  if (hasSevereAloneConcern || hasMildAloneConcern) {
+    setTraitFromBio(
+      "anxiety_or_fear",
+      hasSevereAloneConcern ? "true" : "likely",
+      hasSevereAloneConcern ? 0.88 : 0.66,
+      hasSevereAloneConcern
+        ? "Bio describes significant alone-time distress or support needs."
+        : "Bio describes mild alone-time or adjustment concerns."
+    );
   }
 
-  if (includesAny(["less than 4 hours", "under 4 hours", "no more than 4 hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.72, "Bio gives a rough alone-time limit around four hours.");
-  } else if (includesAny(["4-6 hours", "4 to 6 hours", "four to six hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.72, "Bio gives a rough alone-time range of four to six hours.");
-  } else if (includesAny(["6-8 hours", "6 to 8 hours", "six to eight hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.72, "Bio gives a rough alone-time range of six to eight hours.");
+  if (hasStrongWorkdayEvidence || hasModerateAloneEvidence) {
+    setTraitFromBio(
+      "can_be_left_alone",
+      hasStrongWorkdayEvidence ? "true" : "likely",
+      hasStrongWorkdayEvidence ? 0.84 : 0.62,
+      hasStrongWorkdayEvidence
+        ? "Bio gives strong evidence that the dog settles comfortably alone."
+        : "Calm/trained adult or senior profile supports a moderate alone-time estimate."
+    );
+  }
+
+  // Recompute alone time from supported evidence instead of preserving a model guess.
+  normalized.max_alone_hours_estimate = {
+    value: null,
+    confidence: 0,
+    evidence: "Not enough supported alone-time evidence.",
+  };
+
+  if (dogInput.current_max_alone_hours !== null && dogInput.current_max_alone_hours !== undefined) {
+    setNumericTraitFromBio(
+      "max_alone_hours_estimate",
+      dogInput.current_max_alone_hours,
+      0.9,
+      `Existing structured max alone hours is ${dogInput.current_max_alone_hours}.`
+    );
+  } else if (includesAny(["6-8 hours", "6 to 8 hours", "six to eight hours", "7-8 hours", "7 to 8 hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.82, "Bio explicitly gives an alone-time range up to a normal workday.");
+  } else if (includesAny(["4-6 hours", "4 to 6 hours", "four to six hours", "5-6 hours", "5 to 6 hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.8, "Bio explicitly gives an alone-time range around four to six hours.");
+  } else if (includesAny(["less than 4 hours", "under 4 hours", "no more than 4 hours", "3-4 hours", "3 to 4 hours"])) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.78, "Bio explicitly gives a shorter alone-time limit around three to four hours.");
+  } else if (hasSevereAloneConcern) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 2, 0.74, "Clear distress, very young puppy, support, or monitoring needs indicate a short alone-time tolerance.");
+  } else if (hasMildAloneConcern || (stage === "young" && includesAny(["still learning", "needs patience", "adjusting"]))) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.58, "Mild alone-time, anxiety, or adjustment needs support a three-to-four-hour estimate.");
+  } else if (hasStrongWorkdayEvidence) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.72, "Strong adult/senior independence evidence supports a seven-to-eight-hour estimate.");
+  } else if (hasModerateAloneEvidence) {
+    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.58, "Calm, trained, or low-energy adult/senior evidence supports a five-to-six-hour estimate.");
   }
 
   if (
@@ -753,11 +1362,54 @@ function normalizeAiTraits(parsed, dogInput) {
       "working on manners",
       "working on leash manners",
       "needs leash work",
+      "leash reactive",
+      "severe leash",
+      "not potty trained",
+      "not house trained",
+      "not housebroken",
+      "escape artist",
+      "resource guarding",
+      "under-socialized",
+      "undersocialized",
+      "fearful",
+      "very fearful",
+      "timid",
       "needs an experienced adopter",
       "experienced adopter",
     ])
   ) {
-    setTraitFromBio("training_needs", "true", 0.82, "Bio describes training needs or experienced-adopter support.");
+    setEnergyLikeTrait("training_needs", "medium_high", 0.82, "Bio describes training needs or experienced-adopter support.", true);
+  } else if (
+    includesAny([
+      "well trained",
+      "good manners",
+      "bestest manners",
+      "knows basic commands",
+      "knows commands",
+      "eager to please",
+      "walks well",
+      "walks nicely",
+      "good on leash",
+      "crate trained",
+      "crate-trained",
+      "house trained",
+      "housebroken",
+      "potty trained",
+    ])
+  ) {
+    setEnergyLikeTrait("training_needs", "medium_low", 0.7, "Bio suggests some training foundation is already present.");
+  }
+
+  if (normalizeEnergyLikeValue(normalized.training_needs?.value) === "unknown") {
+    if (stage === "puppy") {
+      setEnergyLikeTrait("training_needs", "medium_high", 0.68, "Puppy age suggests higher training and structure needs.");
+    } else if (hasMildManageableNeeds()) {
+      setEnergyLikeTrait("training_needs", "medium", 0.6, "Bio describes manageable needs that still call for training support.");
+    } else if (hasEasyStableSignals() || stage === "senior" || stage === "adult") {
+      setEnergyLikeTrait("training_needs", "medium_low", 0.56, "Stable temperament, age, or foundation skills suggest lower training needs.");
+    } else if (dogInput.breed || dogInput.size || dogInput.description) {
+      setEnergyLikeTrait("training_needs", "medium", 0.46, "Basic profile context supports a moderate training-needs baseline.");
+    }
   }
 
   if (
@@ -1013,7 +1665,74 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  const firstTimeValue = String(normalized.first_time_friendly?.value || "").toLowerCase();
+  const trainingNeedValue = normalizeEnergyLikeValue(normalized.training_needs?.value);
+  const energyValue = normalizeEnergyLikeValue(normalized.energy_level?.value);
+  const highComplexityNeeds = hasHighComplexityNeeds();
+  const hasConfirmedPositiveSocialOrTraining =
+    dogInput.current_potty_trained === true ||
+    dogInput.current_good_with_dogs === true ||
+    dogInput.current_good_with_cats === true ||
+    dogInput.current_good_with_kids === true;
+  const firstTimeMostLikelyEligible =
+    !highComplexityNeeds &&
+    !normalized.needs_human_review &&
+    ["low", "medium_low", "medium"].includes(trainingNeedValue) &&
+    energyValue !== "high";
+
+  if (hasMajorFirstTimeRedFlag()) {
+    normalized.first_time_friendly = {
+      value: "false",
+      confidence: 0.86,
+      evidence: "Bio or profile indicates major behavior, medical, handling, training, fear, or lifestyle complexity for a first-time owner.",
+    };
+  } else if (hasExplicitEasyBeginnerSignals() && firstTimeMostLikelyEligible) {
+    normalized.first_time_friendly = {
+      value: "true",
+      confidence: 0.84,
+      evidence: "Bio explicitly describes an easy or beginner-friendly dog, and no major complexity signals were found.",
+    };
+  } else if (highComplexityNeeds || normalized.needs_human_review) {
+    normalized.first_time_friendly = {
+      value: "maybe",
+      confidence: 0.52,
+      evidence: "Profile has meaningful care, training, behavior, medical, review, or home-fit complexity, so first-time-owner fit is cautious.",
+    };
+  } else if (
+    firstTimeMostLikelyEligible &&
+    !hasWarmTemperamentOnly() &&
+    (hasEasyStableSignals() ||
+      hasConfirmedPositiveSocialOrTraining ||
+      hasExplicitEasyBeginnerSignals() ||
+    (["adult", "senior"].includes(stage) &&
+      ["low", "medium_low", "medium"].includes(trainingNeedValue) &&
+      ["low", "medium_low", "medium"].includes(energyValue)))
+  ) {
+    normalized.first_time_friendly = {
+      value: "likely",
+      confidence: 0.68,
+      evidence: "Stable, manageable profile with low-to-moderate training needs and no major first-time-owner complexity signals.",
+    };
+  } else if (
+    hasMildManageableNeeds() ||
+    stage === "young" ||
+    trainingNeedValue === "medium" ||
+    energyValue === "medium" ||
+    hasWarmTemperamentOnly()
+  ) {
+    normalized.first_time_friendly = {
+      value: "maybe",
+      confidence: 0.58,
+      evidence: "Profile suggests manageable needs without major first-time-owner red flags.",
+    };
+  } else if (dogInput.description || dogInput.breed || dogInput.age_text || dogInput.age_years !== null) {
+    normalized.first_time_friendly = {
+      value: "maybe",
+      confidence: 0.46,
+      evidence: "Basic profile context gives a cautious first-time-owner estimate, but details are limited.",
+    };
+    normalized.needs_human_review = true;
+  }
+
   const kidsValue = String(normalized.good_with_kids?.value || "").toLowerCase();
 
   const childEvidenceAvailable =
@@ -1027,20 +1746,6 @@ function normalizeAiTraits(parsed, dogInput) {
       value: "unknown",
       confidence: 0,
       evidence: "Generic family language was not treated as child-specific kid compatibility evidence.",
-    };
-  }
-
-  const firstTimeEvidenceAvailable =
-    dogInput.current_first_time_friendly === true || hasFirstTimeFriendlyEvidence();
-
-  if (
-    ["true", "likely", "maybe"].includes(firstTimeValue) &&
-    !firstTimeEvidenceAvailable
-  ) {
-    normalized.first_time_friendly = {
-      value: "unknown",
-      confidence: 0,
-      evidence: "Generic family language was not treated as first-time-owner evidence.",
     };
   }
 
@@ -1073,6 +1778,27 @@ function normalizeAiTraits(parsed, dogInput) {
       ...normalized.caution_notes,
     ].slice(0, 8);
     normalized.overall_confidence = Math.min(normalized.overall_confidence, 0.45);
+  }
+
+  if (normalized.overall_confidence <= 0) {
+    const traitConfidences = [
+      normalized.energy_level,
+      normalized.shedding_level,
+      normalized.good_with_kids,
+      normalized.good_with_dogs,
+      normalized.good_with_cats,
+      normalized.potty_trained,
+      normalized.first_time_friendly,
+      normalized.max_alone_hours_estimate,
+      normalized.exercise_needs,
+      normalized.training_needs,
+    ]
+      .map((trait) => normalizeConfidence(trait?.confidence))
+      .filter((confidence) => confidence > 0);
+
+    normalized.overall_confidence = traitConfidences.length
+      ? Math.min(0.85, traitConfidences.reduce((sum, value) => sum + value, 0) / traitConfidences.length)
+      : 0.3;
   }
 
   // Extra safety: never allow false compatibility from weak evidence.
@@ -1124,16 +1850,79 @@ function safeBioValue(value) {
   return BIO_VALUES.has(value) ? value : "unknown";
 }
 
+function safeEnergyValue(value) {
+  const normalized = normalizeEnergyLikeValue(value);
+  return ENERGY_VALUES.has(normalized) ? normalized : "unknown";
+}
+
+function safeSheddingValue(value) {
+  const normalized = normalizeSheddingValue(value);
+  return SHEDDING_VALUES.has(normalized) ? normalized : "unknown";
+}
+
+function normalizeAloneHours(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.max(1, Math.min(8, Math.round(n)));
+}
+
+function aloneHoursLabel(hours) {
+  const n = normalizeAloneHours(hours);
+  if (!n) return "unknown";
+  if (n <= 2) return "1-2";
+  if (n <= 4) return "3-4";
+  if (n <= 6) return "5-6";
+  return "7-8";
+}
+
 function buildBioColumns(aiTraits) {
+  const aloneHours = normalizeAloneHours(aiTraits.max_alone_hours_estimate?.value);
+  const aloneLabel = aloneHoursLabel(aloneHours);
+
   return {
     bio_good_with_kids: safeBioValue(traitToBioValue(aiTraits.good_with_kids)),
     bio_good_with_dogs: safeBioValue(traitToBioValue(aiTraits.good_with_dogs)),
     bio_good_with_cats: safeBioValue(traitToBioValue(aiTraits.good_with_cats)),
     bio_first_time_friendly: safeBioValue(traitToBioValue(aiTraits.first_time_friendly)),
     bio_potty_trained: safeBioValue(traitToBioValue(aiTraits.potty_trained)),
+    bio_energy_level: safeEnergyValue(aiTraits.energy_level?.value),
+    bio_shedding_level: safeSheddingValue(aiTraits.shedding_level?.value),
+    bio_max_alone_hours: aloneHours,
+    bio_max_alone_hours_label: ALONE_HOURS_LABELS.has(aloneLabel) ? aloneLabel : "unknown",
+    bio_exercise_needs: safeEnergyValue(aiTraits.exercise_needs?.value),
+    bio_training_needs: safeEnergyValue(aiTraits.training_needs?.value),
     bio_traits_source: "ai_bio_extraction",
     bio_traits_updated_at: new Date().toISOString(),
   };
+}
+
+function mergeExistingBioColumns(nextColumns, dog) {
+  const merged = { ...nextColumns };
+
+  for (const key of [
+    "bio_good_with_kids",
+    "bio_good_with_dogs",
+    "bio_good_with_cats",
+    "bio_potty_trained",
+  ]) {
+    if (merged[key] === "unknown" && BIO_VALUES.has(dog?.[key]) && dog[key] !== "unknown") {
+      merged[key] = dog[key];
+    }
+  }
+
+  for (const key of ["bio_energy_level", "bio_exercise_needs", "bio_training_needs"]) {
+    const existing = normalizeEnergyLikeValue(dog?.[key]);
+    if (merged[key] === "unknown" && existing !== "unknown") {
+      merged[key] = existing;
+    }
+  }
+
+  const existingShedding = normalizeSheddingValue(dog?.bio_shedding_level);
+  if (merged.bio_shedding_level === "unknown" && existingShedding !== "unknown") {
+    merged.bio_shedding_level = existingShedding;
+  }
+
+  return merged;
 }
 
 async function callOpenAI(prompt) {
@@ -1183,7 +1972,15 @@ async function callOpenAI(prompt) {
 async function enrichOneDog(dog) {
   const dogInput = asDogInput(dog);
 
-  if (!dogInput.description && !dogInput.breed && !dogInput.size && !dogInput.age_text) {
+  if (
+    !dogInput.description &&
+    !dogInput.breed &&
+    !dogInput.size &&
+    !dogInput.gender &&
+    dogInput.age_years === null &&
+    !dogInput.age_text &&
+    !dogInput.current_energy_level
+  ) {
     console.log(`Skipping ${dog.name || dog.id}: not enough data`);
     return null;
   }
@@ -1194,20 +1991,23 @@ async function enrichOneDog(dog) {
 
   const parsed = safeParseJson(content);
   const aiTraits = normalizeAiTraits(parsed, dogInput);
-  const bioColumns = buildBioColumns(aiTraits);
   const inferredAdultSize = inferExpectedAdultSizeForPuppy(dogInput);
+  if (inferredAdultSize && inferredAdultSize !== normalizeSizeLabel(dog.size)) {
+    aiTraits.caution_notes = [
+      `AI inferred likely adult puppy size as ${inferredAdultSize}, but did not overwrite the shelter/API size field.`,
+      ...aiTraits.caution_notes,
+    ].slice(0, 8);
+  }
+  const bioColumns = mergeExistingBioColumns(buildBioColumns(aiTraits), dog);
 
   const updatePayload = {
     ai_traits: aiTraits,
     ai_enriched_at: new Date().toISOString(),
     ai_enrichment_version: AI_ENRICHMENT_VERSION,
     ai_confidence_score: aiTraits.overall_confidence,
+    needs_human_review: aiTraits.needs_human_review,
     ...bioColumns,
   };
-
-  if (inferredAdultSize && inferredAdultSize !== normalizeSizeLabel(dog.size)) {
-    updatePayload.size = inferredAdultSize;
-  }
 
   const { error } = await supabase
     .from("dogs")
@@ -1216,7 +2016,7 @@ async function enrichOneDog(dog) {
 
   if (error) throw error;
 
-  return { aiTraits, bioColumns, inferredAdultSize: updatePayload.size || null, elapsed };
+  return { aiTraits, bioColumns, inferredAdultSize, elapsed };
 }
 
 async function fetchDogs({ limit, force, dogId }) {
@@ -1257,6 +2057,14 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_good_with_cats,
       bio_first_time_friendly,
       bio_potty_trained,
+      bio_energy_level,
+      bio_shedding_level,
+      bio_max_alone_hours,
+      bio_max_alone_hours_label,
+      bio_exercise_needs,
+      bio_training_needs,
+      bio_traits_updated_at,
+      needs_human_review,
       adoptable,
       urgency_level,
       shelters (
@@ -1338,7 +2146,12 @@ async function main() {
       console.log(`   bio_good_with_cats: ${bioColumns.bio_good_with_cats}`);
       console.log(`   bio_first_time_friendly: ${bioColumns.bio_first_time_friendly}`);
       console.log(`   bio_potty_trained: ${bioColumns.bio_potty_trained}`);
-      if (inferredAdultSize) console.log(`   inferred adult puppy size: ${inferredAdultSize}`);
+      console.log(`   bio_energy_level: ${bioColumns.bio_energy_level}`);
+      console.log(`   bio_shedding_level: ${bioColumns.bio_shedding_level}`);
+      console.log(`   bio_max_alone_hours: ${bioColumns.bio_max_alone_hours ?? "unknown"}`);
+      console.log(`   bio_exercise_needs: ${bioColumns.bio_exercise_needs}`);
+      console.log(`   bio_training_needs: ${bioColumns.bio_training_needs}`);
+      if (inferredAdultSize) console.log(`   inferred adult puppy size note: ${inferredAdultSize}`);
       if (tags) console.log(`   Tags: ${tags}`);
     } catch (error) {
       failed += 1;

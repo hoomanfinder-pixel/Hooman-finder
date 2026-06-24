@@ -1,3 +1,5 @@
+import { normalizeExternalUrl as normalizeSafeExternalUrl, normalizeImageUrl } from "./urlSafety";
+
 const UNAVAILABLE_ORG_LABEL = "Listing organization unavailable";
 const DACC_RESCUEGROUPS_ORG_ID = "8883";
 export const DACC_ADOPT_URL = "https://www.friendsofdacc.org/adopt/";
@@ -8,11 +10,7 @@ function clean(value) {
 }
 
 export function normalizeExternalUrl(raw) {
-  const trimmed = clean(raw);
-  if (!trimmed) return "";
-  if (trimmed.startsWith("//")) return `https:${trimmed}`;
-  if (trimmed.startsWith("http://")) return trimmed.replace("http://", "https://");
-  return trimmed;
+  return normalizeSafeExternalUrl(raw);
 }
 
 function isDaccDog(dog) {
@@ -53,13 +51,9 @@ export function getDogSourceName(dog, fallback = UNAVAILABLE_ORG_LABEL) {
 }
 
 export function getDogSourceLogo(dog) {
-  return (
-    clean(dog?.shelter_logo_url) ||
-    clean(dog?.rescue_logo_url) ||
-    clean(dog?.organization_logo_url) ||
-    clean(dog?.logo_url) ||
-    clean(dog?.shelters?.logo_url)
-  );
+  return [dog?.shelter_logo_url, dog?.rescue_logo_url, dog?.organization_logo_url, dog?.logo_url, dog?.shelters?.logo_url]
+    .map((url) => normalizeImageUrl(url, { allowRelative: false }))
+    .find(Boolean) || "";
 }
 
 export function getDogSourceLocation(dog, fallback = "Location unknown") {

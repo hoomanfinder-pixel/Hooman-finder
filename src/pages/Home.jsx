@@ -5,6 +5,7 @@ import SEO from "../components/SEO";
 import { getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
+import { normalizeImageUrl } from "../lib/urlSafety";
 
 const HOW_IT_WORKS = [
   {
@@ -192,7 +193,9 @@ export default function Home() {
     return HOW_IT_WORKS.map((row, index) => ({
       ...row,
       dog: featuredDogs[index] || null,
-      image: featuredDogs[index]?.photo_url || fallbackDogImages[index],
+      image:
+        normalizeImageUrl(featuredDogs[index]?.photo_url, { allowRelative: false }) ||
+        fallbackDogImages[index],
       rescueName: featuredDogs[index] ? getDogSourceName(featuredDogs[index], "") : "",
     }));
   }, [featuredDogs]);

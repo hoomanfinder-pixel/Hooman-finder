@@ -47,6 +47,21 @@ const WEIGHTS = {
   alone_time: 2,
 };
 
+const DEFAULT_AI_CONFIDENCE = 0.7;
+
+const FIELD_RELIABILITY = {
+  good_with_dogs: 0.9,
+  good_with_cats: 0.75,
+  good_with_kids: 0.8,
+  energy_level: 0.85,
+  potty_trained: 0.8,
+  shedding_level: 0.65,
+  max_alone_hours: 0.55,
+  first_time_friendly: 0.75,
+  exercise_needs: 0.8,
+  training_needs: 0.75,
+};
+
 const READABLE_MATCH_REASONS = {
   size_preference: "Matches your preferred size range",
   age_preference: "Fits the age range you selected",
@@ -151,12 +166,25 @@ function ageBucket(ageYears, ageText = "") {
 }
 
 function normalizeEnergy(s) {
-  const v = (s ?? "").toString().toLowerCase().trim();
+  const v = (s ?? "").toString().toLowerCase().trim().replace(/\s+/g, "_").replace(/-/g, "_");
   if (!v) return "";
+  if (["low", "medium_low", "medium", "medium_high", "high"].includes(v)) return v;
+  if (v.includes("moderate")) return "medium";
+  if (v.includes("medium") && v.includes("low")) return "medium_low";
+  if (v.includes("medium") && v.includes("high")) return "medium_high";
   if (v.includes("low")) return "low";
   if (v.includes("high")) return "high";
-  if (v.includes("moderate")) return "moderate";
-  if (v.includes("medium")) return "moderate";
+  if (v.includes("medium")) return "medium";
+  return v;
+}
+
+function normalizeShedding(s) {
+  const v = (s ?? "").toString().toLowerCase().trim().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (!v || v === "unknown") return "";
+  if (["low", "medium", "high"].includes(v)) return v;
+  if (v === "minimal" || v === "very_low") return "low";
+  if (v === "moderate" || v === "average") return "medium";
+  if (v === "heavy" || v === "very_high") return "high";
   return v;
 }
 
@@ -173,19 +201,100 @@ function truthy(v) {
   return s === "true" || s === "yes" || s === "y" || s === "1";
 }
 
-function bioTraitCredit(value) {
+function aiConfidence(dog) {
+  const n = Number(dog?.ai_confidence_score);
+  if (Number.isFinite(n) && n > 0) return Math.max(0, Math.min(1, n));
+  return DEFAULT_AI_CONFIDENCE;
+}
+
+function bioBaseTraitCredit(value) {
   const normalized = String(value ?? "").toLowerCase().trim();
   if (normalized === "yes") return 1;
-  if (normalized === "most_likely") return 0.75;
-  if (normalized === "may_do_well") return 0.5;
+  if (normalized === "most_likely") return 0.9;
+  if (normalized === "may_do_well") return 0.7;
+  if (normalized === "no") return 0;
+  return null;
+}
+
+function aiTraitCredit(dog, field, baseCredit) {
+  if (baseCredit === null || baseCredit === undefined) return null;
+  return baseCredit * aiConfidence(dog) * (FIELD_RELIABILITY[field] ?? 0.7);
+}
+
+function compatibilityCredit(dog, field, confirmedValue, bioValue) {
+  if (confirmedValue === true || truthy(confirmedValue)) return 1;
+  if (confirmedValue === false) return 0;
+
+  const base = bioBaseTraitCredit(bioValue);
+  return aiTraitCredit(dog, field, base);
+}
+
+function energyCreditForValues(userEnergy, dogEnergy) {
+  const order = ["low", "medium_low", "medium", "medium_high", "high"];
+  const userIndex = order.indexOf(userEnergy);
+  const dogIndex = order.indexOf(dogEnergy);
+  if (userIndex < 0 || dogIndex < 0) return null;
+
+  const distance = Math.abs(userIndex - dogIndex);
+  if (distance === 0) return 1;
+  if (distance === 1) return 0.65;
+  if (distance === 2) return 0.25;
   return 0;
 }
 
-function compatibilityCredit(confirmedValue, bioValue) {
-  if (confirmedValue === true) return 1;
-  if (confirmedValue === false) return 0;
-  if (truthy(confirmedValue)) return 1;
-  return bioTraitCredit(bioValue);
+function energyCredit(dog, confirmedEnergy, bioEnergy) {
+  const userEnergy = normalizeEnergy(confirmedEnergy.user);
+  const confirmedDogEnergy = normalizeEnergy(confirmedEnergy.dog);
+  const bioDogEnergy = normalizeEnergy(bioEnergy);
+
+  if (!userEnergy) return null;
+  if (confirmedDogEnergy) return energyCreditForValues(userEnergy, confirmedDogEnergy);
+
+  const base = energyCreditForValues(userEnergy, bioDogEnergy);
+  return aiTraitCredit(dog, "energy_level", base);
+}
+
+function sheddingCredit(dog, preference) {
+  const a = String(preference).toLowerCase();
+  const confirmed = normalizeShedding(dog?.shedding ?? dog?.shedding_level);
+  const bio = normalizeShedding(dog?.bio_shedding_level);
+
+  if (a === "heavy_ok" || a === "no_preference") return 1;
+
+  const target = normalizeShedding(a);
+  if (!target) return null;
+
+  if (confirmed) {
+    if (target === "low") return confirmed === "low" ? 1 : confirmed === "medium" ? 0.35 : 0;
+    return confirmed === target ? 1 : 0;
+  }
+
+  if (!bio) return null;
+  const base = target === "low" ? (bio === "low" ? 1 : bio === "medium" ? 0.35 : 0) : bio === target ? 1 : 0;
+  return aiTraitCredit(dog, "shedding_level", base);
+}
+
+function aloneTimeNeededHours(answer) {
+  const a = String(answer).toLowerCase();
+  if (a === "lt4" || a === "1to2" || a === "1-2") return 2;
+  if (a === "4to6" || a === "3to4" || a === "3-4") return 4;
+  if (a === "6to8" || a === "5to6" || a === "5-6") return 6;
+  if (a === "gt8" || a === "7to8" || a === "7-8") return 8;
+  return null;
+}
+
+function aloneTimeCredit(dog, answer) {
+  const needed = aloneTimeNeededHours(answer);
+  if (!needed) return null;
+
+  const confirmed = Number(dog?.max_alone_hours);
+  if (Number.isFinite(confirmed) && confirmed > 0) return confirmed >= needed ? 1 : confirmed >= needed - 2 ? 0.45 : 0;
+
+  const bio = Number(dog?.bio_max_alone_hours);
+  if (!Number.isFinite(bio) || bio <= 0) return null;
+
+  const base = bio >= needed ? 1 : bio >= needed - 2 ? 0.45 : 0;
+  return aiTraitCredit(dog, "max_alone_hours", base);
 }
 
 function labelFor(qid) {
@@ -237,9 +346,15 @@ function scoreQuestion(qid, answer, dog) {
     }
 
     case "energy_preference": {
-      const dogEnergy = normalizeEnergy(dog?.energy_level ?? dog?.energy);
-      const userEnergy = normalizeEnergy(answer);
-      matched = Boolean(dogEnergy && userEnergy && dogEnergy === userEnergy);
+      credit = energyCredit(
+        dog,
+        {
+          user: answer,
+          dog: dog?.energy_level ?? dog?.activity_level ?? dog?.energy,
+        },
+        dog?.bio_energy_level
+      );
+      matched = credit !== null ? credit > 0 : null;
       break;
     }
 
@@ -253,8 +368,8 @@ function scoreQuestion(qid, answer, dog) {
         null;
 
       if (a === "yes" || a === "kids" || a === "children") {
-        credit = compatibilityCredit(dogKids, dog?.bio_good_with_kids);
-        matched = credit > 0;
+        credit = compatibilityCredit(dog, "good_with_kids", dogKids, dog?.bio_good_with_kids);
+        matched = credit !== null ? credit > 0 : null;
       } else {
         matched = true;
       }
@@ -268,6 +383,8 @@ function scoreQuestion(qid, answer, dog) {
       if (picks.includes("dogs")) {
         credits.push(
           compatibilityCredit(
+            dog,
+            "good_with_dogs",
             dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs,
             dog?.bio_good_with_dogs
           )
@@ -277,6 +394,8 @@ function scoreQuestion(qid, answer, dog) {
       if (picks.includes("cats")) {
         credits.push(
           compatibilityCredit(
+            dog,
+            "good_with_cats",
             dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats,
             dog?.bio_good_with_cats
           )
@@ -296,9 +415,11 @@ function scoreQuestion(qid, answer, dog) {
       }
 
       credit = credits.length
-        ? credits.reduce((sum, value) => sum + value, 0) / credits.length
+        ? credits.filter((value) => value !== null).reduce((sum, value) => sum + value, 0) /
+          credits.filter((value) => value !== null).length
         : 1;
-      matched = credit > 0;
+      if (!Number.isFinite(credit)) credit = null;
+      matched = credit !== null ? credit > 0 : null;
       break;
     }
 
@@ -307,8 +428,8 @@ function scoreQuestion(qid, answer, dog) {
       const dogPotty = dog?.potty_trained ?? dog?.house_trained ?? dog?.houseTrained ?? null;
 
       if (a === "must_be_trained" || a === "required" || a === "must") {
-        credit = compatibilityCredit(dogPotty, dog?.bio_potty_trained);
-        matched = credit > 0;
+        credit = compatibilityCredit(dog, "potty_trained", dogPotty, dog?.bio_potty_trained);
+        matched = credit !== null ? credit > 0 : null;
       } else {
         matched = true;
       }
@@ -321,8 +442,13 @@ function scoreQuestion(qid, answer, dog) {
         dog?.first_time_friendly ?? dog?.beginner_friendly ?? dog?.firstTimeFriendly ?? null;
 
       if (a === "yes") {
-        credit = compatibilityCredit(dogFirstTime, dog?.bio_first_time_friendly);
-        matched = credit > 0;
+        credit = compatibilityCredit(
+          dog,
+          "first_time_friendly",
+          dogFirstTime,
+          dog?.bio_first_time_friendly
+        );
+        matched = credit !== null ? credit > 0 : null;
       } else {
         matched = true;
       }
@@ -332,14 +458,18 @@ function scoreQuestion(qid, answer, dog) {
     case "allergy_sensitivity": {
       const a = String(answer).toLowerCase();
       const hypo = dog?.hypoallergenic ?? dog?.hypoallergenic_only ?? dog?.is_hypoallergenic ?? null;
-      const shedding = (dog?.shedding ?? dog?.shedding_level ?? "").toString().toLowerCase();
 
       if (
         a === "needs_low_shedding" ||
         a === "have_allergies" ||
         a === "allergies"
       ) {
-        matched = truthy(hypo) || shedding === "minimal" || shedding === "low";
+        if (truthy(hypo)) {
+          credit = 1;
+        } else {
+          credit = sheddingCredit(dog, "low");
+        }
+        matched = credit !== null ? credit > 0 : null;
       } else {
         matched = true;
       }
@@ -348,15 +478,14 @@ function scoreQuestion(qid, answer, dog) {
 
     case "shedding_preference": {
       const a = String(answer).toLowerCase();
-      const shedding = (dog?.shedding ?? dog?.shedding_level ?? "").toString().toLowerCase();
+      credit = sheddingCredit(dog, a);
+      matched = credit !== null ? credit > 0 : null;
+      break;
+    }
 
-      if (!shedding) {
-        matched = false;
-      } else if (a === "heavy_ok" || a === "no_preference") {
-        matched = true;
-      } else {
-        matched = shedding === a;
-      }
+    case "alone_time": {
+      credit = aloneTimeCredit(dog, answer);
+      matched = credit !== null ? credit > 0 : null;
       break;
     }
 
@@ -366,6 +495,15 @@ function scoreQuestion(qid, answer, dog) {
       matched = true;
       break;
     }
+  }
+
+  if (credit === null && matched === null) {
+    return {
+      earned: 0,
+      possible: 0,
+      reasonLabel: null,
+      matched: null,
+    };
   }
 
   return {
