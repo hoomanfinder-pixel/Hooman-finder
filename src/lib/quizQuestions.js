@@ -52,36 +52,19 @@ export const ALL_QUESTIONS = [
   {
     id: "kids_in_home",
     mode: QUIZ_MODES.DEALBREAKERS,
-    type: QUESTION_TYPES.SINGLE,
-    title: "Kids in the home?",
-    description: "We'll avoid unsafe matches if needed.",
+    type: QUESTION_TYPES.MULTI,
+    title: "What ages are the children in your home?",
+    description: "Select all that apply, or choose the youngest age if you want the strictest match.",
+    exclusiveValues: ["no_children"],
     options: [
-      { value: "yes", label: "Yes" },
-      { value: "no", label: "No" },
-      { value: "sometimes", label: "Sometimes / visiting" },
+      { value: "no_children", label: "No children in the home" },
+      { value: "under_3", label: "Under 3" },
+      { value: "3_5", label: "3–5" },
+      { value: "6_9", label: "6–9" },
+      { value: "10_12", label: "10–12" },
+      { value: "13_plus", label: "13+" },
+      { value: "children_visit", label: "Children visit sometimes" },
     ],
-  },
-
-  {
-    id: "kids_age_band",
-    mode: QUIZ_MODES.DEALBREAKERS,
-    type: QUESTION_TYPES.SINGLE,
-    title: "If yes, what ages are the kids?",
-    description: "This helps avoid mismatch with toddlers vs teens.",
-    options: [
-      { value: "baby", label: "Baby (0–1)" },
-      { value: "toddler", label: "Toddler (2–4)" },
-      { value: "elementary", label: "Elementary (5–10)" },
-      { value: "teen", label: "Teen (11+)" },
-      { value: "not_sure", label: "Not sure / varies" },
-      { value: "flexible", label: "No preference / flexible" },
-    ],
-
-    // ✅ Only show if kids are present (i.e., dog needs to be kid-compatible)
-    showIf: (answersById) => {
-      const v = (answersById?.kids_in_home ?? "").toString().trim().toLowerCase();
-      return v === "yes" || v === "sometimes";
-    },
   },
 
   {

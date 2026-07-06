@@ -178,8 +178,10 @@ export default function Quiz() {
     let nextAnswers = { ...answersById, [questionId]: nextValue };
 
     if (questionId === "kids_in_home") {
-      const v = (nextValue ?? "").toString().trim().toLowerCase();
-      if (v === "no" || v === "") {
+      const values = Array.isArray(nextValue)
+        ? nextValue.map((item) => String(item).toLowerCase())
+        : [String(nextValue ?? "").trim().toLowerCase()];
+      if (values.includes("no_children") || values.includes("no") || values.every((v) => !v)) {
         const cleaned = { ...nextAnswers };
         delete cleaned.kids_age_band;
         nextAnswers = cleaned;

@@ -107,7 +107,11 @@ function readableReason(reason) {
 }
 
 function getCleanTopReasons(breakdown) {
-  const incoming = Array.isArray(breakdown?.topReasons) ? breakdown.topReasons : [];
+  const incoming = Array.isArray(breakdown?.matchReasons)
+    ? breakdown.matchReasons
+    : Array.isArray(breakdown?.topReasons)
+      ? breakdown.topReasons
+      : [];
 
   return incoming
     .map(readableReason)
@@ -156,11 +160,11 @@ function getMatchState({ dog, scorePct, breakdown }) {
       eyebrow: "Why this match",
       headline: dog?.name || "This dog",
       subhead: `${Math.round(Number(scorePct))}% match`,
-      reasonsTitle: topReasons.length ? "Top reasons" : "What we know",
-      reasons: topReasons.length
-        ? topReasons
-        : buildDogInfoBullets(dog).map((item) => `Available rescue info: ${item}`),
-      note: "These reasons are based on your quiz answers and available rescue/shelter info.",
+      reasonsTitle: "Why this dog may match you",
+      reasons: topReasons,
+      note: topReasons.length
+        ? "These reasons are based on your quiz answers and available rescue/shelter info."
+        : "We found a possible fit, but there are not enough confirmed details for specific highlights yet.",
       pillText: `${Math.round(Number(scorePct))}% match`,
       showScoreCircle: true,
     };
@@ -463,19 +467,21 @@ export default function DogCard({
                     ) : null}
                   </div>
 
-                  <ul className="mt-4 space-y-2.5">
-                    {matchState.reasons.map((reason) => (
-                      <li
-                        key={reason}
-                        className="flex gap-2.5 rounded-2xl border border-stone-950/8 bg-white/68 px-3.5 py-3 text-sm font-semibold leading-5 text-stone-750 shadow-sm"
-                      >
-                        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-stone-950">
-                          ✓
-                        </span>
-                        <span>{reason}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  {matchState.reasons.length ? (
+                    <ul className="mt-4 space-y-2.5">
+                      {matchState.reasons.map((reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2.5 rounded-2xl border border-stone-950/10 bg-white/70 px-3.5 py-3 text-sm font-semibold leading-5 text-stone-700 shadow-sm"
+                        >
+                          <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-stone-950">
+                            ✓
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
 
                   <p className="mt-4 rounded-2xl bg-white/50 px-4 py-3 text-xs font-medium leading-5 text-stone-500 ring-1 ring-stone-950/5">
                     {matchState.note}

@@ -28,7 +28,7 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v7";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v8";
 const DEFAULT_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";

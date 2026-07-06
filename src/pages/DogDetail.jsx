@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
 import SEO from "../components/SEO";
 import { computeRankedMatches } from "../lib/matchingLogic";
+import { getMatchReasons as getSupportedMatchReasons } from "../lib/matchReasons.js";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
 import {
   getDogApplyLink,
@@ -341,13 +342,9 @@ function getAiDisclosure(aiTraits) {
   if (!aiTraits) return null;
 
   const needsReview = aiTraits?.needs_human_review === true;
-  const cautionNotes = Array.isArray(aiTraits?.caution_notes)
-    ? aiTraits.caution_notes.filter(Boolean).slice(0, 3)
-    : [];
 
   return {
     needsReview,
-    cautionNotes,
   };
 }
 
@@ -357,23 +354,12 @@ function isRealMatchScore(match) {
 }
 
 function getMatchReasons(match, dog) {
-  const topReasons = Array.isArray(match?.breakdown?.topReasons)
-    ? match.breakdown.topReasons.filter(Boolean)
+  const supportedReasons = Array.isArray(match?.breakdown?.matchReasons)
+    ? match.breakdown.matchReasons.filter(Boolean)
     : [];
 
-  if (topReasons.length) return topReasons.slice(0, 6);
-
-  const fallback = [];
-  if (dog?.size) fallback.push("Size fit");
-  if (dog?.energy_level) fallback.push("Energy fit");
-  if (dog?.age_years || dog?.age_text) fallback.push("Age fit");
-  if (dog?.good_with_kids === true || dog?.good_with_dogs === true || dog?.good_with_cats === true) {
-    fallback.push("Pets/kids compatibility");
-  }
-  if (dog?.potty_trained === true) fallback.push("Training expectations");
-  if (dog?.description) fallback.push("Good home/lifestyle fit");
-
-  return fallback.slice(0, 6);
+  if (supportedReasons.length) return supportedReasons.slice(0, 6);
+  return getSupportedMatchReasons(dog, {}, 6);
 }
 
 export default function DogDetail() {
@@ -712,7 +698,7 @@ export default function DogDetail() {
                       id="match-modal-title"
                       className="mt-2 text-3xl font-extrabold leading-none text-slate-950"
                     >
-                      Why you matched
+                      Why this dog may match you
                     </h2>
                   </div>
 
@@ -740,7 +726,7 @@ export default function DogDetail() {
                       {matchReasons.map((reason) => (
                         <li
                           key={reason}
-                          className="flex gap-2.5 rounded-2xl border border-slate-950/8 bg-white/78 px-3.5 py-3 text-sm font-bold leading-5 text-slate-800 shadow-sm"
+                          className="flex gap-2.5 rounded-2xl border border-slate-950/10 bg-white/80 px-3.5 py-3 text-sm font-bold leading-5 text-slate-800 shadow-sm"
                         >
                           <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-slate-950">
                             ✓
@@ -753,8 +739,8 @@ export default function DogDetail() {
                 ) : null}
 
                 <p className="mt-5 rounded-2xl bg-white/62 px-4 py-3 text-xs font-semibold leading-5 text-slate-600 ring-1 ring-slate-950/5">
-                  Some details are estimated from the rescue bio and may need confirmation
-                  with the rescue.
+                  Unknown details are treated carefully, so missing information does not count
+                  as a confirmed mismatch.
                 </p>
 
                 <button
@@ -813,7 +799,7 @@ export default function DogDetail() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                  Estimated trait values
+                  Estimated traits
                 </div>
                 <h2 className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-slate-950">
                   What does this mean?
@@ -844,21 +830,6 @@ export default function DogDetail() {
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
                 This listing has limited or potentially messy bio details, so these estimates should
                 be treated as extra cautious.
-              </div>
-            ) : null}
-
-            {aiDisclosure?.cautionNotes?.length ? (
-              <div className="mt-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-                  Notes
-                </div>
-                <ul className="mt-2 space-y-2 text-sm leading-5 text-slate-600">
-                  {aiDisclosure.cautionNotes.map((note) => (
-                    <li key={note} className="rounded-2xl bg-slate-50 px-3 py-2">
-                      {note}
-                    </li>
-                  ))}
-                </ul>
               </div>
             ) : null}
 
@@ -999,9 +970,9 @@ export default function DogDetail() {
           <section className="order-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-lg font-extrabold text-slate-900">Traits & bio clues</div>
+                <div className="text-lg font-extrabold text-slate-900">Traits</div>
                 <p className="mt-1 text-sm leading-5 text-slate-600">
-                  Official details first. Bio estimates fill in helpful gaps.
+                  Official details first, with simple bio estimates when available.
                 </p>
               </div>
 
@@ -1010,7 +981,7 @@ export default function DogDetail() {
                   type="button"
                   onClick={() => setAiInfoOpen(true)}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm font-black text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                  aria-label="Learn about bio-based trait estimates"
+                  aria-label="Learn about estimated trait values"
                 >
                   i
                 </button>
@@ -1089,7 +1060,7 @@ export default function DogDetail() {
 
             {hasBioTraitData ? (
               <p className="mt-4 text-xs leading-5 text-slate-500">
-                ✨ Estimated from the rescue bio when structured details aren’t available.
+                Estimated from the rescue bio when structured details aren’t available.
               </p>
             ) : null}
           </section>

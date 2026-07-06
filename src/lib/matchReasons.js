@@ -4,10 +4,17 @@ function normStr(v) {
   return (v ?? "").toString().trim().toLowerCase();
 }
 
+function normalizeAnswerList(answer) {
+  if (Array.isArray(answer)) return answer.map(normStr).filter(Boolean);
+  const value = normStr(answer);
+  return value ? [value] : [];
+}
+
 function normSize(v) {
   const s = normStr(v);
   if (!s) return "";
   if (s === "xl" || s.includes("extra")) return "extra large";
+  if (s === "extra_large") return "extra large";
   return s;
 }
 
@@ -24,11 +31,34 @@ function pushUnique(arr, msg) {
   if (!arr.includes(msg)) arr.push(msg);
 }
 
+function bioCompatibility(value) {
+  const normalized = normStr(value);
+  if (normalized === "yes") return "strong";
+  if (normalized === "most_likely") return "strong";
+  if (normalized === "may_do_well") return "partial";
+  return "";
+}
+
+function positiveCompatibility(confirmedValue, bioValue) {
+  if (confirmedValue === true) return "strong";
+  const bio = bioCompatibility(bioValue);
+  return bio || "";
+}
+
+function aloneTimeNeededHours(answer) {
+  const a = normStr(answer);
+  if (a === "lt4" || a === "1to2" || a === "1-2") return 2;
+  if (a === "4_6" || a === "4to6" || a === "3to4" || a === "3-4") return 4;
+  if (a === "6_8" || a === "6to8" || a === "5to6" || a === "5-6") return 6;
+  if (a === "8_plus" || a === "gt8" || a === "7to8" || a === "7-8") return 8;
+  return null;
+}
+
 /**
  * Returns up to `limit` short, human reasons for why a dog matches.
  * - Only uses quiz answers + dog fields (no internal scoring keys).
  * - Safe for missing/unknown fields.
- * - Prefers "positive match" reasons, but falls back to "good to know" reasons.
+ * - Only returns supported positive/partial compatibility reasons.
  */
 export function getMatchReasons(dog, answers, limit = 3) {
   if (!dog || !answers) return [];
@@ -43,40 +73,56 @@ export function getMatchReasons(dog, answers, limit = 3) {
   }
 
   // --- Size (supports ["small","medium"] etc, case-insensitive)
-  const sizePrefsRaw = answers.size_preference;
-  const sizePrefs = Array.isArray(sizePrefsRaw)
-    ? sizePrefsRaw.map(normSize).filter(Boolean)
-    : [];
+  const sizePrefs = normalizeAnswerList(answers.size_preference).map(normSize);
   const dogSize = normSize(dog.size);
-  if (sizePrefs.length && dogSize && sizePrefs.includes(dogSize)) {
+  if (!sizePrefs.includes("flexible") && sizePrefs.length && dogSize && sizePrefs.includes(dogSize)) {
     pushUnique(reasons, `Fits your preferred size (${dog.size})`);
   }
 
   // --- Age
-  const agePrefsRaw = answers.age_preference;
-  const agePrefs = Array.isArray(agePrefsRaw)
-    ? agePrefsRaw.map(normStr).filter(Boolean)
-    : [];
+  const agePrefs = normalizeAnswerList(answers.age_preference);
   const dogAgeBucket = ageBucket(dog.age_years);
-  if (agePrefs.length && dogAgeBucket && agePrefs.includes(dogAgeBucket)) {
+  if (!agePrefs.includes("flexible") && agePrefs.length && dogAgeBucket && agePrefs.includes(dogAgeBucket)) {
     const label =
       dogAgeBucket === "puppy" ? "puppy" : dogAgeBucket === "adult" ? "adult" : "senior";
     pushUnique(reasons, `Age matches what you’re looking for (${label})`);
   }
 
   // --- Pets in home (only claim if dog explicitly good with X)
-  const pets = Array.isArray(answers.pets_in_home)
-    ? answers.pets_in_home.map(normStr).filter(Boolean)
-    : [];
+  const kids = normalizeAnswerList(answers.kids_in_home);
+  const hasKidsNeed = kids.some((kid) =>
+    ["yes", "kids", "children", "sometimes", "visiting", "children_visit", "under_3", "3_5", "6_9", "10_12", "13_plus"].includes(kid)
+  );
 
-  if (pets.includes("dogs") && dog.good_with_dogs === true) {
-    pushUnique(reasons, `Good with other dogs`);
+  if (hasKidsNeed) {
+    const kidsFit = positiveCompatibility(
+      dog.good_with_kids ?? dog.kids_ok ?? dog.kid_friendly ?? dog.goodWithKids,
+      dog.bio_good_with_kids
+    );
+    if (kidsFit === "strong") pushUnique(reasons, "Good evidence for homes with children");
+    if (kidsFit === "partial") pushUnique(reasons, "May do well with children");
   }
-  if (pets.includes("cats") && dog.good_with_cats === true) {
-    pushUnique(reasons, `Cat-friendly`);
+
+  const pets = normalizeAnswerList(answers.pets_in_home);
+
+  if (pets.includes("dogs")) {
+    const dogsFit = positiveCompatibility(
+      dog.good_with_dogs ?? dog.dogs_ok ?? dog.goodWithDogs,
+      dog.bio_good_with_dogs
+    );
+    if (dogsFit === "strong") pushUnique(reasons, "Good evidence for homes with other dogs");
+    if (dogsFit === "partial") pushUnique(reasons, "May do well with another dog");
   }
-  if (pets.includes("small_animals") && dog.good_with_small_animals === true) {
-    pushUnique(reasons, `Okay with small animals`);
+  if (pets.includes("cats")) {
+    const catsFit = positiveCompatibility(
+      dog.good_with_cats ?? dog.cats_ok ?? dog.goodWithCats,
+      dog.bio_good_with_cats
+    );
+    if (catsFit === "strong") pushUnique(reasons, "Good evidence for homes with cats");
+    if (catsFit === "partial") pushUnique(reasons, "May do well with cats");
+  }
+  if ((pets.includes("small_animals") || pets.includes("small_pets")) && dog.good_with_small_animals === true) {
+    pushUnique(reasons, "Listed as okay with small animals");
   }
 
   // --- Noise preference (only if dog has barking_level)
@@ -93,51 +139,26 @@ export function getMatchReasons(dog, answers, limit = 3) {
   // --- Alone time (only if dog.max_alone_hours is a number)
   const alone = normStr(answers.alone_time); // lt4, 4to6, 6to8, gt8
   const maxAlone = Number(dog.max_alone_hours);
-  if (alone && Number.isFinite(maxAlone)) {
-    const ok =
-      (alone === "lt4" && maxAlone <= 4) ||
-      (alone === "4to6" && maxAlone <= 6) ||
-      (alone === "6to8" && maxAlone <= 8) ||
-      alone === "gt8";
+  const bioMaxAlone = Number(dog.bio_max_alone_hours);
+  const supportedMaxAlone = Number.isFinite(maxAlone) && maxAlone > 0
+    ? maxAlone
+    : Number.isFinite(bioMaxAlone) && bioMaxAlone > 0
+      ? bioMaxAlone
+      : null;
+  const neededAlone = aloneTimeNeededHours(alone);
+  if (neededAlone && supportedMaxAlone) {
+    const ok = supportedMaxAlone >= neededAlone;
 
     if (ok) {
-      pushUnique(reasons, `Can handle your daily alone-time schedule`);
+      pushUnique(reasons, "Alone-time estimate fits your weekday routine");
     }
   }
 
   // --- Allergies
   const allergy = normStr(answers.allergy_sensitivity);
-  if (allergy === "have_allergies" && dog.hypoallergenic === true) {
+  if ((allergy === "have_allergies" || allergy === "needs_low_shedding") && dog.hypoallergenic === true) {
     pushUnique(reasons, `Better fit for allergy-sensitive homes`);
   }
-
-  // ✅ If we already have enough "positive match" reasons, return them
-  if (reasons.length >= limit) return reasons.slice(0, limit);
-
-  // ---------- Fallback reasons (helpful info, not claiming "match") ----------
-  // These only show if we *don't* have many real matches yet.
-  const fallback = [];
-
-  if (dog.size) pushUnique(fallback, `Size: ${dog.size}`);
-  if (dog.energy_level) pushUnique(fallback, `Energy: ${dog.energy_level}`);
-  if (dog.age_years !== null && dog.age_years !== undefined) {
-    const b = ageBucket(dog.age_years);
-    pushUnique(fallback, b ? `Age: ${b}` : `Age: unknown`);
-  }
-  if (dog.hypoallergenic === true) pushUnique(fallback, `Hypoallergenic`);
-  if (dog.potty_trained === true) pushUnique(fallback, `Potty trained`);
-  if (dog.good_with_kids === true) pushUnique(fallback, `Good with kids`);
-  if (dog.good_with_cats === true) pushUnique(fallback, `Good with cats`);
-  if (dog.good_with_dogs === true) pushUnique(fallback, `Good with other dogs`);
-
-  // Add fallbacks until we hit limit
-  for (const f of fallback) {
-    if (reasons.length >= limit) break;
-    pushUnique(reasons, f);
-  }
-
-  // Absolute last resort
-  if (!reasons.length) return ["Based on what we know so far"];
 
   return reasons.slice(0, limit);
 }
