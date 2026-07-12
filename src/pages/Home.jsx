@@ -10,18 +10,18 @@ import { normalizeImageUrl } from "../lib/urlSafety";
 const HOW_IT_WORKS = [
   {
     number: "01",
-    title: "Match by lifestyle",
-    text: "Use a lifestyle-based dog adoption quiz to compare energy, temperament, home needs, and fit.",
+    title: "Tell us about your home",
+    text: "Answer a short quiz about your routine, household, activity level, and what would make adoption feel realistic.",
   },
   {
     number: "02",
-    title: "See urgent dogs",
-    text: "Dogs who need visibility quickly can stand out to the right adopters.",
+    title: "We compare dogs by lifestyle fit",
+    text: "Hooman Finder ranks adoptable dogs against your answers using the details currently available from rescues and shelters.",
   },
   {
     number: "03",
-    title: "Apply through rescues",
-    text: "Find better-fit rescue dog matches here, then apply directly through the rescue or shelter.",
+    title: "Save matches and adopt with more confidence",
+    text: "Build a shortlist, read each dog’s profile, then confirm the important details directly with the rescue before applying.",
   },
 ];
 
@@ -243,7 +243,7 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative min-h-[90vh] overflow-hidden bg-stone-950 text-white">
+        <section className="relative min-h-[82vh] overflow-hidden bg-stone-950 text-white sm:min-h-[90vh]">
           {/* Blurred fill layer so mobile does not look empty when the full image is shown */}
           <img
             src="/home-hero-dogs.jpg"
@@ -264,50 +264,48 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-t from-stone-950/82 via-stone-950/24 to-stone-950/06 sm:from-stone-950/88 sm:via-stone-950/34 sm:to-stone-950/18" />
           <div className="absolute inset-0 bg-gradient-to-r from-stone-950/28 via-stone-950/08 to-stone-950/18 sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
 
-          <div className="relative z-10 flex min-h-[90vh] items-end">
-            <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-28 sm:px-6 sm:pb-14 lg:px-8">
+          <div className="relative z-10 flex min-h-[82vh] items-end sm:min-h-[90vh]">
+            <div className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 sm:pb-14 lg:px-8">
               <div className="max-w-3xl">
                 <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/76">
-                  Michigan + Midwest rescue dogs
+                  Guided dog adoption matching
                 </p>
 
-                <h1 className="mt-4 max-w-2xl text-[3.15rem] font-black leading-[0.9] text-white sm:text-7xl lg:text-8xl">
-                  Find a dog who fits your real life.
+                <h1 className="mt-4 max-w-3xl text-[2.95rem] font-black leading-[0.92] text-white sm:text-7xl lg:text-8xl">
+                  Find adoptable dogs that actually fit your life.
                 </h1>
 
                 <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/84 sm:text-lg">
-                  Take a dog adoption matching quiz to find adoptable dogs that fit
-                  your lifestyle, then apply directly through the rescue or shelter.
+                  Compare real rescue dogs by home, routine, energy, and care fit, then confirm the final details with the shelter or rescue.
                 </p>
 
                 <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                   <Link
-                    to="/dogs"
+                    to="/quiz"
                     className="inline-flex min-h-12 items-center justify-center rounded-full border border-white bg-white px-7 py-3 text-sm font-black text-stone-950 transition hover:bg-transparent hover:text-white"
                   >
-                    View adoptable dogs →
+                    Take the Matching Quiz
                   </Link>
 
                   <Link
-                    to="/quiz"
+                    to="/dogs"
                     className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/60 bg-black/18 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition hover:border-white hover:bg-white hover:text-stone-950"
                   >
-                    Take the matching quiz
+                    Browse Dogs
                   </Link>
                 </div>
               </div>
 
-              <div className="mt-8 border-t border-white/24 pt-4">
-                <p className="max-w-xl text-[11px] font-bold uppercase leading-6 tracking-[0.22em] text-white/62">
-                  Rescue dog matching built around fit, not endless scrolling. The
-                  rescue handles the adoption.
+              <div className="mt-6 border-t border-white/24 pt-4 sm:mt-8">
+                <p className="max-w-2xl text-xs font-semibold leading-6 text-white/68 sm:text-sm">
+                  Hooman Finder helps you compare lifestyle fit. Adoption availability, requirements, and behavior details should always be confirmed with the rescue or shelter.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="bg-[#f5f1e9] px-4 py-9 sm:px-6 sm:py-14 lg:px-8">
+        <section className="bg-[#f5f1e9] px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="border-b border-stone-950/20 pb-5">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
@@ -315,10 +313,10 @@ export default function Home() {
               </p>
 
               <h2 className="mt-3 max-w-2xl text-4xl font-black leading-none text-stone-950 sm:text-6xl">
-                Less scrolling. Better fit.
+                Three simple steps to a better shortlist.
               </h2>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
-                Hooman Finder helps reduce mismatches by pairing real adoptable dogs with your home, routine, and care preferences.
+                Hooman Finder helps adopters compare dogs by lifestyle fit without turning adoption into a guessing game.
               </p>
             </div>
 
@@ -377,10 +375,10 @@ export default function Home() {
 
                     <div className="mt-5">
                       <Link
-                        to={dogProfilePath(row.dog)}
+                        to={index === 0 ? "/quiz" : dogProfilePath(row.dog)}
                         className="inline-flex items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white transition hover:bg-stone-800"
                       >
-                        {row.dog?.id ? "View profile" : "Browse dogs"} →
+                        {index === 0 ? "Take the quiz" : row.dog?.id ? "View profile" : "Browse dogs"} →
                       </Link>
                     </div>
                   </div>

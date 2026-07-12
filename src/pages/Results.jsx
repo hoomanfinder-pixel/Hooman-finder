@@ -328,7 +328,7 @@ export default function Results() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-3.5 pb-28 pt-1.5 sm:px-6 sm:py-5 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl px-3.5 pb-8 pt-1.5 sm:px-6 sm:py-5 lg:px-8">
         <section className="pb-1 sm:pb-1.5">
           <div className="flex items-center justify-between gap-3">
             <Link
@@ -546,7 +546,7 @@ export default function Results() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
               {filteredRows.map((row, idx) => (
                 <DogCard
                   key={row.dog?.id ?? idx}

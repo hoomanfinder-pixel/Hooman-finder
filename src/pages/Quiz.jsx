@@ -245,7 +245,7 @@ export default function Quiz() {
   const segments = Array.from({ length: Math.max(completion.total || 1, 1) });
 
   const pageTitle =
-    mode === QUIZ_MODES.DEALBREAKERS ? "Deal Breakers" : "Refine matches";
+    mode === QUIZ_MODES.DEALBREAKERS ? "Start your match" : "Refine matches";
 
   const pageSubtitle =
     mode === QUIZ_MODES.DEALBREAKERS
@@ -418,7 +418,7 @@ export default function Quiz() {
                   onClick={goDealbreakers}
                   className="underline underline-offset-4 hover:text-[#0f2742]"
                 >
-                  Back to Deal Breakers
+                  Back to essentials
                 </button>
               ) : null}
 

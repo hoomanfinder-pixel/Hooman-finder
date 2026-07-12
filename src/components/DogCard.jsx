@@ -336,6 +336,7 @@ export default function DogCard({
   }, [dog?.age_years, dog?.age_text]);
 
   const lifestyleTags = useMemo(() => buildLifestyleTags(dog, ageLabel), [dog, ageLabel]);
+  const descriptionPreview = useMemo(() => buildDescription(dog), [dog]);
 
   const dogLink = useMemo(() => {
     const base = `/dog/${dog?.id}`;
@@ -520,7 +521,7 @@ export default function DogCard({
         <Link
           to={dogLink}
           state={linkState}
-          className="group grid grid-cols-[88px_1fr_auto] items-center gap-3 rounded-[1.35rem] border border-stone-950/10 bg-white/72 p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md sm:grid-cols-[112px_1fr_auto] sm:p-3"
+          className="group grid grid-cols-[92px_1fr_auto] items-center gap-3 rounded-[1.35rem] border border-stone-950/10 bg-white/80 p-2.5 shadow-sm transition hover:-translate-y-0.5 hover:bg-white hover:shadow-md sm:grid-cols-[116px_1fr_auto] sm:p-3"
         >
           <div className="relative aspect-square overflow-hidden rounded-[1.05rem] bg-stone-200">
             {imgSrc ? (
@@ -554,6 +555,10 @@ export default function DogCard({
 
             <p className="mt-1 truncate text-[11px] font-semibold text-stone-500">
               {shelterName(dog)}
+            </p>
+
+            <p className="mt-2 line-clamp-2 text-xs leading-5 text-stone-600">
+              {descriptionPreview}
             </p>
 
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -591,9 +596,9 @@ export default function DogCard({
         <Link
           to={dogLink}
           state={linkState}
-          className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.75rem]"
+          className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-stone-950/10 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.5rem]"
         >
-          <div className="relative aspect-[3/4] min-h-[250px] w-full overflow-hidden bg-stone-200 sm:min-h-[330px]">
+          <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-200">
             {imgSrc ? (
               <img
                 src={imgSrc}
@@ -606,8 +611,7 @@ export default function DogCard({
               <PlaceholderPhoto name={dog?.name} />
             )}
 
-            <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/24 to-black/08" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent" />
 
             <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1">
@@ -641,26 +645,46 @@ export default function DogCard({
 
               {heartButton}
             </div>
+          </div>
 
-            <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
-              <p className="mb-1 truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/65 sm:text-[10px]">
-                {shelterName(dog)}
-              </p>
+          <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">
+                  {shelterName(dog)}
+                </p>
 
-              <h2 className="truncate text-[1.65rem] font-black leading-none text-white drop-shadow-sm sm:text-3xl">
-                {dog?.name || "Unnamed"}
-              </h2>
-
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {lifestyleTags.slice(0, 3).map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2 py-1 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:text-[10px]"
-                  >
-                    {tag}
-                  </span>
-                ))}
+                <h2 className="mt-1 truncate text-2xl font-black leading-none text-stone-950 sm:text-3xl">
+                  {dog?.name || "Unnamed"}
+                </h2>
               </div>
+
+              {showMatch && Number.isFinite(Number(scorePct)) ? (
+                <span className="shrink-0 rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-stone-950">
+                  {Math.round(Number(scorePct))}%
+                </span>
+              ) : null}
+            </div>
+
+            <p className="mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-stone-600">
+              {descriptionPreview}
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {lifestyleTags.slice(0, 4).map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex max-w-full items-center truncate rounded-full bg-[#f5f1e9] px-2.5 py-1 text-[10px] font-bold text-stone-600 ring-1 ring-stone-950/5"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-auto pt-4">
+              <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-stone-950 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white transition group-hover:bg-stone-800">
+                View Profile
+              </span>
             </div>
           </div>
         </Link>
@@ -675,9 +699,9 @@ export default function DogCard({
       <Link
         to={dogLink}
         state={linkState}
-        className="group relative block overflow-hidden rounded-[1.55rem] bg-stone-950 shadow-sm ring-1 ring-black/10 transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.75rem]"
+        className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-stone-950/10 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.5rem]"
       >
-        <div className="relative aspect-[3/4] min-h-[250px] w-full overflow-hidden bg-stone-200 sm:min-h-[330px]">
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-200">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -690,8 +714,7 @@ export default function DogCard({
             <PlaceholderPhoto name={dog?.name} />
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/88 via-black/24 to-black/08" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-transparent" />
+          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent" />
 
           <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
             <div className="flex min-w-0 flex-wrap gap-1">
@@ -709,26 +732,36 @@ export default function DogCard({
 
             {heartButton}
           </div>
+        </div>
 
-          <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
-            <p className="mb-1 truncate text-[9px] font-black uppercase tracking-[0.2em] text-white/65 sm:text-[10px]">
-              {shelterName(dog)}
-            </p>
+        <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+          <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">
+            {shelterName(dog)}
+          </p>
 
-            <h2 className="truncate text-[1.65rem] font-black leading-none text-white drop-shadow-sm sm:text-3xl">
-              {dog?.name || "Unnamed"}
-            </h2>
+          <h2 className="mt-1 truncate text-2xl font-black leading-none text-stone-950 sm:text-3xl">
+            {dog?.name || "Unnamed"}
+          </h2>
 
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {lifestyleTags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex max-w-full items-center truncate rounded-full bg-black/28 px-2 py-1 text-[9px] font-bold text-white ring-1 ring-white/18 backdrop-blur sm:px-2.5 sm:text-[10px]"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+          <p className="mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-stone-600">
+            {descriptionPreview}
+          </p>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {lifestyleTags.slice(0, 4).map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex max-w-full items-center truncate rounded-full bg-[#f5f1e9] px-2.5 py-1 text-[10px] font-bold text-stone-600 ring-1 ring-stone-950/5"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-auto pt-4">
+            <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-stone-950 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white transition group-hover:bg-stone-800">
+              View Profile
+            </span>
           </div>
         </div>
       </Link>
