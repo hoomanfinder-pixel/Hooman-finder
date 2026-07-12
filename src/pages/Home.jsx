@@ -27,19 +27,19 @@ const HOW_IT_WORKS = [
 
 const WHY_FIT_MATTERS = [
   {
+    label: "The problem",
     stat: "16.3%",
-    label: "of adopted dogs in one shelter study were returned within six months.",
-    accent: "Study note",
+    text: "of adopted dogs in one shelter study were returned within six months.",
   },
   {
-    stat: "Behavior + expectations matter",
-    label: "Research links returns to post-adoption behavior challenges and mismatched expectations.",
-    accent: "Return factors",
+    label: "Why it happens",
+    headline: "Fit and expectations matter",
+    text: "Returns are often tied to behavior challenges, routine mismatch, or expectations that do not match daily life.",
   },
   {
-    stat: "Better questions, better confidence",
-    label: "Hooman Finder helps adopters compare dogs by routine, energy, home setup, and care fit before applying.",
-    accent: "Hooman Finder",
+    label: "Our approach",
+    headline: "Match by real-life fit",
+    text: "Hooman Finder compares dogs by home, routine, energy, care needs, and lifestyle fit before you apply.",
   },
 ];
 
@@ -340,42 +340,42 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
+            <div className="mt-6 grid items-stretch gap-3 sm:grid-cols-3 sm:gap-4">
               {WHY_FIT_MATTERS.map((item, index) => (
                 <article
-                  key={item.stat}
+                  key={item.label}
                   className={[
-                    "relative overflow-hidden rounded-[1.65rem] border p-4 shadow-[0_18px_45px_rgba(68,54,38,0.08)] ring-1 ring-white/55 sm:p-5",
+                    "group relative flex min-h-full overflow-hidden rounded-[1.7rem] border p-4 shadow-[0_18px_50px_rgba(68,54,38,0.07)] ring-1 ring-white/60 sm:p-5",
                     index === 0
-                      ? "border-[#d8c1a3] bg-[#fff8ed]"
-                      : "border-stone-950/10 bg-white/75",
+                      ? "border-[#d4b98f] bg-[#fff8ed]"
+                      : "border-stone-950/10 bg-[#fffdf8]/80",
                   ].join(" ")}
                 >
-                  <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#e8d7bc]/38" />
+                  <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b889]/70 to-transparent" />
+                  <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#ead9be]/24" />
 
-                  <div className="relative flex min-h-full flex-col">
+                  <div className="relative flex min-h-full w-full flex-col">
                     <div className="mb-5 flex items-center justify-between gap-3">
-                      <span className="rounded-full bg-[#f1e3cf] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-stone-600 ring-1 ring-stone-950/5">
-                        {item.accent}
+                      <span className="rounded-full bg-white/72 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-stone-500 ring-1 ring-stone-950/8">
+                        {item.label}
                       </span>
-                      <span
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/80 text-sm font-black text-stone-500 shadow-sm ring-1 ring-stone-950/5"
-                        aria-hidden="true"
-                      >
-                        {index === 0 ? "%" : index === 1 ? "!" : "✓"}
-                      </span>
+                      <span className="h-2 w-2 rounded-full bg-[#cda46d]/70" aria-hidden="true" />
                     </div>
 
-                    <div
-                      className={[
-                        "font-black leading-[0.98] text-stone-950",
-                        index === 0
-                          ? "text-[3.4rem] sm:text-[4.2rem]"
-                          : "text-2xl sm:text-3xl",
-                      ].join(" ")}
-                    >
-                      {item.stat}
-                    </div>
+                    {index === 0 ? (
+                      <div className="flex flex-1 flex-col justify-end">
+                        <div className="text-[3.35rem] font-black leading-[0.92] text-stone-950 sm:text-[4.05rem]">
+                          {item.stat}
+                        </div>
+                        <div className="mt-4 h-px w-16 bg-[#d4b98f]" />
+                      </div>
+                    ) : (
+                      <div className="flex flex-1 items-end">
+                        <h3 className="max-w-[16rem] text-[1.7rem] font-black leading-[0.98] text-stone-950 sm:text-[2rem]">
+                          {item.headline}
+                        </h3>
+                      </div>
+                    )}
 
                     <p
                       className={[
@@ -385,12 +385,16 @@ export default function Home() {
                           : "text-sm leading-6",
                       ].join(" ")}
                     >
-                      {item.label}
+                      {item.text}
                     </p>
                   </div>
                 </article>
               ))}
             </div>
+
+            <p className="mt-4 max-w-3xl text-xs font-semibold leading-5 text-stone-500">
+              Based on published shelter research. Hooman Finder supports more informed adoption shortlists, but final details should always be confirmed with the shelter or rescue.
+            </p>
           </div>
         </section>
 
