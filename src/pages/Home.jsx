@@ -29,14 +29,17 @@ const WHY_FIT_MATTERS = [
   {
     stat: "16.3%",
     label: "of adopted dogs in one shelter study were returned within six months.",
+    accent: "Study note",
   },
   {
     stat: "Behavior + expectations matter",
     label: "Research links returns to post-adoption behavior challenges and mismatched expectations.",
+    accent: "Return factors",
   },
   {
     stat: "Better questions, better confidence",
     label: "Hooman Finder helps adopters compare dogs by routine, energy, home setup, and care fit before applying.",
+    accent: "Hooman Finder",
   },
 ];
 
@@ -338,17 +341,53 @@ export default function Home() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
-              {WHY_FIT_MATTERS.map((item) => (
+              {WHY_FIT_MATTERS.map((item, index) => (
                 <article
                   key={item.stat}
-                  className="rounded-[1.35rem] border border-stone-950/10 bg-white/70 p-4 shadow-sm sm:p-5"
+                  className={[
+                    "relative overflow-hidden rounded-[1.65rem] border p-4 shadow-[0_18px_45px_rgba(68,54,38,0.08)] ring-1 ring-white/55 sm:p-5",
+                    index === 0
+                      ? "border-[#d8c1a3] bg-[#fff8ed]"
+                      : "border-stone-950/10 bg-white/75",
+                  ].join(" ")}
                 >
-                  <div className="text-2xl font-black leading-tight text-stone-950 sm:text-3xl">
-                    {item.stat}
+                  <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-[#e8d7bc]/38" />
+
+                  <div className="relative flex min-h-full flex-col">
+                    <div className="mb-5 flex items-center justify-between gap-3">
+                      <span className="rounded-full bg-[#f1e3cf] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-stone-600 ring-1 ring-stone-950/5">
+                        {item.accent}
+                      </span>
+                      <span
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/80 text-sm font-black text-stone-500 shadow-sm ring-1 ring-stone-950/5"
+                        aria-hidden="true"
+                      >
+                        {index === 0 ? "%" : index === 1 ? "!" : "✓"}
+                      </span>
+                    </div>
+
+                    <div
+                      className={[
+                        "font-black leading-[0.98] text-stone-950",
+                        index === 0
+                          ? "text-[3.4rem] sm:text-[4.2rem]"
+                          : "text-2xl sm:text-3xl",
+                      ].join(" ")}
+                    >
+                      {item.stat}
+                    </div>
+
+                    <p
+                      className={[
+                        "mt-4 font-semibold text-stone-600",
+                        index === 0
+                          ? "max-w-[18rem] text-sm leading-6 sm:text-base sm:leading-7"
+                          : "text-sm leading-6",
+                      ].join(" ")}
+                    >
+                      {item.label}
+                    </p>
                   </div>
-                  <p className="mt-3 text-sm font-semibold leading-6 text-stone-600">
-                    {item.label}
-                  </p>
                 </article>
               ))}
             </div>
