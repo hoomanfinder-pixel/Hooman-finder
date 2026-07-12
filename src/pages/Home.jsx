@@ -25,6 +25,21 @@ const HOW_IT_WORKS = [
   },
 ];
 
+const WHY_FIT_MATTERS = [
+  {
+    stat: "16.3%",
+    label: "of adopted dogs in one shelter study were returned within six months.",
+  },
+  {
+    stat: "Behavior + expectations matter",
+    label: "Research links returns to post-adoption behavior challenges and mismatched expectations.",
+  },
+  {
+    stat: "Better questions, better confidence",
+    label: "Hooman Finder helps adopters compare dogs by routine, energy, home setup, and care fit before applying.",
+  },
+];
+
 const fallbackDogImages = [
   "/home-hero-dogs.jpg",
   "/home-cta-dog.jpg",
@@ -204,7 +219,7 @@ export default function Home() {
     <div className="min-h-screen bg-[#f5f1e9] text-stone-950">
       <SEO
         title="Hooman Finder | Dog Adoption Matching Quiz"
-        description="Find adoptable dogs that fit your lifestyle with a smarter dog adoption matching quiz built to help reduce mismatches and returns."
+        description="Find adoptable dogs that fit your lifestyle with a dog adoption matching quiz built to help you compare routine, energy, home setup, and care fit."
         canonicalPath="/"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Rescue dogs looking for their future home"
@@ -260,9 +275,9 @@ export default function Home() {
           />
 
           {/* Lighter overlays so dog faces stay visible on low brightness */}
-          <div className="absolute inset-0 bg-stone-950/34 sm:bg-stone-950/50" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/82 via-stone-950/24 to-stone-950/06 sm:from-stone-950/88 sm:via-stone-950/34 sm:to-stone-950/18" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/28 via-stone-950/08 to-stone-950/18 sm:from-stone-950/55 sm:via-stone-950/18 sm:to-transparent" />
+          <div className="absolute inset-0 bg-stone-950/24 sm:bg-stone-950/38" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/74 via-stone-950/18 to-[#7c4a23]/10 sm:from-stone-950/80 sm:via-stone-950/24 sm:to-[#b67a3c]/14" />
+          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/24 via-[#7a4c25]/10 to-stone-950/12 sm:from-stone-950/46 sm:via-[#8a5428]/12 sm:to-transparent" />
 
           <div className="relative z-10 flex min-h-[82vh] items-end sm:min-h-[90vh]">
             <div className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 sm:pb-14 lg:px-8">
@@ -301,6 +316,41 @@ export default function Home() {
                   Hooman Finder helps you compare lifestyle fit. Adoption availability, requirements, and behavior details should always be confirmed with the rescue or shelter.
                 </p>
               </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#efe8dc] px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-end">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
+                  Why fit matters
+                </p>
+                <h2 className="mt-2 max-w-xl text-3xl font-black leading-none text-stone-950 sm:text-5xl">
+                  Better fit starts with better questions.
+                </h2>
+              </div>
+
+              <p className="max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
+                Adoption decisions are personal, emotional, and full of unknowns. Hooman Finder supports a more informed shortlist, while final details should always be confirmed with the shelter or rescue.
+              </p>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
+              {WHY_FIT_MATTERS.map((item) => (
+                <article
+                  key={item.stat}
+                  className="rounded-[1.35rem] border border-stone-950/10 bg-white/70 p-4 shadow-sm sm:p-5"
+                >
+                  <div className="text-2xl font-black leading-tight text-stone-950 sm:text-3xl">
+                    {item.stat}
+                  </div>
+                  <p className="mt-3 text-sm font-semibold leading-6 text-stone-600">
+                    {item.label}
+                  </p>
+                </article>
+              ))}
             </div>
           </div>
         </section>
