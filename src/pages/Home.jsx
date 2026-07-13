@@ -10,37 +10,44 @@ import { normalizeImageUrl } from "../lib/urlSafety";
 const HOW_IT_WORKS = [
   {
     number: "01",
-    title: "Tell us about your home",
-    text: "Answer a short quiz about your routine, household, activity level, and what would make adoption feel realistic.",
+    title: "Tell us about your life",
+    text: "Answer a short quiz about your home, routine, household, activity level, and care preferences.",
   },
   {
     number: "02",
-    title: "We compare dogs by lifestyle fit",
-    text: "Hooman Finder ranks adoptable dogs against your answers using the details currently available from rescues and shelters.",
+    title: "See lifestyle-based matches",
+    text: "We compare your answers with the available details on real, adoptable dogs from shelter and rescue sources.",
   },
   {
     number: "03",
-    title: "Save matches and adopt with more confidence",
-    text: "Build a shortlist, read each dog’s profile, then confirm the important details directly with the rescue before applying.",
+    title: "Continue with the source",
+    text: "Review profiles, save a shortlist, and contact the listed shelter or rescue to ask questions and continue the adoption process.",
   },
 ];
 
 const WHY_FIT_MATTERS = [
   {
-    label: "The problem",
-    stat: "16.3%",
-    text: "of adopted dogs in one shelter study were returned within six months.",
+    label: "Look deeper",
+    headline: "Beyond breed and looks",
+    text: "Energy, routine, home setup, and care needs can shape daily life with a dog just as much as appearance.",
   },
   {
-    label: "Why it happens",
-    headline: "Fit and expectations matter",
-    text: "Returns are often tied to behavior challenges, routine mismatch, or expectations that do not match daily life.",
+    label: "Start informed",
+    headline: "A more useful shortlist",
+    text: "Quiz answers help surface dogs whose available profiles align more closely with the life you described.",
   },
   {
-    label: "Our approach",
-    headline: "Match by real-life fit",
-    text: "Hooman Finder compares dogs by home, routine, energy, care needs, and lifestyle fit before you apply.",
+    label: "Keep it human",
+    headline: "Guidance, not a guarantee",
+    text: "A score is a starting point. Shelter or rescue counseling and time spent with a dog remain essential.",
   },
+];
+
+const TRUST_POINTS = [
+  ["Free to use", "No fees to explore matches"],
+  ["No account required", "Start the quiz right away"],
+  ["Real adoptable dogs", "From shelter and rescue sources"],
+  ["Lifestyle-based", "More than breed or looks"],
 ];
 
 const fallbackDogImages = [
@@ -221,8 +228,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-stone-950">
       <SEO
-        title="Hooman Finder | Dog Adoption Matching for Adoptable Rescue Dogs"
-        description="Find adoptable rescue dogs that actually fit your life. Hooman Finder helps you compare dogs by lifestyle fit, home, routine, energy, and care needs."
+        title="Free Dog Adoption Matching Tool | Hooman Finder"
+        description="Discover real adoptable shelter and rescue dogs based on lifestyle fit—not just breed or looks. Hooman Finder is free to use, with no account required."
         canonicalPath="/"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Rescue dogs looking for their future home"
@@ -232,16 +239,16 @@ export default function Home() {
           <Link
             to="/"
             aria-label="Go to Hooman Finder homepage"
-            className="inline-flex h-12 w-16 items-center justify-center rounded-2xl bg-white/88 p-1.5 shadow-sm ring-1 ring-white/45 backdrop-blur-sm sm:h-14 sm:w-20"
+            className="inline-flex h-20 w-[88px] shrink-0 items-center justify-center rounded-[1.35rem] bg-white/92 shadow-[0_10px_35px_rgba(0,0,0,0.16)] ring-1 ring-white/70 backdrop-blur-md transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:h-[100px] sm:w-28 sm:rounded-[1.55rem]"
           >
             <img
               src="/logo.png"
               alt="Hooman Finder"
-              className="h-full w-full object-contain"
+              className="h-16 w-16 object-contain object-center sm:h-[84px] sm:w-[84px]"
             />
           </Link>
 
-          <nav className="flex items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
+          <nav className="flex shrink-0 items-center gap-4 text-[11px] font-semibold uppercase tracking-[0.22em] text-white">
             <Link to="/about" className="hidden hover:text-white/75 sm:inline">
               About
             </Link>
@@ -254,147 +261,70 @@ export default function Home() {
               to="/quiz"
               className="rounded-full bg-stone-950 px-5 py-2.5 font-black tracking-[0.18em] text-white shadow-sm ring-1 ring-white/25 transition hover:bg-white hover:text-stone-950"
             >
-              Quiz
+              Take the Quiz
             </Link>
           </nav>
         </div>
       </header>
 
       <main>
-        <section className="relative min-h-[82vh] overflow-hidden bg-stone-950 text-white sm:min-h-[90vh]">
-          {/* Blurred fill layer so mobile does not look empty when the full image is shown */}
+        <section className="relative min-h-[590px] overflow-hidden bg-stone-950 text-white sm:min-h-[90vh]">
           <img
             src="/home-hero-dogs.jpg"
-            alt=""
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full scale-110 object-cover object-center blur-sm"
+            alt="Two adoptable dogs sitting together"
+            className="absolute inset-0 h-full w-full object-cover object-[58%_center] sm:object-[50%_35%] lg:object-center"
           />
 
-          {/* Main hero photo: contain on mobile so both dog faces are visible */}
-          <img
-            src="/home-hero-dogs.jpg"
-            alt="Rescue dogs looking for their future home"
-            className="absolute inset-0 h-full w-full object-contain object-center sm:object-cover sm:object-[50%_35%] lg:object-center"
-          />
+          <div className="absolute inset-0 bg-stone-950/35 sm:bg-stone-950/40" />
+          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/38 to-stone-950/10 sm:from-stone-950/90 sm:via-stone-950/28" />
+          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/35 via-stone-950/5 to-transparent sm:from-stone-950/55" />
 
-          {/* Lighter overlays so dog faces stay visible on low brightness */}
-          <div className="absolute inset-0 bg-stone-950/24 sm:bg-stone-950/38" />
-          <div className="absolute inset-0 bg-gradient-to-t from-stone-950/74 via-stone-950/18 to-[#7c4a23]/10 sm:from-stone-950/80 sm:via-stone-950/24 sm:to-[#b67a3c]/14" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/24 via-[#7a4c25]/10 to-stone-950/12 sm:from-stone-950/46 sm:via-[#8a5428]/12 sm:to-transparent" />
-
-          <div className="relative z-10 flex min-h-[82vh] items-end sm:min-h-[90vh]">
-            <div className="mx-auto w-full max-w-7xl px-4 pb-6 pt-24 sm:px-6 sm:pb-14 lg:px-8">
+          <div className="relative z-10 flex min-h-[590px] items-end sm:min-h-[90vh]">
+            <div className="mx-auto w-full max-w-7xl px-4 pb-14 pt-[8.5rem] sm:px-6 sm:pb-20 sm:pt-28 lg:px-8">
               <div className="max-w-3xl">
                 <p className="text-[11px] font-black uppercase tracking-[0.32em] text-white/76">
-                  Guided dog adoption matching
+                  Free dog adoption matching tool
                 </p>
 
-                <h1 className="mt-4 max-w-3xl text-[2.95rem] font-black leading-[0.92] text-white sm:text-7xl lg:text-8xl">
-                  Find adoptable dogs that actually fit your life.
+                <h1 className="mt-3 max-w-3xl text-[2.55rem] font-black leading-[0.94] text-white sm:mt-4 sm:text-7xl lg:text-8xl">
+                  Find adoptable dogs that fit your real life.
                 </h1>
 
-                <p className="mt-5 max-w-xl text-base font-semibold leading-7 text-white/84 sm:text-lg">
-                  Compare real rescue dogs by home, routine, energy, and care fit, then confirm the final details with the shelter or rescue.
+                <p className="mt-4 max-w-2xl text-[15px] font-semibold leading-6 text-white/85 sm:mt-5 sm:text-lg sm:leading-7">
+                  Hooman Finder helps you discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
                 </p>
 
-                <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-6 flex flex-col gap-3 sm:mt-7 sm:flex-row">
                   <Link
                     to="/quiz"
-                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white bg-white px-7 py-3 text-sm font-black text-stone-950 transition hover:bg-transparent hover:text-white"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#f3c982] bg-[#f3c982] px-7 py-3 text-sm font-black text-stone-950 shadow-lg shadow-black/15 transition hover:border-white hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                   >
-                    Take the Matching Quiz
+                    Take the Quiz
                   </Link>
 
                   <Link
                     to="/dogs"
-                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/60 bg-black/18 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition hover:border-white hover:bg-white hover:text-stone-950"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/65 bg-black/20 px-7 py-3 text-sm font-black text-white backdrop-blur-sm transition hover:border-white hover:bg-white hover:text-stone-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
                   >
                     Browse Dogs
                   </Link>
                 </div>
               </div>
 
-              <div className="mt-6 border-t border-white/24 pt-4 sm:mt-8">
-                <p className="max-w-2xl text-xs font-semibold leading-6 text-white/68 sm:text-sm">
-                  Hooman Finder helps you compare lifestyle fit. Adoption availability, requirements, and behavior details should always be confirmed with the rescue or shelter.
-                </p>
-              </div>
             </div>
           </div>
         </section>
 
-        <section className="bg-[#efe8dc] px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+        <section aria-label="Why adopters can trust Hooman Finder" className="border-b border-stone-950/10 bg-[#fffaf2] px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-end">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
-                  Why fit matters
-                </p>
-                <h2 className="mt-2 max-w-xl text-3xl font-black leading-none text-stone-950 sm:text-5xl">
-                  Better fit starts with better questions.
-                </h2>
-              </div>
-
-              <p className="max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
-                Adoption decisions are personal, emotional, and full of unknowns. Hooman Finder supports a more informed shortlist, while final details should always be confirmed with the shelter or rescue.
-              </p>
-            </div>
-
-            <div className="mt-6 grid items-stretch gap-3 sm:grid-cols-3 sm:gap-4">
-              {WHY_FIT_MATTERS.map((item, index) => (
-                <article
-                  key={item.label}
-                  className={[
-                    "group relative flex min-h-full overflow-hidden rounded-[1.7rem] border p-4 shadow-[0_18px_50px_rgba(68,54,38,0.07)] ring-1 ring-white/60 sm:p-5",
-                    index === 0
-                      ? "border-[#d4b98f] bg-[#fff8ed]"
-                      : "border-stone-950/10 bg-[#fffdf8]/80",
-                  ].join(" ")}
-                >
-                  <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-[#d6b889]/70 to-transparent" />
-                  <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-[#ead9be]/24" />
-
-                  <div className="relative flex min-h-full w-full flex-col">
-                    <div className="mb-5 flex items-center justify-between gap-3">
-                      <span className="rounded-full bg-white/72 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-stone-500 ring-1 ring-stone-950/8">
-                        {item.label}
-                      </span>
-                      <span className="h-2 w-2 rounded-full bg-[#cda46d]/70" aria-hidden="true" />
-                    </div>
-
-                    {index === 0 ? (
-                      <div className="flex flex-1 flex-col justify-end">
-                        <div className="text-[3.35rem] font-black leading-[0.92] text-stone-950 sm:text-[4.05rem]">
-                          {item.stat}
-                        </div>
-                        <div className="mt-4 h-px w-16 bg-[#d4b98f]" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-1 items-end">
-                        <h3 className="max-w-[16rem] text-[1.7rem] font-black leading-[0.98] text-stone-950 sm:text-[2rem]">
-                          {item.headline}
-                        </h3>
-                      </div>
-                    )}
-
-                    <p
-                      className={[
-                        "mt-4 font-semibold text-stone-600",
-                        index === 0
-                          ? "max-w-[18rem] text-sm leading-6 sm:text-base sm:leading-7"
-                          : "text-sm leading-6",
-                      ].join(" ")}
-                    >
-                      {item.text}
-                    </p>
-                  </div>
-                </article>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-5 sm:grid-cols-4">
+              {TRUST_POINTS.map(([title, text]) => (
+                <div key={title} className="border-l-2 border-[#d5ab70] pl-3 sm:pl-4">
+                  <p className="text-sm font-black text-stone-950">{title}</p>
+                  <p className="mt-1 text-xs leading-5 text-stone-600">{text}</p>
+                </div>
               ))}
             </div>
-
-            <p className="mt-4 max-w-3xl text-xs font-semibold leading-5 text-stone-500">
-              Based on published shelter research. Hooman Finder supports more informed adoption shortlists, but final details should always be confirmed with the shelter or rescue.
-            </p>
           </div>
         </section>
 
@@ -406,10 +336,10 @@ export default function Home() {
               </p>
 
               <h2 className="mt-3 max-w-2xl text-4xl font-black leading-none text-stone-950 sm:text-6xl">
-                Three simple steps to a better shortlist.
+                Three steps to a more informed shortlist.
               </h2>
               <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
-                Hooman Finder helps adopters compare dogs by lifestyle fit without turning adoption into a guessing game.
+                Your answers guide the matches you see. They do not decide whether a dog is right for you or whether an adoption is approved.
               </p>
             </div>
 
@@ -495,6 +425,10 @@ export default function Home() {
                               : "Adoptable dog"
                           }
                           className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.025]"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = fallbackDogImages[index];
+                          }}
                         />
                       </div>
 
@@ -536,6 +470,86 @@ export default function Home() {
           </div>
         </section>
 
+        <section className="bg-[#efe8dc] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-end">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-stone-500 sm:text-[11px]">
+                  Why matching matters
+                </p>
+                <h2 className="mt-2 max-w-xl text-3xl font-black leading-none text-stone-950 sm:text-5xl">
+                  Better fit starts with better questions.
+                </h2>
+              </div>
+
+              <p className="max-w-2xl text-sm font-semibold leading-6 text-stone-600 sm:text-base">
+                Choosing a dog is about more than a photo. A thoughtful starting point can help you focus your search and prepare better questions for the shelter or rescue.
+              </p>
+            </div>
+
+            <div className="mt-7 grid items-stretch gap-3 sm:grid-cols-3 sm:gap-4">
+              {WHY_FIT_MATTERS.map((item) => (
+                <article
+                  key={item.label}
+                  className="relative flex min-h-full overflow-hidden rounded-[1.7rem] border border-stone-950/10 bg-[#fffdf8]/85 p-5 shadow-[0_18px_50px_rgba(68,54,38,0.07)] ring-1 ring-white/60 sm:p-6"
+                >
+                  <div className="relative flex min-h-full w-full flex-col">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">
+                      {item.label}
+                    </p>
+                    <h3 className="mt-8 max-w-[17rem] text-[1.75rem] font-black leading-none text-stone-950 sm:text-[2rem]">
+                      {item.headline}
+                    </h3>
+                    <p className="mt-4 text-sm font-semibold leading-6 text-stone-600">
+                      {item.text}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="bg-[#f5f1e9] px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
+          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-2">
+            <article className="rounded-[2rem] border border-stone-950/10 bg-white/65 p-6 sm:p-8">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-stone-500">
+                For shelters and rescues
+              </p>
+              <h2 className="mt-3 text-3xl font-black leading-none text-stone-950 sm:text-4xl">
+                Help adopters start with fit.
+              </h2>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-stone-600 sm:text-base sm:leading-7">
+                Hooman Finder helps people discover listed dogs, then sends interested adopters to the shelter or rescue to ask questions and continue its application process.
+              </p>
+              <Link
+                to="/shelters/join"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-stone-950 px-6 py-3 text-sm font-black text-stone-950 transition hover:bg-stone-950 hover:text-white"
+              >
+                Shelter or rescue inquiries
+              </Link>
+            </article>
+
+            <article className="rounded-[2rem] bg-stone-950 p-6 text-white sm:p-8">
+              <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/55">
+                Our mission
+              </p>
+              <h2 className="mt-3 text-3xl font-black leading-none sm:text-4xl">
+                Make the search feel more thoughtful.
+              </h2>
+              <p className="mt-4 max-w-xl text-sm leading-6 text-white/72 sm:text-base sm:leading-7">
+                Hooman Finder was created to help adopters look beyond breed and appearance, understand lifestyle fit, and arrive at shelter conversations with a more informed shortlist.
+              </p>
+              <Link
+                to="/about"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-white/45 px-6 py-3 text-sm font-black text-white transition hover:border-white hover:bg-white hover:text-stone-950"
+              >
+                About Hooman Finder
+              </Link>
+            </article>
+          </div>
+        </section>
+
         <section className="relative overflow-hidden bg-stone-950 text-white">
           <img
             src="/home-cta-dog.jpg"
@@ -557,43 +571,57 @@ export default function Home() {
               </h2>
 
               <p className="mt-6 max-w-xl text-base leading-7 text-white/75 sm:text-lg">
-                Take the lifestyle-based dog adoption quiz for guided matches, or browse dogs if you already know what you’re looking for.
+                Take the lifestyle quiz to see guided matches. Match scores are guidance, not guarantees, and the shelter or rescue always manages the adoption process.
               </p>
 
-              <div className="mt-8">
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Link
                   to="/quiz"
-                  className="inline-flex items-center justify-center rounded-full border border-white bg-white px-7 py-3 text-sm font-black text-stone-950 transition hover:bg-transparent hover:text-white"
+                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#f3c982] bg-[#f3c982] px-7 py-3 text-sm font-black text-stone-950 transition hover:border-white hover:bg-white"
                 >
-                  Find my match →
+                  Take the Quiz
+                </Link>
+                <Link
+                  to="/dogs"
+                  className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/60 px-7 py-3 text-sm font-black text-white transition hover:border-white hover:bg-white hover:text-stone-950"
+                >
+                  Browse Dogs
                 </Link>
               </div>
+
+              <p className="mt-6 max-w-2xl text-xs leading-5 text-white/60">
+                Hooman Finder does not replace adoption counseling, applications, meet-and-greets, or final decisions made by shelters and rescues.
+              </p>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-stone-950/10 bg-[#f5f1e9] px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 sm:block">
-            <img src="/logo.png" alt="Hooman Finder" className="h-8 w-auto sm:h-10" />
+      <footer className="border-t border-stone-950/10 bg-[#f5f1e9] px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div>
+              <Link to="/" aria-label="Hooman Finder home" className="inline-flex">
+                <img src="/logo.png" alt="Hooman Finder" className="h-10 w-auto" />
+              </Link>
+              <p className="mt-4 max-w-md text-sm leading-6 text-stone-600">
+                A free tool helping people discover adoptable dogs through lifestyle fit, then continue directly with the shelter or rescue.
+              </p>
+            </div>
 
-            <p className="text-xs text-stone-500 sm:mt-3">
-              © 2026 Hooman Finder
-            </p>
+            <nav aria-label="Footer" className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm font-semibold text-stone-600 sm:grid-cols-3">
+              <Link to="/about" className="hover:text-stone-950">About</Link>
+              <Link to="/contact" className="hover:text-stone-950">Contact</Link>
+              <a href="mailto:info@hoomanfinder.com" className="hover:text-stone-950">Email us</a>
+              <Link to="/privacy" className="hover:text-stone-950">Privacy</Link>
+              <Link to="/terms" className="hover:text-stone-950">Terms &amp; disclaimer</Link>
+              <Link to="/shelters/join" className="hover:text-stone-950">For shelters &amp; rescues</Link>
+            </nav>
           </div>
 
-          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-stone-500 sm:text-xs">
-            <Link to="/about" className="hover:text-stone-950">
-              About
-            </Link>
-            <Link to="/shelters" className="hover:text-stone-950">
-              For shelters
-            </Link>
-            <Link to="/contact" className="hover:text-stone-950">
-              Contact
-            </Link>
-          </nav>
+          <div className="mt-8 border-t border-stone-950/10 pt-5 text-xs leading-5 text-stone-500">
+            © {new Date().getFullYear()} Hooman Finder. Adoption availability, requirements, and dog details should be confirmed directly with the listing shelter or rescue.
+          </div>
         </div>
       </footer>
     </div>
