@@ -11,6 +11,7 @@
     "import:rescuegroups:dacc": "node scripts/import-dacc-rescuegroups.cjs",
     "enrich:dacc-bios": "node scripts/enrich-dacc-bios.cjs",
     "enrich:dogs-ai": "node scripts/enrich-dogs-ai.cjs",
+    "generate:dog-sitemap": "node scripts/generate-dog-sitemap.cjs",
     "sync:rescuegroups": "node sync-rescuegroups-dogs.cjs",
     "preview": "vite preview"
   },
