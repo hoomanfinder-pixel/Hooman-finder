@@ -1,6 +1,8 @@
 User-agent: *
 Allow: /
 Disallow: /results
+Disallow: /results/
 Disallow: /saved
+Disallow: /saved/
 
 Sitemap: https://hoomanfinder.com/sitemap.xml

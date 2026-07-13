@@ -536,7 +536,7 @@ export default function DogDetail() {
       ? "Dog Not Found | Hooman Finder"
       : "Adoptable Dog | Hooman Finder";
   const seoDescription = seoDogName
-    ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View details, photos, and adoption fit information on Hooman Finder.`
+    ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View photos, rescue details, and lifestyle fit information on Hooman Finder.`
     : "View adoptable dog details, photos, and adoption fit information on Hooman Finder.";
   const seoImage = resolvedImage?.startsWith("https://") ? resolvedImage : "/home-hero-dogs.jpg";
   const seoImageAlt = seoDogName

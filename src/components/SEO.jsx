@@ -3,7 +3,8 @@ import { useEffect } from "react";
 const SITE_URL = "https://hoomanfinder.com";
 const DEFAULT_IMAGE = `${SITE_URL}/home-hero-dogs.jpg`;
 const DEFAULT_DESCRIPTION =
-  "Find adoptable dogs that fit your lifestyle with Hooman Finder's dog adoption matching quiz.";
+  "Hooman Finder helps you compare adoptable rescue dogs by lifestyle fit, home, routine, energy, and care needs.";
+const DEFAULT_IMAGE_ALT = "Rescue dogs looking for their future home";
 
 function absoluteUrl(value) {
   if (!value) return "";
@@ -63,6 +64,7 @@ export default function SEO({
     const safeDescription = description || DEFAULT_DESCRIPTION;
     const canonical = canonicalUrl || absoluteUrl(canonicalPath) || SITE_URL;
     const image = absoluteUrl(ogImage) || DEFAULT_IMAGE;
+    const imageAlt = ogImageAlt || DEFAULT_IMAGE_ALT;
 
     document.title = safeTitle;
     upsertCanonical(canonical);
@@ -97,12 +99,10 @@ export default function SEO({
       content: image,
     });
 
-    if (ogImageAlt) {
-      upsertMeta('meta[property="og:image:alt"]', {
-        property: "og:image:alt",
-        content: ogImageAlt,
-      });
-    }
+    upsertMeta('meta[property="og:image:alt"]', {
+      property: "og:image:alt",
+      content: imageAlt,
+    });
 
     upsertMeta('meta[name="twitter:card"]', {
       name: "twitter:card",
@@ -120,11 +120,15 @@ export default function SEO({
       name: "twitter:image",
       content: image,
     });
+    upsertMeta('meta[name="twitter:image:alt"]', {
+      name: "twitter:image:alt",
+      content: imageAlt,
+    });
 
     if (noindex) {
       upsertMeta('meta[name="robots"]', {
         name: "robots",
-        content: "noindex,nofollow",
+        content: "noindex, nofollow",
       });
     } else {
       removeManagedRobots();

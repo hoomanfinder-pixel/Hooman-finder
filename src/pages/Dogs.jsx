@@ -279,8 +279,8 @@ export default function Dogs() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <SEO
-        title="Browse Adoptable Dogs | Hooman Finder"
-        description="Browse real adoptable dogs and save favorites while you explore which dogs may fit your home, lifestyle, and care preferences."
+        title="Browse Adoptable Rescue Dogs | Hooman Finder"
+        description="Browse adoptable rescue dogs and save favorites while you compare fit by home, lifestyle, energy, care needs, and shelter or rescue details."
         canonicalPath="/dogs"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Adoptable dogs available through Hooman Finder"

@@ -221,8 +221,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-stone-950">
       <SEO
-        title="Hooman Finder | Dog Adoption Matching Quiz"
-        description="Find adoptable dogs that fit your lifestyle with a dog adoption matching quiz built to help you compare routine, energy, home setup, and care fit."
+        title="Hooman Finder | Dog Adoption Matching for Adoptable Rescue Dogs"
+        description="Find adoptable rescue dogs that actually fit your life. Hooman Finder helps you compare dogs by lifestyle fit, home, routine, energy, and care needs."
         canonicalPath="/"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Rescue dogs looking for their future home"

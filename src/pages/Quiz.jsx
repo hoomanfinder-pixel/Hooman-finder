@@ -256,7 +256,7 @@ export default function Quiz() {
     <div className="min-h-screen bg-[#f5f1e9] text-[#0f2742]">
       <SEO
         title="Dog Adoption Matching Quiz | Hooman Finder"
-        description="Take a lifestyle-based dog adoption quiz to find adoptable dogs that better match your home, routine, experience level, and preferences."
+        description="Take Hooman Finder's dog adoption matching quiz to compare adoptable rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
         canonicalPath="/quiz"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Rescue dogs looking for a good lifestyle match"

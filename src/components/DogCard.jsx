@@ -242,7 +242,10 @@ function displayBreed(dog) {
 function dogPhotoAlt(dog) {
   const name = dog?.name || "Unnamed dog";
   const breed = displayBreed(dog);
-  return `${name}, adoptable ${breed}`;
+  const source = shelterName(dog);
+  return source
+    ? `${name}, adoptable ${breed} from ${source}`
+    : `${name}, adoptable ${breed}`;
 }
 
 function buildDescription(dog) {

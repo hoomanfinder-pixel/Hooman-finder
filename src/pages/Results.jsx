@@ -283,7 +283,7 @@ export default function Results() {
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <SEO
         title="Your Dog Adoption Matches | Hooman Finder"
-        description="View your ranked adoptable dog matches based on your quiz answers and available dog details."
+        description="View your ranked Hooman Finder dog adoption matches based on your quiz answers and available rescue dog details."
         canonicalPath="/results"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Dog adoption matches from Hooman Finder"
