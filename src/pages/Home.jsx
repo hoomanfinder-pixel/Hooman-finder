@@ -232,7 +232,7 @@ export default function Home() {
         description="Discover real adoptable shelter and rescue dogs based on lifestyle fit—not just breed or looks. Hooman Finder is free to use, with no account required."
         canonicalPath="/"
         ogImage="/home-hero-dogs.jpg"
-        ogImageAlt="Rescue dogs looking for their future home"
+        ogImageAlt="Shelter and rescue dogs looking for their future home"
       />
       <header className="absolute left-0 right-0 top-0 z-30">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">

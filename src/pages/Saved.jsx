@@ -154,7 +154,7 @@ export default function Saved() {
               </h1>
 
               <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600 sm:text-base">
-                Dogs you’ve saved. We’ll help you compare favorites when you’re ready.
+                Review dogs you’ve saved, then open a profile to continue with the listing shelter or rescue.
               </p>
             </div>
 

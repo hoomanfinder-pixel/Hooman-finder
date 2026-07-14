@@ -279,8 +279,8 @@ export default function Dogs() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <SEO
-        title="Browse Adoptable Rescue Dogs | Hooman Finder"
-        description="Browse adoptable rescue dogs and save favorites while you compare fit by home, lifestyle, energy, care needs, and shelter or rescue details."
+        title="Browse Adoptable Dogs | Hooman Finder"
+        description="Browse adoptable shelter and rescue dogs and save favorites while you compare fit by home, lifestyle, energy, care needs, and source details."
         canonicalPath="/dogs"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Adoptable dogs available through Hooman Finder"
@@ -343,7 +343,7 @@ export default function Dogs() {
               </h1>
 
               <p className="mt-1.5 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:text-base sm:leading-6">
-                Browse adoptable dogs in Michigan, save favorites, and take the quiz when you’re ready for better matches.
+                Browse adoptable dogs in Michigan, save favorites, and take the quiz when you’re ready for lifestyle-based matches.
               </p>
             </div>
           </div>
@@ -376,13 +376,13 @@ export default function Dogs() {
 
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
               <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 md:col-span-1">
-                Rescue
+                Shelter or rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
-                  <option value="all">All rescues</option>
+                  <option value="all">All sources</option>
                   {rescueOptions.map((rescue) => (
                     <option key={rescue.id} value={rescue.id}>
                       {rescue.name} ({rescue.count})

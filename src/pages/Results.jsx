@@ -283,7 +283,7 @@ export default function Results() {
     <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
       <SEO
         title="Your Dog Adoption Matches | Hooman Finder"
-        description="View your ranked Hooman Finder dog adoption matches based on your quiz answers and available rescue dog details."
+        description="View your ranked Hooman Finder dog adoption matches based on your quiz answers and available shelter and rescue dog details."
         canonicalPath="/results"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Dog adoption matches from Hooman Finder"
@@ -358,14 +358,9 @@ export default function Results() {
               </h1>
 
               <p className="mt-1 max-w-2xl text-sm font-semibold leading-5 text-[#6f6a66] sm:mt-1.5 sm:text-base sm:leading-6">
-                Ranked adoptable dog matches based on your quiz answers and the dog details currently available from rescues.
+                Ranked adoptable dog matches based on your quiz answers and the details currently available from shelters and rescues.
               </p>
 
-              {err ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  {err}
-                </div>
-              ) : null}
             </div>
           </div>
 
@@ -382,7 +377,7 @@ export default function Results() {
                   Fine-tune matches
                 </h2>
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
-                  Narrow your ranked rescue dog matches without losing your quiz scoring.
+                  Narrow your ranked dog matches without losing your quiz scoring.
                 </p>
               </div>
 
@@ -397,13 +392,13 @@ export default function Results() {
 
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
               <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 md:col-span-1">
-                Rescue
+                Shelter or rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
                   className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
                 >
-                  <option value="all">All rescues</option>
+                  <option value="all">All sources</option>
                   {rescueOptions.map((rescue) => (
                     <option key={rescue.id} value={rescue.id}>
                       {rescue.name} ({rescue.count})
@@ -499,6 +494,23 @@ export default function Results() {
         {loading ? (
           <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm font-semibold text-stone-600">
             Loading matches…
+          </div>
+        ) : err ? (
+          <div className="mt-5 rounded-[1.6rem] border border-amber-200 bg-amber-50 p-5">
+            <h2 className="text-2xl font-black text-stone-950">
+              We couldn’t load your matches.
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-stone-700">
+              {err}
+            </p>
+
+            <Link
+              to="/quiz"
+              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
+            >
+              Take or restart the quiz
+            </Link>
           </div>
         ) : filteredRows.length === 0 ? (
           <div className="mt-5 rounded-[1.6rem] border border-stone-950/10 bg-white/62 p-5">

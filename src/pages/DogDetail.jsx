@@ -713,7 +713,7 @@ export default function DogDetail() {
                 </div>
 
                 <p className="mt-4 text-sm font-semibold leading-6 text-slate-700">
-                  This score is based on your quiz answers and the dog details currently available from the rescue.
+                  This score is based on your quiz answers and the dog details currently available from the shelter or rescue.
                 </p>
 
                 {matchReasons.length ? (
@@ -800,7 +800,7 @@ export default function DogDetail() {
                   What we noticed from the bio
                 </div>
                 <h2 className="mt-2 text-2xl font-extrabold tracking-[-0.04em] text-slate-950">
-                  Things to confirm with the rescue
+                  Things to confirm with the shelter or rescue
                 </h2>
               </div>
 
@@ -932,7 +932,7 @@ export default function DogDetail() {
                   Ready to take the next step?
                 </div>
                 <p className="mt-1 text-sm leading-5 text-slate-600">
-                  Hooman Finder helps you compare adoption fit information for {name}. The rescue manages applications, fees,
+                  Hooman Finder helps you compare adoption fit information for {name}. The listing shelter or rescue manages applications, fees,
                   availability, and final adoption decisions.
                 </p>
 
@@ -948,12 +948,13 @@ export default function DogDetail() {
                   onClick={(e) => {
                     if (!applyLink) e.preventDefault();
                   }}
+                  aria-disabled={!applyLink}
                 >
                   {applyLabel}
                 </a>
 
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  Opens the rescue’s official listing, website, or application page.
+                  Opens the shelter or rescue’s official listing, website, or application page.
                 </p>
               </div>
             </div>
@@ -973,7 +974,7 @@ export default function DogDetail() {
                     {name} may fit parts of your home and routine.
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-700">
-                    These highlights come from your quiz answers and the dog details currently available from the rescue.
+                    These highlights come from your quiz answers and the dog details currently available from the shelter or rescue.
                   </p>
                 </div>
 
@@ -1013,7 +1014,7 @@ export default function DogDetail() {
               <div>
                 <div className="text-lg font-extrabold text-slate-900">What we noticed</div>
                 <p className="mt-1 text-sm leading-5 text-slate-600">
-                  Listed details first, with gentle notes from the rescue bio when available.
+                  Listed details first, with gentle notes from the shelter or rescue bio when available.
                 </p>
               </div>
 
@@ -1149,9 +1150,9 @@ export default function DogDetail() {
                 </div>
               )}
 
-              <div>
-                <div className="font-semibold text-slate-900">{shelterName}</div>
-                <div className="text-sm text-slate-600">{location}</div>
+              <div className="min-w-0">
+                <div className="break-words font-semibold text-slate-900">{shelterName}</div>
+                <div className="break-words text-sm text-slate-600">{location}</div>
               </div>
             </div>
           </section>
@@ -1173,12 +1174,12 @@ export default function DogDetail() {
               </li>
               <li className="flex gap-2">
                 <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                <span>Contact the rescue directly for current availability and adoption requirements.</span>
+                <span>Contact the shelter or rescue directly for current availability and adoption requirements.</span>
               </li>
             </ul>
             <p className="mt-4 border-t border-slate-100 pt-3 text-xs leading-5 text-slate-500">
               Listing info can change. Dog availability, adoption fees, and requirements may
-              change quickly. Always confirm details directly with the rescue before applying
+              change quickly. Always confirm details directly with the shelter or rescue before applying
               or visiting.
             </p>
           </section>
@@ -1231,7 +1232,7 @@ export default function DogDetail() {
                 <li>• Introduce new people, pets, and places slowly.</li>
               </ul>
               <p className="mt-3 text-sm leading-5 text-slate-700">
-                Ask the rescue, vet, or trainer for help if concerns feel severe or do not
+                Ask the shelter, rescue, vet, or trainer for help if concerns feel severe or do not
                 improve.
               </p>
             </div>
@@ -1262,7 +1263,7 @@ function TraitCard({ label, trait }) {
         {trait.estimated ? (
           <span
             className="text-xs"
-            title="Noted from the rescue bio. Confirm with the rescue."
+            title="Noted from the shelter or rescue bio. Confirm with the source."
             aria-label="Noted from bio"
           >
             *

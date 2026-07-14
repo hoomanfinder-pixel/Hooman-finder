@@ -256,10 +256,10 @@ export default function Quiz() {
     <div className="min-h-screen bg-[#f5f1e9] text-[#0f2742]">
       <SEO
         title="Dog Adoption Matching Quiz | Hooman Finder"
-        description="Take Hooman Finder's dog adoption matching quiz to compare adoptable rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
+        description="Take Hooman Finder's dog adoption matching quiz to compare adoptable shelter and rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
         canonicalPath="/quiz"
         ogImage="/home-hero-dogs.jpg"
-        ogImageAlt="Rescue dogs looking for a good lifestyle match"
+        ogImageAlt="Shelter and rescue dogs looking for a good lifestyle match"
         noindex={Boolean(sessionFromUrl)}
       />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-32 pt-1.5 sm:px-5 sm:pb-32 sm:pt-3">
@@ -382,16 +382,16 @@ export default function Quiz() {
               <button
                 type="button"
                 onClick={saveAndSeeMatches}
-                className="inline-flex min-h-10 items-center justify-center rounded-full border border-[#0f2742]/18 bg-white px-3 py-2 text-xs font-black text-[#0f2742] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#0f2742]/18 bg-white px-3 py-2 text-xs font-black text-[#0f2742] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
               >
-                Save & See Matches
+                See Matches
               </button>
 
               {mode === QUIZ_MODES.DEALBREAKERS ? (
                 <button
                   type="button"
                   onClick={goRefine}
-                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-center text-xs font-black leading-snug text-white shadow-sm hover:bg-[#0d416f] sm:px-4 sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-center text-xs font-black leading-snug text-white shadow-sm hover:bg-[#0d416f] sm:px-4 sm:text-sm"
                 >
                   Deeper questions →
                 </button>
@@ -399,7 +399,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goResults}
-                  className="inline-flex min-h-10 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#0d416f] sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#0d416f] sm:text-sm"
                 >
                   See matches →
                 </button>
