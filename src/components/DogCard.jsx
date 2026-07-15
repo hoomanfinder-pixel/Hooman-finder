@@ -661,12 +661,6 @@ export default function DogCard({
                   {dog?.name || "Unnamed"}
                 </h2>
               </div>
-
-              {showMatch && Number.isFinite(Number(scorePct)) ? (
-                <span className="shrink-0 rounded-full bg-[#dfe7d7] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-stone-950">
-                  {Math.round(Number(scorePct))}%
-                </span>
-              ) : null}
             </div>
 
             <p className="mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-stone-600">

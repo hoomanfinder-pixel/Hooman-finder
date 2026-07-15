@@ -5,6 +5,7 @@ const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const SESSION_STORAGE_PREFIX = "hoomanFinder.quizResponses.session.v1";
+const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.local.v1";
 const CREATED_STORAGE_PREFIX = "hoomanFinder.quizResponsesCreated.v1";
 const ACTIVE_SESSION_KEY = "hoomanFinderActiveQuizSession";
 const sessionClients = new Map();
@@ -13,7 +14,6 @@ const REMOTE_QUIZ_COLUMNS = new Set([
   "size_preference",
   "age_preference",
   "kids_in_home",
-  "kids_age_band",
   "pets_in_home",
   "potty_requirement",
   "separation_anxiety_willingness",
@@ -88,6 +88,14 @@ function writeSessionJson(key, value) {
   writeJsonTo(canUseSessionStorage() ? window.sessionStorage : null, key, value);
 }
 
+function readLocalJson(key, fallback) {
+  return readJsonFrom(canUseLocalStorage() ? window.localStorage : null, key, fallback);
+}
+
+function writeLocalJson(key, value) {
+  writeJsonTo(canUseLocalStorage() ? window.localStorage : null, key, value);
+}
+
 function hasCreatedRemoteRow(sessionId) {
   if (!canUseLocalStorage()) return false;
   return window.localStorage.getItem(storageKey(CREATED_STORAGE_PREFIX, sessionId)) === "true";
@@ -105,7 +113,15 @@ export function getActiveQuizSessionId() {
       if (sessionValue) return sessionValue;
     }
   } catch {
-    return "";
+    // Fall through to same-device recovery.
+  }
+
+  try {
+    if (canUseLocalStorage()) {
+      return window.localStorage.getItem(ACTIVE_SESSION_KEY) || "";
+    }
+  } catch {
+    // Active-session tracking is best-effort.
   }
 
   return "";
@@ -120,6 +136,14 @@ export function setActiveQuizSessionId(sessionId) {
     }
   } catch {
     // Active-session tracking is best-effort.
+  }
+
+  try {
+    if (canUseLocalStorage()) {
+      window.localStorage.setItem(ACTIVE_SESSION_KEY, sessionId);
+    }
+  } catch {
+    // Same-device session recovery is best-effort.
   }
 }
 
@@ -140,6 +164,7 @@ function clientForSession(sessionId) {
 
 function normalizeQuizPatch(patch) {
   const safePatch = { ...(patch || {}) };
+  delete safePatch.kids_age_band;
 
   // Ensure array columns stay arrays (text[])
   if ("size_preference" in safePatch) safePatch.size_preference = cleanArray(safePatch.size_preference);
@@ -204,7 +229,8 @@ async function updateQuizResponses(sessionId, payload) {
 }
 
 /**
- * Loads quiz answers from browser storage only.
+ * Loads quiz answers from browser storage only. Session storage is preferred,
+ * with local storage as the same-device fallback after the tab is closed.
  *
  * The public client intentionally does not SELECT from quiz_responses. Quiz
  * answers can be sensitive, and RLS should keep public SELECT unavailable.
@@ -215,7 +241,12 @@ export async function loadQuizResponses(sessionId) {
   setActiveQuizSessionId(sessionId);
 
   const sessionAnswers = readSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), null);
-  const answersById = sessionAnswers || {};
+  const localAnswers = readLocalJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), null);
+  const answersById = sessionAnswers || localAnswers || {};
+
+  if (!sessionAnswers && localAnswers) {
+    writeSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), localAnswers);
+  }
   return { answersById: answersById || {}, row: null };
 }
 
@@ -229,6 +260,7 @@ export async function saveQuizResponses(sessionId, patch) {
   const safePatch = normalizeQuizPatch(patch);
   setActiveQuizSessionId(sessionId);
   writeSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), safePatch);
+  writeLocalJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), safePatch);
 
   const payload = toRemotePayload(sessionId, safePatch);
 

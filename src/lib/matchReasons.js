@@ -33,14 +33,13 @@ function pushUnique(arr, msg) {
 
 function bioCompatibility(value) {
   const normalized = normStr(value);
-  if (normalized === "yes") return "strong";
-  if (normalized === "most_likely") return "strong";
-  if (normalized === "may_do_well") return "partial";
+  if (["yes", "most_likely", "may_do_well"].includes(normalized)) return "estimated";
   return "";
 }
 
 function positiveCompatibility(confirmedValue, bioValue) {
-  if (confirmedValue === true) return "strong";
+  if (confirmedValue === true) return "listed";
+  if (confirmedValue === false) return "";
   const bio = bioCompatibility(bioValue);
   return bio || "";
 }
@@ -99,8 +98,8 @@ export function getMatchReasons(dog, answers, limit = 3) {
       dog.good_with_kids ?? dog.kids_ok ?? dog.kid_friendly ?? dog.goodWithKids,
       dog.bio_good_with_kids
     );
-    if (kidsFit === "strong") pushUnique(reasons, "Good evidence for homes with children");
-    if (kidsFit === "partial") pushUnique(reasons, "May do well with children");
+    if (kidsFit === "listed") pushUnique(reasons, "Listed as compatible with children");
+    if (kidsFit === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with children");
   }
 
   const pets = normalizeAnswerList(answers.pets_in_home);
@@ -110,16 +109,16 @@ export function getMatchReasons(dog, answers, limit = 3) {
       dog.good_with_dogs ?? dog.dogs_ok ?? dog.goodWithDogs,
       dog.bio_good_with_dogs
     );
-    if (dogsFit === "strong") pushUnique(reasons, "Good evidence for homes with other dogs");
-    if (dogsFit === "partial") pushUnique(reasons, "May do well with another dog");
+    if (dogsFit === "listed") pushUnique(reasons, "Listed as compatible with other dogs");
+    if (dogsFit === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with another dog");
   }
   if (pets.includes("cats")) {
     const catsFit = positiveCompatibility(
       dog.good_with_cats ?? dog.cats_ok ?? dog.goodWithCats,
       dog.bio_good_with_cats
     );
-    if (catsFit === "strong") pushUnique(reasons, "Good evidence for homes with cats");
-    if (catsFit === "partial") pushUnique(reasons, "May do well with cats");
+    if (catsFit === "listed") pushUnique(reasons, "Listed as compatible with cats");
+    if (catsFit === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with cats");
   }
   if ((pets.includes("small_animals") || pets.includes("small_pets")) && dog.good_with_small_animals === true) {
     pushUnique(reasons, "Listed as okay with small animals");
@@ -140,18 +139,13 @@ export function getMatchReasons(dog, answers, limit = 3) {
   const alone = normStr(answers.alone_time); // lt4, 4to6, 6to8, gt8
   const maxAlone = Number(dog.max_alone_hours);
   const bioMaxAlone = Number(dog.bio_max_alone_hours);
-  const supportedMaxAlone = Number.isFinite(maxAlone) && maxAlone > 0
-    ? maxAlone
-    : Number.isFinite(bioMaxAlone) && bioMaxAlone > 0
-      ? bioMaxAlone
-      : null;
   const neededAlone = aloneTimeNeededHours(alone);
-  if (neededAlone && supportedMaxAlone) {
-    const ok = supportedMaxAlone >= neededAlone;
-
-    if (ok) {
-      pushUnique(reasons, "Alone-time estimate fits your weekday routine");
+  if (neededAlone && Number.isFinite(maxAlone) && maxAlone > 0) {
+    if (maxAlone >= neededAlone) {
+      pushUnique(reasons, "Listed alone-time capacity fits your weekday routine");
     }
+  } else if (neededAlone && Number.isFinite(bioMaxAlone) && bioMaxAlone > 0 && bioMaxAlone >= neededAlone) {
+    pushUnique(reasons, "Listing bio estimate suggests the alone time may fit your weekday routine");
   }
 
   // --- Allergies

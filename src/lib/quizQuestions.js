@@ -73,8 +73,7 @@ export const ALL_QUESTIONS = [
     type: QUESTION_TYPES.MULTI,
     title: "What animals will your dog need to be comfortable around?",
     description: "Pick all that apply.",
-    // NOTE: none/not_sure are “soft exclusive” in meaning, but we’ll keep them NON-exclusive
-    // unless you explicitly want them to wipe other picks.
+    exclusiveValues: ["none", "not_sure"],
     options: [
       { value: "dogs", label: "Other dogs" },
       { value: "cats", label: "Cats" },

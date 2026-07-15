@@ -175,18 +175,7 @@ export default function Quiz() {
   }, [sessionId]);
 
   async function updateAnswer(questionId, nextValue) {
-    let nextAnswers = { ...answersById, [questionId]: nextValue };
-
-    if (questionId === "kids_in_home") {
-      const values = Array.isArray(nextValue)
-        ? nextValue.map((item) => String(item).toLowerCase())
-        : [String(nextValue ?? "").trim().toLowerCase()];
-      if (values.includes("no_children") || values.includes("no") || values.every((v) => !v)) {
-        const cleaned = { ...nextAnswers };
-        delete cleaned.kids_age_band;
-        nextAnswers = cleaned;
-      }
-    }
+    const nextAnswers = { ...answersById, [questionId]: nextValue };
 
     setAnswersById(nextAnswers);
 
