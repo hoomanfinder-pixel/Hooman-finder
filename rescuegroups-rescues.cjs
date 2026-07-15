@@ -17,6 +17,14 @@ const RESCUES = [
     supabaseShelterId: null,
     enabled: true,
   },
+  {
+    name: "LUVUMALL ANIMAL RESCUE",
+    city: "Marine City",
+    state: "MI",
+    rescueGroupsOrgId: "5470",
+    supabaseShelterId: "324ff4ca-b15a-4948-9281-e815ec085694",
+    enabled: true,
+  },
 
   // Peace Love and Paws did not return usable dogs from RescueGroups yet.
   // Keep it disabled until we confirm whether they are listed in RescueGroups

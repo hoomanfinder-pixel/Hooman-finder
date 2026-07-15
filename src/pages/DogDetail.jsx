@@ -179,8 +179,20 @@ function displayBioTrait(value) {
 function normalizeEnergyValue(value) {
   const raw = String(value || "unknown").trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
   if (["low", "medium_low", "medium", "medium_high", "high"].includes(raw)) return raw;
-  if (raw === "moderate") return "medium";
+  if (raw === "not_required") return "low";
+  if (raw.includes("moderate") || raw.includes("medium")) return "medium";
+  if (raw.includes("high")) return "high";
+  if (raw.includes("low")) return "low";
   return "unknown";
+}
+
+function obedienceTrainingNeed(value) {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return null;
+  if (raw.includes("needs training")) return "High";
+  if (raw.includes("basic training")) return "Moderate";
+  if (raw.includes("well trained")) return "Low";
+  return null;
 }
 
 function displayEnergyValue(value) {
@@ -199,8 +211,9 @@ function displayEnergyValue(value) {
 function normalizeSheddingValue(value) {
   const raw = String(value || "unknown").trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
   if (["low", "medium", "high"].includes(raw)) return raw;
-  if (raw === "minimal") return "low";
+  if (raw === "none" || raw === "minimal") return "low";
   if (raw === "moderate") return "medium";
+  if (raw === "heavy") return "high";
   return "unknown";
 }
 
@@ -1087,14 +1100,14 @@ export default function DogDetail() {
               <TraitCard
                 label="Exercise needs"
                 trait={getEnergyTrait({
-                  structuredValue: null,
+                  structuredValue: dog.exercise_needs,
                   bioValue: dog.bio_exercise_needs,
                 })}
               />
               <TraitCard
                 label="Training needs"
                 trait={getEnergyTrait({
-                  structuredValue: null,
+                  structuredValue: obedienceTrainingNeed(dog.obedience_training),
                   bioValue: dog.bio_training_needs,
                 })}
               />

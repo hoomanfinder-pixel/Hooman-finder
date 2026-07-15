@@ -71,13 +71,65 @@ function normalizeSize(value) {
 function normalizeEnergyLevel(value) {
   if (!value) return null;
 
-  const text = String(value).toLowerCase();
+  const text = String(value).trim().toLowerCase();
 
-  if (text.includes("high")) return "High";
-  if (text.includes("low")) return "Low";
-  if (text.includes("medium") || text.includes("moderate")) return "Moderate";
+  if (text === "high") return "High";
+  if (text === "low") return "Low";
+  if (text === "medium" || text === "moderate") return "Moderate";
 
   return null;
+}
+
+function normalizeActivityLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    "slightly active": "Slightly Active",
+    "moderately active": "Moderately Active",
+    "highly active": "Highly Active",
+  };
+
+  return allowedValues[text] || null;
+}
+
+function normalizeGroomingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    "not required": "low",
+    none: "low",
+    low: "low",
+    moderate: "moderate",
+    medium: "moderate",
+    high: "high",
+  };
+
+  return allowedValues[text] || null;
+}
+
+function normalizeSheddingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    none: "minimal",
+    minimal: "minimal",
+    low: "minimal",
+    moderate: "moderate",
+    medium: "moderate",
+    high: "heavy",
+    heavy: "heavy",
+  };
+
+  return allowedValues[text] || null;
+}
+
+function normalizeBarkingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    quiet: "Quiet",
+    low: "Quiet",
+    some: "Some",
+    moderate: "Some",
+  };
+
+  return allowedValues[text] || null;
 }
 
 function inferAdoptionPending(name) {
@@ -146,45 +198,102 @@ function getOrgForAnimal(animal, included) {
   );
 }
 
-function getPictureForAnimal(animal, included) {
-  const pictures =
+function getPicturesForAnimal(animal, included) {
+  const pictureRefs =
     getRelationshipData(animal, "pictures") ||
     getRelationshipData(animal, "picture") ||
     getRelationshipData(animal, "photos") ||
-    getRelationshipData(animal, "images");
+    getRelationshipData(animal, "images") ||
+    [];
 
-  if (!Array.isArray(pictures) || pictures.length === 0) {
-    return null;
-  }
+  const refs = Array.isArray(pictureRefs) ? pictureRefs : [pictureRefs];
 
-  const firstPictureId = pictures[0]?.id;
+  return refs
+    .map((ref, relationshipIndex) => {
+      const picture =
+        findIncludedResource(included, "pictures", ref?.id) ||
+        findIncludedResource(included, "photos", ref?.id) ||
+        null;
 
-  return (
-    findIncludedResource(included, "pictures", firstPictureId) ||
-    findIncludedResource(included, "photos", firstPictureId) ||
-    null
-  );
+      return picture ? { picture, relationshipIndex } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aOrder = hasSourceValue(a.picture?.attributes || {}, "order")
+        ? Number(a.picture.attributes.order)
+        : Number.NaN;
+      const bOrder = hasSourceValue(b.picture?.attributes || {}, "order")
+        ? Number(b.picture.attributes.order)
+        : Number.NaN;
+      const safeAOrder = Number.isFinite(aOrder) ? aOrder : a.relationshipIndex + 1;
+      const safeBOrder = Number.isFinite(bOrder) ? bOrder : b.relationshipIndex + 1;
+      return safeAOrder - safeBOrder || a.relationshipIndex - b.relationshipIndex;
+    })
+    .map(({ picture }) => picture);
 }
 
-function getPrimaryPhoto(animal, included) {
-  const picture = getPictureForAnimal(animal, included);
+function getPictureUrl(picture) {
   const attrs = picture?.attributes || {};
 
   return (
-    attrs.urlSecureFullsize ||
-    attrs.urlFullsize ||
-    attrs.urlSecureLarge ||
-    attrs.urlLarge ||
-    attrs.large?.url ||
-    attrs.original?.url ||
-    attrs.medium?.url ||
-    attrs.small?.url ||
-    attrs.url ||
-    clean(animal?.attributes?.pictureUrl) ||
-    clean(animal?.attributes?.imageUrl) ||
-    clean(animal?.attributes?.photoUrl) ||
-    clean(animal?.attributes?.pictureThumbnailUrl)
+    clean(attrs.urlSecureFullsize) ||
+    clean(attrs.urlFullsize) ||
+    clean(attrs.urlSecureLarge) ||
+    clean(attrs.urlLarge) ||
+    clean(attrs.large?.url || attrs.large) ||
+    clean(attrs.original?.url || attrs.original) ||
+    clean(attrs.medium?.url || attrs.medium) ||
+    clean(attrs.small?.url || attrs.small) ||
+    clean(attrs.url)
   );
+}
+
+function getPhotoUrls(animal, included) {
+  const urls = getPicturesForAnimal(animal, included)
+    .map(getPictureUrl)
+    .filter(Boolean);
+
+  if (urls.length === 0) {
+    const fallbackUrl =
+      clean(animal?.attributes?.pictureUrl) ||
+      clean(animal?.attributes?.imageUrl) ||
+      clean(animal?.attributes?.photoUrl) ||
+      clean(animal?.attributes?.pictureThumbnailUrl);
+
+    if (fallbackUrl) urls.push(fallbackUrl);
+  }
+
+  return [...new Set(urls)];
+}
+
+function hasSourceValue(attrs, key) {
+  if (!Object.prototype.hasOwnProperty.call(attrs, key)) return false;
+  const value = attrs[key];
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+}
+
+function normalizeQualities(value) {
+  const values = Array.isArray(value) ? value : String(value).split(/[,;|]/);
+  const cleaned = values.map(clean).filter(Boolean);
+  return [...new Set(cleaned)];
+}
+
+function addSourceField(
+  row,
+  attrs,
+  apiField,
+  databaseField,
+  normalize = (value) => value
+) {
+  if (!hasSourceValue(attrs, apiField)) return;
+  const value = normalize(attrs[apiField]);
+  if (value === null || value === undefined) return;
+  if (typeof value === "string" && value.trim() === "") return;
+  if (Array.isArray(value) && value.length === 0) return;
+  row[databaseField] = value;
 }
 
 function getAdoptionUrl(animal) {
@@ -285,16 +394,19 @@ function mapAnimalToDogRow(animal, included, rescue) {
 
   const name = attrs.name || "Unnamed Dog";
   const adoptionUrl = getPublicListingUrl(animal, orgId);
-  const photoUrl = getPrimaryPhoto(animal, included);
+  const photoUrls = getPhotoUrls(animal, included);
+  const photoUrl = photoUrls[0] || null;
   const now = new Date().toISOString();
 
   const city = attrs.locationCity || orgAttrs.city || rescue.city || null;
   const state = attrs.locationState || orgAttrs.state || rescue.state || "MI";
 
   const adoptableFromName = inferAdoptableFromName(name);
-  const adoptionPendingFromName = inferAdoptionPending(name);
+  const adoptionPending = hasSourceValue(attrs, "isAdoptionPending")
+    ? attrs.isAdoptionPending === true
+    : inferAdoptionPending(name);
 
-  return {
+  const row = {
     source: "rescuegroups",
     external_id: externalId,
 
@@ -308,18 +420,16 @@ function mapAnimalToDogRow(animal, included, rescue) {
     gender: attrs.sex || attrs.gender || null,
 
     size: normalizeSize(attrs.sizeGroup || attrs.sizeCurrent || attrs.size),
-    energy_level: normalizeEnergyLevel(attrs.energyLevel || attrs.activityLevel),
-    activity_level: attrs.activityLevel || null,
-
     description:
       cleanText(attrs.descriptionText) ||
       cleanText(attrs.descriptionHtml) ||
       cleanText(attrs.description),
 
     photo_url: photoUrl,
+    photo_urls: photoUrls,
 
     adoptable: adoptableFromName,
-    adoption_pending: adoptionPendingFromName,
+    adoption_pending: adoptionPending,
     urgency_level: inferUrgencyFromName(name),
 
     source_url: adoptionUrl,
@@ -349,6 +459,26 @@ function mapAnimalToDogRow(animal, included, rescue) {
     last_checked_at: now,
     last_seen_at: now,
   };
+
+  addSourceField(row, attrs, "isDogsOk", "good_with_dogs");
+  addSourceField(row, attrs, "isCatsOk", "good_with_cats");
+  addSourceField(row, attrs, "isKidsOk", "good_with_kids");
+  addSourceField(row, attrs, "isHousetrained", "potty_trained");
+  addSourceField(row, attrs, "energyLevel", "energy_level", normalizeEnergyLevel);
+  addSourceField(row, attrs, "activityLevel", "activity_level", normalizeActivityLevel);
+  addSourceField(row, attrs, "groomingNeeds", "grooming_level", normalizeGroomingLevel);
+  addSourceField(row, attrs, "sheddingLevel", "shedding_level", normalizeSheddingLevel);
+  addSourceField(row, attrs, "vocalLevel", "barking_level", normalizeBarkingLevel);
+  addSourceField(row, attrs, "qualities", "qualities", normalizeQualities);
+  addSourceField(row, attrs, "exerciseNeeds", "exercise_needs", clean);
+  addSourceField(row, attrs, "obedienceTraining", "obedience_training", clean);
+  addSourceField(row, attrs, "ownerExperience", "owner_experience", clean);
+  addSourceField(row, attrs, "isYardRequired", "yard_required");
+  addSourceField(row, attrs, "fenceNeeds", "fence_needs", clean);
+  addSourceField(row, attrs, "adultSexesOk", "adult_sexes_ok", clean);
+  addSourceField(row, attrs, "newPeopleReaction", "new_people_reaction", clean);
+
+  return row;
 }
 
 async function fetchWithTimeout(url, options, timeoutMs) {
@@ -416,6 +546,25 @@ function buildRequestBody(rescue, pageNumber) {
           "adoptionUrl",
           "link",
           "updatedDate",
+          "isDogsOk",
+          "isCatsOk",
+          "isKidsOk",
+          "adultSexesOk",
+          "isHousetrained",
+          "activityLevel",
+          "energyLevel",
+          "exerciseNeeds",
+          "obedienceTraining",
+          "groomingNeeds",
+          "sheddingLevel",
+          "vocalLevel",
+          "ownerExperience",
+          "isYardRequired",
+          "fenceNeeds",
+          "newPeopleReaction",
+          "qualities",
+          "pictureCount",
+          "isAdoptionPending",
           "pictureUrl",
           "imageUrl",
           "photoUrl",
@@ -430,6 +579,7 @@ function buildRequestBody(rescue, pageNumber) {
           "original",
           "medium",
           "small",
+          "order",
           "url",
         ],
         orgs: ["name", "city", "state", "url", "website"],
@@ -574,7 +724,6 @@ async function upsertDogs(dogs) {
         if (updateRow.energy_level === null || updateRow.energy_level === undefined) {
           delete updateRow.energy_level;
         }
-        delete updateRow.activity_level;
         delete updateRow.urgency_level;
         delete updateRow.imported_status;
 

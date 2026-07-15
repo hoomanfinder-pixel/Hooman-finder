@@ -72,6 +72,16 @@ function attr(item, key) {
   return item?.attributes?.[key] ?? null;
 }
 
+function hasSourceValue(item, key) {
+  const attrs = item?.attributes || {};
+  if (!Object.prototype.hasOwnProperty.call(attrs, key)) return false;
+  const value = attrs[key];
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+}
+
 function relationshipData(item, name) {
   return item?.relationships?.[name]?.data || null;
 }
@@ -112,40 +122,133 @@ function findPicturesForAnimal(animal, included) {
   const refs = Array.isArray(pictureRefs) ? pictureRefs : [pictureRefs];
 
   return refs
-    .map((ref) => {
-      return (
+    .map((ref, relationshipIndex) => {
+      const picture =
         findIncluded(included, "pictures", ref?.id) ||
         findIncluded(included, "photos", ref?.id) ||
-        null
-      );
+        null;
+
+      return picture ? { picture, relationshipIndex } : null;
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aOrder = hasSourceValue(a.picture, "order")
+        ? Number(attr(a.picture, "order"))
+        : Number.NaN;
+      const bOrder = hasSourceValue(b.picture, "order")
+        ? Number(attr(b.picture, "order"))
+        : Number.NaN;
+      const safeAOrder = Number.isFinite(aOrder) ? aOrder : a.relationshipIndex + 1;
+      const safeBOrder = Number.isFinite(bOrder) ? bOrder : b.relationshipIndex + 1;
+      return safeAOrder - safeBOrder || a.relationshipIndex - b.relationshipIndex;
+    })
+    .map(({ picture }) => picture);
 }
 
-function pickPhotoUrl(animal, included) {
-  const pictures = findPicturesForAnimal(animal, included);
+function getPictureUrl(picture) {
+  return (
+    clean(attr(picture, "urlSecureFullsize")) ||
+    clean(attr(picture, "urlFullsize")) ||
+    clean(attr(picture, "urlSecureLarge")) ||
+    clean(attr(picture, "urlLarge")) ||
+    clean(attr(picture, "large")?.url || attr(picture, "large")) ||
+    clean(attr(picture, "original")?.url || attr(picture, "original")) ||
+    clean(attr(picture, "medium")?.url || attr(picture, "medium")) ||
+    clean(attr(picture, "small")?.url || attr(picture, "small")) ||
+    clean(attr(picture, "url"))
+  );
+}
 
-  for (const picture of pictures) {
-    const url =
-      clean(attr(picture, "urlSecureFullsize")) ||
-      clean(attr(picture, "urlFullsize")) ||
-      clean(attr(picture, "urlSecureLarge")) ||
-      clean(attr(picture, "urlLarge")) ||
-      clean(attr(picture, "large")?.url) ||
-      clean(attr(picture, "original")?.url) ||
-      clean(attr(picture, "medium")?.url) ||
-      clean(attr(picture, "small")?.url) ||
-      clean(attr(picture, "url"));
+function getPhotoUrls(animal, included) {
+  const urls = findPicturesForAnimal(animal, included).map(getPictureUrl).filter(Boolean);
 
-    if (url) return url;
+  if (urls.length === 0) {
+    const fallbackUrl =
+      clean(attr(animal, "pictureUrl")) ||
+      clean(attr(animal, "imageUrl")) ||
+      clean(attr(animal, "photoUrl")) ||
+      clean(attr(animal, "pictureThumbnailUrl"));
+
+    if (fallbackUrl) urls.push(fallbackUrl);
   }
 
-  return (
-    clean(attr(animal, "pictureUrl")) ||
-    clean(attr(animal, "imageUrl")) ||
-    clean(attr(animal, "photoUrl")) ||
-    clean(attr(animal, "pictureThumbnailUrl"))
-  );
+  return [...new Set(urls)];
+}
+
+function normalizeEnergyLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (text === "high") return "High";
+  if (text === "low") return "Low";
+  if (text === "medium" || text === "moderate") return "Moderate";
+  return null;
+}
+
+function normalizeActivityLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    "slightly active": "Slightly Active",
+    "moderately active": "Moderately Active",
+    "highly active": "Highly Active",
+  };
+  return allowedValues[text] || null;
+}
+
+function normalizeGroomingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    "not required": "low",
+    none: "low",
+    low: "low",
+    moderate: "moderate",
+    medium: "moderate",
+    high: "high",
+  };
+  return allowedValues[text] || null;
+}
+
+function normalizeSheddingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    none: "minimal",
+    minimal: "minimal",
+    low: "minimal",
+    moderate: "moderate",
+    medium: "moderate",
+    high: "heavy",
+    heavy: "heavy",
+  };
+  return allowedValues[text] || null;
+}
+
+function normalizeBarkingLevel(value) {
+  const text = String(value || "").trim().toLowerCase();
+  const allowedValues = {
+    quiet: "Quiet",
+    low: "Quiet",
+    some: "Some",
+    moderate: "Some",
+  };
+  return allowedValues[text] || null;
+}
+
+function normalizeQualities(value) {
+  const values = Array.isArray(value) ? value : String(value).split(/[,;|]/);
+  return [...new Set(values.map(clean).filter(Boolean))];
+}
+
+function addSourceField(
+  row,
+  animal,
+  apiField,
+  databaseField,
+  normalize = (value) => value
+) {
+  if (!hasSourceValue(animal, apiField)) return;
+  const value = normalize(animal.attributes[apiField]);
+  if (value === null || value === undefined) return;
+  if (typeof value === "string" && value.trim() === "") return;
+  if (Array.isArray(value) && value.length === 0) return;
+  row[databaseField] = value;
 }
 
 function getBreed(animal) {
@@ -194,6 +297,10 @@ function normalizeSize(value) {
 }
 
 function isPending(animal) {
+  if (hasSourceValue(animal, "isAdoptionPending")) {
+    return attr(animal, "isAdoptionPending") === true;
+  }
+
   const values = [
     attr(animal, "name"),
     attr(animal, "status"),
@@ -236,8 +343,9 @@ function mapAnimalToDogRow(animal, included) {
     normalizeState(attr(animal, "locationState")) ||
     normalizeState(orgAttrs.state) ||
     DACC_STATE;
+  const photoUrls = getPhotoUrls(animal, included);
 
-  return {
+  const row = {
     source: "rescuegroups",
     external_id: externalId,
     rescuegroups_id: externalId,
@@ -254,9 +362,10 @@ function mapAnimalToDogRow(animal, included) {
       cleanText(attr(animal, "descriptionText")) ||
       cleanText(attr(animal, "descriptionHtml")) ||
       cleanText(attr(animal, "description")),
-    photo_url: pickPhotoUrl(animal, included),
+    photo_url: photoUrls[0] || null,
+    photo_urls: photoUrls,
     adoptable: true,
-    adoption_pending: false,
+    adoption_pending: isPending(animal),
     availability_status: "available",
     source_url: DACC_ADOPT_URL,
     adoption_url: DACC_ADOPT_URL,
@@ -271,6 +380,26 @@ function mapAnimalToDogRow(animal, included) {
     last_seen_at: now,
     urgency_level: "Standard",
   };
+
+  addSourceField(row, animal, "isDogsOk", "good_with_dogs");
+  addSourceField(row, animal, "isCatsOk", "good_with_cats");
+  addSourceField(row, animal, "isKidsOk", "good_with_kids");
+  addSourceField(row, animal, "isHousetrained", "potty_trained");
+  addSourceField(row, animal, "energyLevel", "energy_level", normalizeEnergyLevel);
+  addSourceField(row, animal, "activityLevel", "activity_level", normalizeActivityLevel);
+  addSourceField(row, animal, "groomingNeeds", "grooming_level", normalizeGroomingLevel);
+  addSourceField(row, animal, "sheddingLevel", "shedding_level", normalizeSheddingLevel);
+  addSourceField(row, animal, "vocalLevel", "barking_level", normalizeBarkingLevel);
+  addSourceField(row, animal, "qualities", "qualities", normalizeQualities);
+  addSourceField(row, animal, "exerciseNeeds", "exercise_needs", clean);
+  addSourceField(row, animal, "obedienceTraining", "obedience_training", clean);
+  addSourceField(row, animal, "ownerExperience", "owner_experience", clean);
+  addSourceField(row, animal, "isYardRequired", "yard_required");
+  addSourceField(row, animal, "fenceNeeds", "fence_needs", clean);
+  addSourceField(row, animal, "adultSexesOk", "adult_sexes_ok", clean);
+  addSourceField(row, animal, "newPeopleReaction", "new_people_reaction", clean);
+
+  return row;
 }
 
 function buildRequestBody(pageNumber) {
@@ -320,6 +449,25 @@ function buildRequestBody(pageNumber) {
           "adoptionUrl",
           "link",
           "updatedDate",
+          "isDogsOk",
+          "isCatsOk",
+          "isKidsOk",
+          "adultSexesOk",
+          "isHousetrained",
+          "activityLevel",
+          "energyLevel",
+          "exerciseNeeds",
+          "obedienceTraining",
+          "groomingNeeds",
+          "sheddingLevel",
+          "vocalLevel",
+          "ownerExperience",
+          "isYardRequired",
+          "fenceNeeds",
+          "newPeopleReaction",
+          "qualities",
+          "pictureCount",
+          "isAdoptionPending",
           "status",
           "statusName",
           "statusesName",
@@ -337,6 +485,7 @@ function buildRequestBody(pageNumber) {
           "original",
           "medium",
           "small",
+          "order",
           "url",
         ],
         orgs: ["name", "city", "state", "url", "website", "email"],
