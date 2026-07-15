@@ -880,20 +880,6 @@ export default function DogDetail() {
                 />
               </button>
 
-              {hasQuizMatch ? (
-                <button
-                  type="button"
-                  onClick={() => setMatchInfoOpen(true)}
-                  className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-[#f5f1e9]/94 px-3.5 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-lg ring-1 ring-white/50 backdrop-blur transition hover:bg-white sm:px-4"
-                  aria-label={`Open why you matched. ${Math.round(matchScorePct)} percent match`}
-                >
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px]">
-                    ✓
-                  </span>
-                  <span>{Math.round(matchScorePct)}% match</span>
-                </button>
-              ) : null}
-
               <button
                 type="button"
                 onClick={onToggleSaved}
@@ -991,13 +977,6 @@ export default function DogDetail() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMatchInfoOpen(true)}
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-slate-950 px-5 py-3 text-sm font-bold text-white hover:bg-slate-800"
-                >
-                  {Math.round(matchScorePct)}% match
-                </button>
               </div>
 
               {matchReasons.length ? (
