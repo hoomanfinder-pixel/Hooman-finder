@@ -41,6 +41,9 @@ const FIELD_RELIABILITY = {
   first_time_friendly: 0.75,
   exercise_needs: 0.8,
   training_needs: 0.75,
+  // Breed/age-based puppy adult-size estimate, not a bio-text extraction.
+  // Kept conservative since mixed-breed adult size is inherently uncertain.
+  size: 0.6,
 };
 
 const READABLE_MATCH_REASONS = {
@@ -320,6 +323,11 @@ function buildSupportedMatchReasons(dog, answersById, limit = 4) {
   const dogSize = normalizeSize(dog?.size);
   if (!sizePrefs.includes("flexible") && sizePrefs.length && dogSize && sizePrefs.includes(dogSize)) {
     pushUnique(reasons, `Fits your preferred size (${dog.size})`);
+  } else {
+    const bioDogSize = normalizeSize(dog?.bio_size);
+    if (!sizePrefs.includes("flexible") && sizePrefs.length && bioDogSize && sizePrefs.includes(bioDogSize)) {
+      pushUnique(reasons, `Listing bio estimate suggests adult size may fit (likely ${dog.bio_size})`);
+    }
   }
 
   const agePrefs = normalizeAnswerList(answersById.age_preference);
@@ -423,10 +431,22 @@ function scoreQuestion(qid, answer, dog) {
 
   switch (qid) {
     case "size_preference": {
-      const dogSize = normalizeSize(dog?.size);
-      if (!dogSize) return { earned: 0, possible: 0, reasonLabel: null, matched: null };
       const picks = normalizeAnswerList(answer);
-      matched = picks.includes(dogSize);
+      const dogSize = normalizeSize(dog?.size);
+
+      if (dogSize) {
+        matched = picks.includes(dogSize);
+        break;
+      }
+
+      // No confirmed size. Fall back to a breed/age-based puppy estimate,
+      // conservatively discounted, rather than treating the question as
+      // fully unanswerable.
+      const bioSize = normalizeSize(dog?.bio_size);
+      if (!bioSize) return { earned: 0, possible: 0, reasonLabel: null, matched: null };
+
+      credit = aiTraitCredit(dog, "size", picks.includes(bioSize) ? 1 : 0);
+      matched = credit !== null ? credit > 0 : null;
       break;
     }
 
@@ -563,6 +583,10 @@ function scoreQuestion(qid, answer, dog) {
 
     case "allergy_sensitivity": {
       const a = String(answer).toLowerCase();
+      // No current source (RescueGroups or otherwise) ever confirms hypoallergenic
+      // as false, so only an explicit true is treated as evidence. false and
+      // null are handled identically and fall back to shedding_level (structured)
+      // then bio_shedding_level (cautious AI estimate) via sheddingCredit.
       const hypo = dog?.hypoallergenic ?? dog?.hypoallergenic_only ?? dog?.is_hypoallergenic ?? null;
 
       if (
@@ -570,11 +594,7 @@ function scoreQuestion(qid, answer, dog) {
         a === "have_allergies" ||
         a === "allergies"
       ) {
-        if (truthy(hypo)) {
-          credit = 1;
-        } else {
-          credit = sheddingCredit(dog, "low");
-        }
+        credit = hypo === true ? 1 : sheddingCredit(dog, "low");
         matched = credit !== null ? credit > 0 : null;
       } else {
         matched = true;

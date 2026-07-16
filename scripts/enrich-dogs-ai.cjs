@@ -71,32 +71,23 @@ function onlyTrue(value) {
   return value === true ? true : null;
 }
 
-function normalizeSizeLabel(value) {
-  const text = String(value || "").toLowerCase().trim();
-  if (!text) return null;
-
-  if (text.includes("x-large") || text.includes("extra large") || text.includes("xlarge")) {
-    return "X-Large";
-  }
-
-  if (text.includes("large")) return "Large";
-  if (text.includes("medium")) return "Medium";
-  if (text.includes("small")) return "Small";
-
-  return null;
-}
-
 function isClearlyPuppy({ ageYears, ageText }) {
-  const n = Number(ageYears);
-  if (Number.isFinite(n)) return n < 1.5;
-
   const text = String(ageText || "").toLowerCase();
-  if (!text) return false;
 
   if (text.includes("puppy")) return true;
 
+  // age_years is unreliable for some listings (observed cases store the raw
+  // month count as if it were years, e.g. age_text "9 Months" with
+  // age_years: 9). A months-only age_text with no "year" wording is a more
+  // trustworthy puppy signal than age_years in that case, so it is checked
+  // first.
   const monthMatch = text.match(/(\d+)\s*months?/);
-  if (monthMatch) return Number(monthMatch[1]) < 18;
+  if (monthMatch && !text.includes("year")) {
+    return Number(monthMatch[1]) < 18;
+  }
+
+  const n = Number(ageYears);
+  if (Number.isFinite(n)) return n < 1.5;
 
   return false;
 }
@@ -107,16 +98,39 @@ function breedIncludesAny(breed, phrases) {
   return phrases.some((phrase) => text.includes(phrase));
 }
 
+function descriptionContradictsBreedSize(description) {
+  const text = String(description || "").toLowerCase();
+  if (!text) return false;
+
+  return [
+    "stay small",
+    "staying small",
+    "will be small",
+    "expected to be small",
+    "expected to stay small",
+    "won't get much bigger",
+    "wont get much bigger",
+    "runt of the litter",
+    "small breed",
+    "toy breed",
+    "teacup",
+    "lap dog",
+  ].some((phrase) => text.includes(phrase));
+}
+
 function inferExpectedAdultSizeForPuppy(dogInput) {
-  const currentSize = normalizeSizeLabel(dogInput.size);
+  // Only for puppies with a genuinely missing source size. A shelter/API size
+  // of any value (including Small/Medium) is a confirmed field and must never
+  // be second-guessed by a breed heuristic.
+  if (dogInput.size) return null;
 
   if (!isClearlyPuppy({ ageYears: dogInput.age_years, ageText: dogInput.age_text })) {
     return null;
   }
 
-  // This is expected adult size inference for puppies only. It prevents young
-  // large-breed puppies from being permanently treated as small based on current size.
-  if (currentSize === "Large" || currentSize === "X-Large") return null;
+  // A description that explicitly suggests a small adult size overrides the
+  // breed heuristic below rather than risk guessing against the listing.
+  if (descriptionContradictsBreedSize(dogInput.description)) return null;
 
   const breed = dogInput.breed;
 
@@ -145,6 +159,7 @@ function inferExpectedAdultSizeForPuppy(dogInput) {
       "siberian husky",
       "boxer",
       "pit bull terrier",
+      "rottweiler",
       "standard poodle",
       "australian shepherd",
     ])
@@ -1875,7 +1890,7 @@ function aloneHoursLabel(hours) {
   return "7-8";
 }
 
-function buildBioColumns(aiTraits) {
+function buildBioColumns(aiTraits, inferredAdultSize) {
   const aloneHours = normalizeAloneHours(aiTraits.max_alone_hours_estimate?.value);
   const aloneLabel = aloneHoursLabel(aloneHours);
 
@@ -1891,6 +1906,9 @@ function buildBioColumns(aiTraits) {
     bio_max_alone_hours_label: ALONE_HOURS_LABELS.has(aloneLabel) ? aloneLabel : "unknown",
     bio_exercise_needs: safeEnergyValue(aiTraits.exercise_needs?.value),
     bio_training_needs: safeEnergyValue(aiTraits.training_needs?.value),
+    // Breed/age-based estimate for puppies with no confirmed source size.
+    // Never set when a source size exists (see inferExpectedAdultSizeForPuppy).
+    bio_size: inferredAdultSize || null,
     bio_traits_source: "ai_bio_extraction",
     bio_traits_updated_at: new Date().toISOString(),
   };
@@ -1992,13 +2010,13 @@ async function enrichOneDog(dog) {
   const parsed = safeParseJson(content);
   const aiTraits = normalizeAiTraits(parsed, dogInput);
   const inferredAdultSize = inferExpectedAdultSizeForPuppy(dogInput);
-  if (inferredAdultSize && inferredAdultSize !== normalizeSizeLabel(dog.size)) {
+  if (inferredAdultSize) {
     aiTraits.caution_notes = [
-      `AI inferred likely adult puppy size as ${inferredAdultSize}, but did not overwrite the shelter/API size field.`,
+      `AI estimated likely adult size as ${inferredAdultSize} from breed and age. This is stored as an estimate and does not overwrite the shelter/API size field.`,
       ...aiTraits.caution_notes,
     ].slice(0, 8);
   }
-  const bioColumns = mergeExistingBioColumns(buildBioColumns(aiTraits), dog);
+  const bioColumns = mergeExistingBioColumns(buildBioColumns(aiTraits, inferredAdultSize), dog);
 
   const updatePayload = {
     ai_traits: aiTraits,
@@ -2063,6 +2081,7 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_max_alone_hours_label,
       bio_exercise_needs,
       bio_training_needs,
+      bio_size,
       bio_traits_updated_at,
       needs_human_review,
       adoptable,
@@ -2131,7 +2150,7 @@ async function main() {
       const result = await enrichOneDog(dog);
       if (!result) continue;
 
-      const { aiTraits, bioColumns, inferredAdultSize, elapsed } = result;
+      const { aiTraits, bioColumns, elapsed } = result;
       updated += 1;
 
       const tags = Array.isArray(aiTraits.match_tags)
@@ -2151,7 +2170,7 @@ async function main() {
       console.log(`   bio_max_alone_hours: ${bioColumns.bio_max_alone_hours ?? "unknown"}`);
       console.log(`   bio_exercise_needs: ${bioColumns.bio_exercise_needs}`);
       console.log(`   bio_training_needs: ${bioColumns.bio_training_needs}`);
-      if (inferredAdultSize) console.log(`   inferred adult puppy size note: ${inferredAdultSize}`);
+      console.log(`   bio_size: ${bioColumns.bio_size ?? "none"}`);
       if (tags) console.log(`   Tags: ${tags}`);
     } catch (error) {
       failed += 1;

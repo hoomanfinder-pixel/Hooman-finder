@@ -76,6 +76,11 @@ export function getMatchReasons(dog, answers, limit = 3) {
   const dogSize = normSize(dog.size);
   if (!sizePrefs.includes("flexible") && sizePrefs.length && dogSize && sizePrefs.includes(dogSize)) {
     pushUnique(reasons, `Fits your preferred size (${dog.size})`);
+  } else {
+    const bioDogSize = normSize(dog.bio_size);
+    if (!sizePrefs.includes("flexible") && sizePrefs.length && bioDogSize && sizePrefs.includes(bioDogSize)) {
+      pushUnique(reasons, `Listing bio estimate suggests adult size may fit (likely ${dog.bio_size})`);
+    }
   }
 
   // --- Age

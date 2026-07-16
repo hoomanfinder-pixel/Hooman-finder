@@ -387,7 +387,10 @@ function normalizeDogRow(animal, org, included, rescue) {
     good_with_dogs: normalizeBool(attr(animal, "isGoodWithDogs")),
     potty_trained: normalizeBool(attr(animal, "isHousetrained")),
 
-    hypoallergenic: false,
+    // RescueGroups has no hypoallergenic attribute, so it is intentionally left
+    // unset here. Omitting it lets inserts fall back to NULL (unknown) instead
+    // of a hardcoded false, and keeps updateExistingDog's full-row update from
+    // clobbering an already-confirmed value on re-import.
   };
 }
 
