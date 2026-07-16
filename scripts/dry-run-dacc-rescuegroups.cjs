@@ -148,20 +148,43 @@ function getAgeText(animal) {
   return clean(attr(animal, "ageString")) || clean(attr(animal, "ageGroup")) || clean(attr(animal, "age"));
 }
 
+function parseAgeYearsFromText(ageText) {
+  const text = String(ageText || "").toLowerCase().trim();
+  if (!text) return null;
+
+  // Unit-aware: a bare digit in age text (e.g. "9 Months") must never be
+  // read as whole years. Each unit is matched explicitly and converted.
+  const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*year/);
+  const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*month/);
+  const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*week/);
+  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*day/);
+
+  if (yearMatch || monthMatch || weekMatch || dayMatch) {
+    const years = Number(yearMatch?.[1] || 0);
+    const months = Number(monthMatch?.[1] || 0);
+    const weeks = Number(weekMatch?.[1] || 0);
+    const days = Number(dayMatch?.[1] || 0);
+    return Math.round((years + months / 12 + weeks / 52 + days / 365) * 100) / 100;
+  }
+
+  if (text.includes("baby") || text.includes("puppy")) return 0;
+  if (text.includes("young")) return 1;
+  if (text.includes("adult")) return 3;
+  if (text.includes("senior")) return 8;
+
+  return null;
+}
+
 function getAgeYears(animal) {
+  // Prefer a unit-aware parse of the human-readable age text: RescueGroups'
+  // structured ageYears attribute has been observed stale/wrong even when
+  // present, so it is only used when the text can't be parsed at all.
+  const parsed = parseAgeYearsFromText(getAgeText(animal));
+  if (parsed !== null) return parsed;
+
   const rawYears = clean(attr(animal, "ageYears"));
   const years = Number(rawYears);
   if (rawYears !== null && Number.isFinite(years)) return years;
-
-  const ageText = String(getAgeText(animal) || "").toLowerCase();
-  const yearMatch = ageText.match(/(\d+)\s*year/);
-  if (yearMatch) return Number(yearMatch[1]);
-
-  if (ageText.includes("baby") || ageText.includes("puppy")) return 0;
-  if (ageText.includes("month")) return 0;
-  if (ageText.includes("young")) return 1;
-  if (ageText.includes("adult")) return 3;
-  if (ageText.includes("senior")) return 8;
 
   return null;
 }

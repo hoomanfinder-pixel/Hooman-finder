@@ -333,23 +333,46 @@ function getAgeText(attrs) {
   return attrs.ageString || attrs.ageGroup || attrs.age || null;
 }
 
-function getAgeYears(attrs) {
-  if (typeof attrs.ageYears === "number") {
-    return attrs.ageYears;
+function parseAgeYearsFromText(ageText) {
+  const text = String(ageText || "").toLowerCase().trim();
+  if (!text) return null;
+
+  // Unit-aware: a bare digit in age text (e.g. "9 Months") must never be
+  // read as whole years. Each unit is matched explicitly and converted.
+  const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*year/);
+  const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*month/);
+  const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*week/);
+  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*day/);
+
+  if (yearMatch || monthMatch || weekMatch || dayMatch) {
+    const years = Number(yearMatch?.[1] || 0);
+    const months = Number(monthMatch?.[1] || 0);
+    const weeks = Number(weekMatch?.[1] || 0);
+    const days = Number(dayMatch?.[1] || 0);
+    return Math.round((years + months / 12 + weeks / 52 + days / 365) * 100) / 100;
   }
-
-  const ageText = getAgeText(attrs);
-  if (!ageText) return null;
-
-  const text = String(ageText).toLowerCase();
 
   if (text.includes("baby") || text.includes("puppy")) return 0;
   if (text.includes("young")) return 1;
   if (text.includes("adult")) return 3;
   if (text.includes("senior")) return 8;
 
-  const match = text.match(/(\d+)/);
-  return match ? Number(match[1]) : null;
+  return null;
+}
+
+function getAgeYears(attrs) {
+  // Prefer a unit-aware parse of the human-readable age text: RescueGroups'
+  // structured ageYears attribute has been observed stale/wrong even when
+  // present (e.g. reporting 0 for a dog whose age text says "2 Years 3
+  // Months"), so it is only used when the text can't be parsed at all.
+  const parsed = parseAgeYearsFromText(getAgeText(attrs));
+  if (parsed !== null) return parsed;
+
+  if (typeof attrs.ageYears === "number" && Number.isFinite(attrs.ageYears)) {
+    return attrs.ageYears;
+  }
+
+  return null;
 }
 
 function normalizeName(value) {

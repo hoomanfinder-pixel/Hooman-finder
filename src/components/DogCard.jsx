@@ -8,7 +8,7 @@ import {
   getDogSourceName,
 } from "../lib/dogSource";
 import { normalizeImageUrl } from "../lib/urlSafety";
-import { formatAge } from "../utils/formatAge";
+import { formatAge, resolveAgeYears } from "../utils/formatAge";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -332,7 +332,7 @@ export default function DogCard({
   );
 
   const ageLabel = useMemo(() => {
-    const formatted = formatAge(dog?.age_years);
+    const formatted = formatAge(resolveAgeYears(dog?.age_years, dog?.age_text));
     if (formatted && formatted !== "Unknown") return formatted;
     if (dog?.age_text) return dog.age_text;
     return "";

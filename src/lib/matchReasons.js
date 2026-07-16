@@ -18,8 +18,36 @@ function normSize(v) {
   return s;
 }
 
-function ageBucket(ageYears) {
-  const n = Number(ageYears);
+function parsedAgeYearsFromText(ageText) {
+  const text = (ageText ?? "").toString().toLowerCase().trim();
+  if (!text) return null;
+
+  const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*year/);
+  const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*month/);
+  const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*week/);
+  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*day/);
+
+  if (!yearMatch && !monthMatch && !weekMatch && !dayMatch) return null;
+
+  const years = Number(yearMatch?.[1] || 0);
+  const months = Number(monthMatch?.[1] || 0);
+  const weeks = Number(weekMatch?.[1] || 0);
+  const days = Number(dayMatch?.[1] || 0);
+  return years + months / 12 + weeks / 52 + days / 365;
+}
+
+// age_years has been observed inconsistent with age_text on some historical
+// rows (e.g. a raw month count stored as whole years). When the two disagree
+// by more than half a year, the unit-aware text parse is preferred.
+function ageBucket(ageYears, ageText) {
+  const raw = Number(ageYears);
+  const parsed = parsedAgeYearsFromText(ageText);
+
+  let n = Number.isFinite(raw) ? raw : null;
+  if (parsed !== null && (n === null || Math.abs(n - parsed) > 0.5)) {
+    n = parsed;
+  }
+
   if (!Number.isFinite(n)) return null;
   if (n < 2) return "puppy";
   if (n < 7) return "adult";
@@ -85,7 +113,7 @@ export function getMatchReasons(dog, answers, limit = 3) {
 
   // --- Age
   const agePrefs = normalizeAnswerList(answers.age_preference);
-  const dogAgeBucket = ageBucket(dog.age_years);
+  const dogAgeBucket = ageBucket(dog.age_years, dog.age_text);
   if (!agePrefs.includes("flexible") && agePrefs.length && dogAgeBucket && agePrefs.includes(dogAgeBucket)) {
     const label =
       dogAgeBucket === "puppy" ? "puppy" : dogAgeBucket === "adult" ? "adult" : "senior";
