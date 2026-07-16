@@ -9,6 +9,7 @@ import {
 } from "../lib/dogSource";
 import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge, resolveAgeYears } from "../utils/formatAge";
+import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -256,7 +257,7 @@ function buildDescription(dog) {
     dog?.notes ||
     "";
 
-  const clean = String(raw).replace(/\s+/g, " ").trim();
+  const clean = decodeHtmlEntities(raw).replace(/\s+/g, " ").trim();
 
   if (!clean) {
     const bits = [];

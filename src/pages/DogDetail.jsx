@@ -20,6 +20,7 @@ import {
 } from "../lib/quizStorage";
 import { supabase } from "../lib/supabase";
 import { FALLBACK_DOG_IMAGE, normalizeImageUrl } from "../lib/urlSafety";
+import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 const BIO_PREVIEW_LENGTH = 520;
@@ -71,26 +72,10 @@ function pickDogImage(dog) {
   return "";
 }
 
-function decodeHtmlOnce(value) {
-  if (!value) return "";
-
-  const textarea = document.createElement("textarea");
-  textarea.innerHTML = value;
-  return textarea.value;
-}
-
 function cleanText(value) {
   if (!value) return "";
 
-  let text = String(value);
-
-  for (let i = 0; i < 4; i += 1) {
-    const decoded = decodeHtmlOnce(text);
-    if (decoded === text) break;
-    text = decoded;
-  }
-
-  return text
+  return decodeHtmlEntities(value)
     .replace(/<[^>]*>/g, " ")
     .replace(/\u00a0/g, " ")
     .replace(/\s+/g, " ")
