@@ -342,6 +342,26 @@ function getSimpleTrait({ value }) {
   };
 }
 
+function getSizeTrait({ structuredValue, bioValue }) {
+  const structured = String(structuredValue || "").trim();
+  if (structured) {
+    return { value: structured, source: "listed", estimated: false };
+  }
+
+  const bio = String(bioValue || "").trim();
+  if (bio) {
+    return {
+      value: `Likely ${bio}`,
+      source: "bio",
+      estimated: true,
+      note: "Estimated adult size, from breed and listing details",
+      title: "Estimated adult size from breed and age for puppies. Not guaranteed — confirm with the shelter or rescue.",
+    };
+  }
+
+  return { value: "Unknown", source: "unknown", estimated: false };
+}
+
 function getPreviewText(text, maxLength = BIO_PREVIEW_LENGTH) {
   if (!text || text.length <= maxLength) return text;
 
@@ -535,6 +555,23 @@ export default function DogDetail() {
 
   const resolvedImage = useMemo(() => pickDogImage(dog), [dog]);
 
+  const galleryUrls = useMemo(() => {
+    const extra = Array.isArray(dog?.photo_urls)
+      ? dog.photo_urls.map((url) => normalizeImageUrl(url, { allowRelative: false }))
+      : [];
+
+    return Array.from(new Set([resolvedImage, ...extra].filter(Boolean)));
+  }, [dog, resolvedImage]);
+
+  const hasMultiplePhotos = galleryUrls.length > 1;
+  const galleryIndex = Math.max(0, galleryUrls.indexOf(imgSrc));
+
+  function goToPhoto(nextIndex) {
+    if (!galleryUrls.length) return;
+    const wrapped = (nextIndex + galleryUrls.length) % galleryUrls.length;
+    setImgSrc(galleryUrls[wrapped]);
+  }
+
   useEffect(() => {
     setImgSrc(resolvedImage || FALLBACK_IMG);
   }, [resolvedImage]);
@@ -665,7 +702,8 @@ export default function DogDetail() {
     normalizeSheddingValue(dog.bio_shedding_level) !== "unknown" ||
     normalizeEnergyValue(dog.bio_exercise_needs) !== "unknown" ||
     normalizeEnergyValue(dog.bio_training_needs) !== "unknown" ||
-    Boolean(dog.bio_max_alone_hours);
+    Boolean(dog.bio_max_alone_hours) ||
+    Boolean(dog.bio_size);
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);
   const matchReasons = getMatchReasons(quizMatch, dog);
@@ -880,6 +918,32 @@ export default function DogDetail() {
                 />
               </button>
 
+              {hasMultiplePhotos ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => goToPhoto(galleryIndex - 1)}
+                    aria-label={`Show previous photo of ${name}`}
+                    className="absolute left-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/40 text-lg leading-none text-white backdrop-blur-sm transition hover:bg-slate-950/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-10 sm:w-10"
+                  >
+                    ‹
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => goToPhoto(galleryIndex + 1)}
+                    aria-label={`Show next photo of ${name}`}
+                    className="absolute right-2 top-1/2 z-10 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-slate-950/40 text-lg leading-none text-white backdrop-blur-sm transition hover:bg-slate-950/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-white sm:h-10 sm:w-10"
+                  >
+                    ›
+                  </button>
+
+                  <div className="absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-slate-950/45 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                    {galleryIndex + 1} / {galleryUrls.length}
+                  </div>
+                </>
+              ) : null}
+
               <button
                 type="button"
                 onClick={onToggleSaved}
@@ -907,7 +971,7 @@ export default function DogDetail() {
                   <button
                     type="button"
                     onClick={() => setMatchInfoOpen(true)}
-                    className="hidden rounded-full border border-[#0f2742]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-sm hover:bg-[#eef3e8] lg:inline-flex"
+                    className="inline-flex rounded-full border border-[#0f2742]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 shadow-sm hover:bg-[#eef3e8]"
                     aria-label={`Open why you matched. ${Math.round(matchScorePct)} percent match`}
                   >
                     {Math.round(matchScorePct)}% match
@@ -1023,7 +1087,7 @@ export default function DogDetail() {
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3">
-              <TraitCard label="Size" trait={getSimpleTrait({ value: dog.size })} />
+              <TraitCard label="Size" trait={getSizeTrait({ structuredValue: dog.size, bioValue: dog.bio_size })} />
               <TraitCard
                 label="Energy"
                 trait={getEnergyTrait({
@@ -1247,17 +1311,15 @@ function QuickFact({ label, value }) {
 }
 
 function TraitCard({ label, trait }) {
+  const title = trait.title || "Noted from the shelter or rescue bio. Confirm with the source.";
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="text-xs font-semibold text-slate-500">{label}</div>
       <div className="mt-1 flex items-center gap-1.5 text-sm font-extrabold text-slate-900">
         <span>{trait.value}</span>
         {trait.estimated ? (
-          <span
-            className="text-xs"
-            title="Noted from the shelter or rescue bio. Confirm with the source."
-            aria-label="Noted from bio"
-          >
+          <span className="text-xs" title={title} aria-label={title}>
             *
           </span>
         ) : null}
@@ -1265,7 +1327,7 @@ function TraitCard({ label, trait }) {
 
       {trait.estimated ? (
         <div className="mt-1 text-[11px] font-semibold leading-4 text-slate-500">
-          From bio
+          {trait.note || "From bio"}
         </div>
       ) : null}
     </div>
