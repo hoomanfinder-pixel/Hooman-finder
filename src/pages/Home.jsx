@@ -245,6 +245,9 @@ export default function Home() {
               src="/logo.png"
               alt="Hooman Finder"
               className="h-16 w-16 object-contain object-center sm:h-[84px] sm:w-[84px]"
+              onError={(e) => {
+                e.currentTarget.style.visibility = "hidden";
+              }}
             />
           </Link>
 
@@ -273,6 +276,9 @@ export default function Home() {
             src="/home-hero-dogs.jpg"
             alt="Two adoptable dogs sitting together"
             className="absolute inset-0 h-full w-full object-cover object-[58%_center] sm:object-[50%_35%] lg:object-center"
+            onError={(e) => {
+              e.currentTarget.style.visibility = "hidden";
+            }}
           />
 
           <div className="absolute inset-0 bg-stone-950/35 sm:bg-stone-950/40" />

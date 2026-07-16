@@ -129,6 +129,9 @@ export default function Saved() {
               src="/logo.png"
               alt="Hooman Finder"
               className="h-9 w-auto object-contain sm:h-11"
+              onError={(e) => {
+                e.currentTarget.style.visibility = "hidden";
+              }}
             />
           </Link>
 

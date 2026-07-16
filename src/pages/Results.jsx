@@ -300,6 +300,9 @@ export default function Results() {
               src="/logo.png"
               alt="Hooman Finder"
               className="h-full w-full object-contain"
+              onError={(e) => {
+                e.currentTarget.style.visibility = "hidden";
+              }}
             />
           </Link>
 

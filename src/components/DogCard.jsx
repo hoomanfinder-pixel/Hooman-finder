@@ -691,14 +691,17 @@ export default function DogCard({
     );
   }
 
+  const mobileFacts = [ageLabel, dog?.size].filter(Boolean).join(" • ");
+
   return (
     <>
       <Link
         to={dogLink}
         state={linkState}
-        className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-stone-950/10 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.5rem]"
+        className="group flex flex-row items-start gap-3 overflow-hidden rounded-2xl border border-stone-950/10 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:h-full sm:flex-col sm:items-stretch sm:gap-0 sm:rounded-[1.5rem] sm:p-0 sm:duration-300 sm:hover:shadow-xl"
       >
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-200">
+        {/* Compact square photo on mobile; full-width 4:3 photo from sm: up (unchanged desktop design). */}
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-stone-200 sm:h-auto sm:w-full sm:aspect-[4/3] sm:rounded-none">
           {imgSrc ? (
             <img
               src={imgSrc}
@@ -711,14 +714,14 @@ export default function DogCard({
             <PlaceholderPhoto name={dog?.name} />
           )}
 
-          <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent" />
+          <div className="absolute inset-x-0 top-0 hidden h-20 bg-gradient-to-b from-black/35 to-transparent sm:block" />
 
-          <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
+          <div className="absolute left-1.5 right-1.5 top-1.5 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
             <div className="flex min-w-0 flex-wrap gap-1">
               {urgency !== "Standard" ? (
                 <span
                   className={[
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
+                    "inline-flex items-center rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]",
                     urgencyStyle(urgency),
                   ].join(" ")}
                 >
@@ -731,20 +734,29 @@ export default function DogCard({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+        {/* Compact info column on mobile (no bio, line-clamped facts); original desktop column from sm: up. */}
+        <div className="min-w-0 flex-1 sm:flex sm:flex-1 sm:flex-col sm:p-4">
           <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-stone-500">
             {shelterName(dog)}
           </p>
 
-          <h2 className="mt-1 truncate text-2xl font-black leading-none text-stone-950 sm:text-3xl">
+          <h2 className="mt-0.5 truncate text-base font-black leading-tight text-stone-950 sm:mt-1 sm:text-2xl sm:leading-none sm:text-3xl">
             {dog?.name || "Unnamed"}
           </h2>
 
-          <p className="mt-3 line-clamp-3 min-h-[3.75rem] text-sm leading-5 text-stone-600">
+          {mobileFacts ? (
+            <p className="mt-1 truncate text-xs font-semibold text-stone-600 sm:hidden">{mobileFacts}</p>
+          ) : null}
+          <p className="truncate text-xs text-stone-500 sm:hidden">{displayBreed(dog)}</p>
+          {dog?.energy_level ? (
+            <p className="truncate text-xs text-stone-500 sm:hidden">{dog.energy_level} energy</p>
+          ) : null}
+
+          <p className="mt-3 line-clamp-3 min-h-[3.75rem] hidden text-sm leading-5 text-stone-600 sm:block">
             {descriptionPreview}
           </p>
 
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-3 hidden flex-wrap gap-1.5 sm:flex">
             {lifestyleTags.slice(0, 4).map((tag) => (
               <span
                 key={tag}
@@ -755,7 +767,7 @@ export default function DogCard({
             ))}
           </div>
 
-          <div className="mt-auto pt-4">
+          <div className="mt-auto hidden pt-4 sm:block">
             <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-stone-950 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-white transition group-hover:bg-stone-800">
               View Profile
             </span>
