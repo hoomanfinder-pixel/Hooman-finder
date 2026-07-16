@@ -30,4 +30,4 @@ rescuegroups-sample-pretty.json
 test-transform-rescuegroups.js
 rescuegroups-clean-dogs.json
 generate-dogs-sql.js
-insert-dogs.sql
+insert-dogs.sql.claude/
