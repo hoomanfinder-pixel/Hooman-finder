@@ -50,7 +50,44 @@ const TRUST_POINTS = [
   ["Lifestyle-based", "More than breed or looks"],
 ];
 
-const TRUST_ICONS = ["💛", "⚡", "🏠", "🐾"];
+function HeartIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 20.5s-7-4.35-9.5-8.8C1 8.4 2.5 5 6 5c2 0 3.5 1.2 6 4 2.5-2.8 4-4 6-4 3.5 0 5 3.4 3.5 6.7C19 16.15 12 20.5 12 20.5z" />
+    </svg>
+  );
+}
+
+function BoltIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" />
+    </svg>
+  );
+}
+
+function HomeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M6 9.5V20h12V9.5" />
+    </svg>
+  );
+}
+
+function PawIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path fill="none" d="M8 14.5c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5-1.8 4-4 4-4-1.5-4-4Z" />
+      <circle cx="6.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="10.5" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+const TRUST_ICON_COMPONENTS = [HeartIcon, BoltIcon, HomeIcon, PawIcon];
 
 const fallbackDogImages = [
   "/home-hero-dogs.jpg",
@@ -260,65 +297,69 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="px-4 pt-4 sm:px-6 sm:pt-10 lg:px-8">
+        <section className="px-4 pt-4 sm:px-6 sm:pt-8 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
-              <div className="relative h-[165px] overflow-hidden rounded-[1.75rem] bg-[#0C1E35] sm:h-[360px] lg:h-[440px]">
-                <img
-                  src="/home-hero-dogs.jpg"
-                  alt="Two adoptable dogs sitting together"
-                  className="absolute inset-0 h-full w-full object-cover object-[50%_38%] sm:object-center"
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = "hidden";
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0C1E35]/60 via-transparent to-transparent sm:from-[#0C1E35]/85 sm:via-[#0C1E35]/10" />
-                <p className="absolute bottom-4 left-4 right-4 hidden text-[13px] font-medium text-[#F5F1E9] opacity-90 sm:block">
-                  Real shelter &amp; rescue dogs, near you
-                </p>
-              </div>
+            <div className="relative min-h-[500px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] bg-[#0C1E35] shadow-sm sm:min-h-[520px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[480px]">
+              <img
+                src="/home-hero-dogs.jpg"
+                alt="Two adoptable dogs sitting together"
+                className="absolute inset-0 h-full w-full object-cover object-[50%_50%] sm:object-[50%_100%] lg:object-[50%_100%]"
+                onError={(e) => {
+                  e.currentTarget.style.visibility = "hidden";
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-[#0C1E35]/5 via-[#0C1E35]/10 to-[#0C1E35]/96" />
 
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#D5AB70]">
-                  Free dog adoption matching tool
-                </p>
-                <h1 className="mt-2 font-['Fraunces',serif] text-[2.2rem] font-semibold leading-[1.08] text-[#0F2742] sm:mt-3 sm:text-5xl lg:text-[3.25rem]">
-                  Find adoptable dogs that fit your real life.
-                </h1>
-                <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-[#6F6A66] sm:mt-4 sm:text-base">
-                  Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
-                </p>
-                <div className="mt-4 flex flex-row gap-2 sm:mt-6 sm:gap-3">
-                  <Link
-                    to="/quiz"
-                    className="inline-flex min-h-[2.85rem] flex-1 items-center justify-center rounded-2xl bg-[#0F2742] px-3 text-sm font-bold text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35] sm:min-h-[3.1rem] sm:flex-initial sm:px-7"
-                  >
-                    Take the Quiz
-                  </Link>
-                  <Link
-                    to="/dogs"
-                    className="inline-flex min-h-[2.85rem] flex-1 items-center justify-center rounded-2xl border border-[#C7D4BB] bg-white px-3 text-sm font-bold text-[#0F2742] transition hover:bg-[#EFE8DC] sm:min-h-[3.1rem] sm:flex-initial sm:px-7"
-                  >
-                    Browse Dogs
-                  </Link>
+              <div className="relative flex min-h-[500px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[520px] sm:px-8 sm:pb-8 lg:min-h-[480px] lg:px-12 lg:pb-8">
+                <div className="lg:max-w-xl">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#F3C982] sm:text-xs sm:tracking-[0.24em]">
+                    Free dog adoption matching tool
+                  </p>
+                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] sm:mt-2 sm:text-[2.3rem] lg:text-[2.6rem] lg:leading-[1.05]">
+                    Find adoptable dogs that fit
+                    <br />
+                    your real life.
+                  </h1>
+                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/80 sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:text-base">
+                    Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
+                  </p>
+                  <div className="mt-3 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">
+                    <Link
+                      to="/quiz"
+                      className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-2xl bg-[#F3C982] px-3 text-sm font-bold text-[#0F2742] shadow-sm transition hover:bg-[#E9BD70] sm:min-h-[2.85rem] sm:flex-initial sm:px-7"
+                    >
+                      Take the Quiz
+                    </Link>
+                    <Link
+                      to="/dogs"
+                      className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-2xl border border-[#F5F1E9]/35 bg-white/10 px-3 text-sm font-bold text-[#F5F1E9] backdrop-blur-sm transition hover:bg-white/20 sm:min-h-[2.85rem] sm:flex-initial sm:px-7"
+                    >
+                      Browse Dogs
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        <section aria-label="Why adopters can trust Hooman Finder" className="px-4 py-5 sm:px-6 sm:py-10 lg:px-8">
+        <section aria-label="Why adopters can trust Hooman Finder" className="px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-4">
-              {TRUST_POINTS.map(([title, text], index) => (
-                <div key={title} className="rounded-xl border border-[#C7D4BB] bg-white p-3 sm:rounded-2xl sm:p-4">
-                  <div className="mb-1.5 flex h-6 w-6 items-center justify-center rounded-lg bg-[#DFE7D7] text-xs sm:mb-2.5 sm:h-8 sm:w-8 sm:text-sm">
-                    {TRUST_ICONS[index]}
+            <div className="grid grid-cols-2 divide-x divide-y divide-[#C7D4BB] overflow-hidden rounded-2xl border border-[#C7D4BB] bg-[#DFE7D7]/40 sm:grid-cols-4 sm:divide-y-0">
+              {TRUST_POINTS.map(([title, text], index) => {
+                const Icon = TRUST_ICON_COMPONENTS[index];
+                return (
+                  <div key={title} className="flex flex-col gap-2 p-4 sm:gap-3 sm:p-5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white sm:h-9 sm:w-9">
+                      <Icon className="h-4 w-4 text-[#0F2742] sm:h-[18px] sm:w-[18px]" />
+                    </span>
+                    <div>
+                      <p className="text-[12.5px] font-bold text-[#0F2742] sm:text-[13px]">{title}</p>
+                      <p className="mt-0.5 text-[11px] leading-4 text-[#6F6A66] sm:mt-1 sm:text-[11.5px] sm:leading-5">{text}</p>
+                    </div>
                   </div>
-                  <p className="text-[12.5px] font-bold text-[#0F2742] sm:text-[13px]">{title}</p>
-                  <p className="mt-0.5 text-[11px] leading-4 text-[#6F6A66] sm:mt-1 sm:text-[11.5px] sm:leading-5">{text}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </section>
