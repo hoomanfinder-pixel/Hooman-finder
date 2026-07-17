@@ -96,7 +96,7 @@ export default function OptionSelect({
   const isTextQuestion = type === "text";
 
   return (
-    <section className="rounded-[1.35rem] border border-[#0f2742]/10 bg-white/95 p-2.5 shadow-sm shadow-stone-950/5 sm:p-3.5">
+    <section className="rounded-[1.35rem] border border-[#0f2742]/10 bg-white/95 p-2.5 shadow-sm shadow-[#0F2742]/5 sm:p-3.5">
       <div className="mb-2.5 flex items-start gap-2.5">
         {number !== null ? (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-xs font-black text-[#0f2742] ring-1 ring-[#0f2742]/5">
@@ -112,7 +112,7 @@ export default function OptionSelect({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="text-sm font-black leading-tight text-[#0f2742] sm:text-base">
+                <h3 className="font-['Fraunces',serif] text-sm font-semibold leading-tight text-[#0f2742] sm:text-base">
                   {title}
                 </h3>
 
@@ -142,7 +142,7 @@ export default function OptionSelect({
             value={typeof value === "string" ? value : ""}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
-            className="min-h-11 w-full rounded-2xl border border-[#0f2742]/12 bg-[#f5f1e9]/50 px-3.5 py-2.5 text-sm font-bold text-[#0f2742] outline-none transition placeholder:text-[#0f2742]/35 focus:border-[#0f4f88]/45 focus:bg-white focus:ring-4 focus:ring-[#0f4f88]/10"
+            className="min-h-11 w-full rounded-2xl border border-[#0f2742]/12 bg-[#f5f1e9]/50 px-3.5 py-2.5 text-sm font-bold text-[#0f2742] outline-none transition placeholder:text-[#0f2742]/35 focus:border-[#0F2742]/45 focus:bg-white focus:ring-4 focus:ring-[#0F2742]/10"
           />
         </label>
       ) : (
@@ -172,8 +172,8 @@ export default function OptionSelect({
                   "min-h-10 sm:min-h-11",
                   shouldSpan ? "col-span-2" : "",
                   selected
-                    ? "border-[#0f4f88]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#0f4f88]/10"
-                    : "border-[#0f2742]/10 bg-white hover:border-[#0f4f88]/35 hover:bg-[#f8f6f1]",
+                    ? "border-[#0F2742]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#0F2742]/10"
+                    : "border-[#0f2742]/10 bg-white hover:border-[#0F2742]/25 hover:bg-[#EFE8DC]",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -206,7 +206,7 @@ export default function OptionSelect({
                       "flex h-4 w-4 shrink-0 items-center justify-center border transition",
                       mark === "radio" ? "rounded-full" : "rounded-md",
                       selected
-                        ? "border-[#0f4f88] bg-[#0f4f88] text-white"
+                        ? "border-[#0F2742] bg-[#0F2742] text-white"
                         : "border-[#0f2742]/24 bg-white text-transparent",
                     ].join(" ")}
                   >

@@ -2,13 +2,14 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import SEO from "../components/SEO";
+import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 
 export default function Contact() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742] flex flex-col">
       <SEO
         title="Contact Hooman Finder"
         description="Contact Hooman Finder with questions, comments, or suggestions about dog adoption matching."
@@ -16,70 +17,51 @@ export default function Contact() {
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Rescue dogs looking for their future home"
       />
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-4 py-4 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-3" aria-label="Go home">
-            <img
-              src="/logo.png"
-              alt="Hooman Finder"
-              className="h-24 w-24 object-contain"
-            />
-          </Link>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/quiz")}
-              className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
-            >
-              Take the quiz
-            </button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader ctas={[{ label: "Take the quiz", to: "/quiz", variant: "primary" }]} />
 
       <main className="mx-auto max-w-3xl w-full px-4 py-10 flex-1">
-        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">
+        <h1 className="font-['Fraunces',serif] text-3xl font-semibold tracking-tight text-[#0F2742]">
           Contact
         </h1>
-        <p className="mt-2 text-slate-600">
+        <p className="mt-2 text-[#6F6A66]">
           Questions, comments, or suggestions? Email us anytime:
         </p>
 
-        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="text-sm font-semibold text-slate-800">Email</div>
+        <div className="mt-6 rounded-2xl border border-[#C7D4BB] bg-white p-6 shadow-sm">
+          <div className="text-sm font-semibold text-[#0F2742]">Email</div>
 
           <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <a
               href="mailto:info@hoomanfinder.com"
-              className="text-lg font-bold text-slate-900 underline-offset-4 hover:underline"
+              className="text-lg font-bold text-[#0F2742] underline-offset-4 hover:underline"
             >
               info@hoomanfinder.com
             </a>
 
             <button
               onClick={() => navigator.clipboard?.writeText("info@hoomanfinder.com")}
-              className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center justify-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#0F2742] border border-[#C7D4BB] hover:bg-[#EFE8DC]"
             >
               Copy email
             </button>
           </div>
 
-          <p className="mt-4 text-sm text-slate-600">
-            If you’re a shelter or rescue, you can also use the “For shelters” link in the footer.
+          <p className="mt-4 text-sm text-[#6F6A66]">
+            If you're a shelter or rescue, you can also use the "For shelters" link in the footer.
           </p>
         </div>
 
         <div className="mt-6 flex items-center gap-3">
           <button
             onClick={() => navigate(-1)}
-            className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 border border-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center justify-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#0F2742] border border-[#C7D4BB] hover:bg-[#EFE8DC]"
           >
             Back
           </button>
 
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-full bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
+            className="inline-flex items-center justify-center rounded-full bg-[#0F2742] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#0C1E35]"
           >
             Back to home
           </Link>

@@ -242,7 +242,7 @@ export default function Quiz() {
       : "Fine-tune how Hooman Finder ranks adoptable dogs using your lifestyle and care preferences.";
 
   return (
-    <div className="min-h-screen bg-[#f5f1e9] text-[#0f2742]">
+    <div className="min-h-screen bg-[#f5f1e9] font-['Inter',sans-serif] text-[#0f2742]">
       <SEO
         title="Dog Adoption Matching Quiz | Hooman Finder"
         description="Take Hooman Finder's dog adoption matching quiz to compare adoptable shelter and rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
@@ -273,7 +273,7 @@ export default function Quiz() {
                 key={idx}
                 className={[
                   "h-1 min-w-0 flex-1 rounded-full transition",
-                  idx < completion.answered ? "bg-[#0f4f88]" : "bg-[#0f2742]/12",
+                  idx < completion.answered ? "bg-[#0F2742]" : "bg-[#0f2742]/12",
                 ].join(" ")}
               />
             ))}
@@ -288,7 +288,7 @@ export default function Quiz() {
                   Hooman Finder Quiz
                 </p>
 
-                <h1 className="mt-1 text-[2rem] font-black leading-[0.92] text-[#0f2742] sm:text-5xl">
+                <h1 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#0f2742] sm:text-5xl">
                   {pageTitle}
                 </h1>
 
@@ -380,7 +380,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goRefine}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-center text-xs font-black leading-snug text-white shadow-sm hover:bg-[#0d416f] sm:px-4 sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 py-2 text-center text-xs font-black leading-snug text-[#F3C982] shadow-sm hover:bg-[#0C1E35] sm:px-4 sm:text-sm"
                 >
                   Deeper questions →
                 </button>
@@ -388,7 +388,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goResults}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0f4f88] px-3 py-2 text-xs font-black text-white shadow-sm hover:bg-[#0d416f] sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 py-2 text-xs font-black text-[#F3C982] shadow-sm hover:bg-[#0C1E35] sm:text-sm"
                 >
                   See matches →
                 </button>

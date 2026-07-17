@@ -9,7 +9,7 @@ function Badge({ status }) {
   }
 
   if (status === "partial") {
-    return <span className={`${base} bg-[#fff6d8] text-[#6f5312]`}>In progress</span>;
+    return <span className={`${base} bg-[#FBF0DC] text-[#8A6A2F]`}>In progress</span>;
   }
 
   return <span className={`${base} bg-[#f5f1e9] text-[#0f2742]/55`}>Not started</span>;
@@ -28,9 +28,9 @@ export default function AccordionSection({
     <section
       id={id}
       className={[
-        "overflow-hidden rounded-[1.35rem] border shadow-sm shadow-stone-950/5 transition",
+        "overflow-hidden rounded-[1.35rem] border shadow-sm shadow-[#0F2742]/5 transition",
         isOpen
-          ? "border-[#0f4f88]/22 bg-white"
+          ? "border-[#0F2742]/22 bg-white"
           : "border-[#0f2742]/10 bg-white/72",
       ].join(" ")}
     >
@@ -43,7 +43,7 @@ export default function AccordionSection({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-sm font-black text-[#0f2742] sm:text-base">
+              <h2 className="font-['Fraunces',serif] text-sm font-semibold text-[#0f2742] sm:text-base">
                 {title}
               </h2>
 
@@ -61,7 +61,7 @@ export default function AccordionSection({
             className={[
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-base font-black transition",
               isOpen
-                ? "border-[#0f4f88]/20 bg-[#dfe7d7] text-[#0f2742]"
+                ? "border-[#0F2742]/20 bg-[#dfe7d7] text-[#0f2742]"
                 : "border-[#0f2742]/10 bg-[#f5f1e9] text-[#0f2742]/60",
             ].join(" ")}
           >

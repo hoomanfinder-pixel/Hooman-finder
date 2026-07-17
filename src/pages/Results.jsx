@@ -299,7 +299,7 @@ export default function Results() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f1e9] text-[#050505]">
+    <div className="min-h-screen bg-[#f5f1e9] font-['Inter',sans-serif] text-[#0F2742]">
       <SEO
         title="Your Dog Adoption Matches | Hooman Finder"
         description="View your ranked Hooman Finder dog adoption matches based on your quiz answers and available shelter and rescue dog details."
@@ -308,11 +308,11 @@ export default function Results() {
         ogImageAlt="Dog adoption matches from Hooman Finder"
         noindex
       />
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f5f1e9]/94 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-[#0F2742]/10 bg-[#f5f1e9]/94 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3.5 py-2 sm:px-6 lg:px-8">
           <Link
             to="/"
-            className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl bg-white/75 p-1.5 ring-1 ring-stone-950/8 sm:h-10 sm:w-14"
+            className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl bg-white/75 p-1.5 ring-1 ring-[#0F2742]/8 sm:h-10 sm:w-14"
             aria-label="Go home"
           >
             <img
@@ -329,7 +329,7 @@ export default function Results() {
             <button
               type="button"
               onClick={goRefine}
-              className="hidden rounded-full border border-stone-950/15 bg-white/55 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-700 hover:bg-white sm:inline-flex"
+              className="hidden rounded-full border border-[#0F2742]/15 bg-white/55 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#0F2742] hover:bg-white sm:inline-flex"
             >
               Refine
             </button>
@@ -337,11 +337,11 @@ export default function Results() {
             <button
               type="button"
               onClick={toggleFilters}
-              className="inline-flex min-h-9 items-center rounded-full bg-stone-950 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-sm hover:bg-stone-800 sm:min-h-10 sm:px-4 sm:text-[11px]"
+              className="inline-flex min-h-9 items-center rounded-full bg-[#0F2742] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#F3C982] shadow-sm hover:bg-[#0C1E35] sm:min-h-10 sm:px-4 sm:text-[11px]"
             >
               Filter
               {activeFilterCount > 0 ? (
-                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] text-stone-950">
+                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F3C982] px-1.5 text-[10px] text-[#0C1E35]">
                   {activeFilterCount}
                 </span>
               ) : null}
@@ -355,7 +355,7 @@ export default function Results() {
           <div className="flex items-center justify-between gap-3">
             <Link
               to="/dogs"
-              className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-stone-950"
+              className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-[#0F2742]"
             >
               ← Back to browse
             </Link>
@@ -363,7 +363,7 @@ export default function Results() {
             <button
               type="button"
               onClick={goDealbreakers}
-              className="inline-flex shrink-0 rounded-full border border-stone-950/10 bg-white/70 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-stone-600 hover:bg-white sm:hidden"
+              className="inline-flex shrink-0 rounded-full border border-[#0F2742]/10 bg-white/70 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#6F6A66] hover:bg-white sm:hidden"
             >
               Edit Quiz
             </button>
@@ -375,7 +375,7 @@ export default function Results() {
                 Your matches
               </p>
 
-              <h1 className="mt-1 max-w-2xl text-[2rem] font-black leading-[0.9] text-[#050505] sm:text-5xl">
+              <h1 className="mt-1 max-w-2xl font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#0F2742] sm:text-5xl">
                 Your best-fit dogs, ranked.
               </h1>
 
@@ -391,11 +391,11 @@ export default function Results() {
         {filtersOpen ? (
           <section
             ref={filtersRef}
-            className="mt-2 scroll-mt-20 rounded-[1.5rem] border border-stone-950/10 bg-white p-4 shadow-lg shadow-stone-950/5 sm:p-5"
+            className="mt-2 scroll-mt-20 rounded-[1.5rem] border border-[#0F2742]/10 bg-white p-4 shadow-lg shadow-[#0F2742]/5 sm:p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-black text-stone-950">
+                <h2 className="font-['Fraunces',serif] text-xl font-semibold text-[#0F2742]">
                   Fine-tune matches
                 </h2>
                 <p className="mt-1 text-sm font-semibold leading-6 text-[#6f6a66]">
@@ -406,19 +406,19 @@ export default function Results() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-stone-500 underline underline-offset-4 hover:text-stone-950"
+                className="shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#0F2742]"
               >
                 Reset
               </button>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-stone-600 md:col-span-1">
+              <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] md:col-span-1">
                 Shelter or rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-[#0F2742]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
                 >
                   <option value="all">All sources</option>
                   {rescueOptions.map((rescue) => (
@@ -429,12 +429,12 @@ export default function Results() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-stone-600">
+              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Age
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-[#0F2742]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
                 >
                   {AGE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -444,12 +444,12 @@ export default function Results() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-stone-600">
+              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Size
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-[#0F2742]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
                 >
                   {SIZE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -459,12 +459,12 @@ export default function Results() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-stone-600">
+              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Energy
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-stone-950/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-stone-950"
+                  className="mt-2 w-full rounded-xl border border-[#0F2742]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
                 >
                   {ENERGY_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -488,8 +488,8 @@ export default function Results() {
                   className={[
                     "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
-                      ? "border-stone-950 bg-stone-950 text-white"
-                      : "border-stone-950/15 bg-[#f5f1e9] text-stone-600",
+                      ? "border-[#0F2742] bg-[#0F2742] text-[#F3C982]"
+                      : "border-[#0F2742]/15 bg-[#f5f1e9] text-[#6F6A66]",
                   ].join(" ")}
                 >
                   <input
@@ -506,7 +506,7 @@ export default function Results() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-4 w-full rounded-full bg-stone-950 px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-white hover:bg-stone-800"
+              className="mt-4 w-full rounded-full bg-[#0F2742] px-5 py-3 text-xs font-black uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
             >
               Show {filteredRows.length} matches
             </button>
@@ -514,33 +514,33 @@ export default function Results() {
         ) : null}
 
         {loading ? (
-          <div className="mt-5 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm font-semibold text-stone-600">
+          <div className="mt-5 rounded-[1.35rem] border border-[#0F2742]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
             Loading matches…
           </div>
         ) : err ? (
-          <div className="mt-5 rounded-[1.6rem] border border-amber-200 bg-amber-50 p-5">
-            <h2 className="text-2xl font-black text-stone-950">
-              We couldn’t load your matches.
+          <div className="mt-5 rounded-[1.6rem] border border-red-200 bg-red-50 p-5">
+            <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#0F2742]">
+              We couldn't load your matches.
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-stone-700">
+            <p className="mt-2 text-sm leading-6 text-red-700">
               {err}
             </p>
 
             <Link
               to="/quiz"
-              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
+              className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
             >
               Take or restart the quiz
             </Link>
           </div>
         ) : filteredRows.length === 0 ? (
-          <div className="mt-5 rounded-[1.6rem] border border-stone-950/10 bg-white/62 p-5">
-            <h2 className="text-2xl font-black text-stone-950">
+          <div className="mt-5 rounded-[1.6rem] border border-[#0F2742]/10 bg-white/62 p-5">
+            <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#0F2742]">
               No dogs match your current filters.
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-stone-600">
+            <p className="mt-2 text-sm leading-6 text-[#6F6A66]">
               Try clearing filters or refining your quiz answers.
             </p>
 
@@ -548,7 +548,7 @@ export default function Results() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-2xl bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white"
+                className="rounded-2xl bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
               >
                 Clear filters
               </button>
@@ -556,7 +556,7 @@ export default function Results() {
               <button
                 type="button"
                 onClick={goRefine}
-                className="rounded-2xl border border-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
+                className="rounded-2xl border border-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#0F2742]"
               >
                 Refine quiz
               </button>
@@ -565,7 +565,7 @@ export default function Results() {
         ) : (
           <section className="mt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
                 Ranked matches
               </h2>
 
@@ -573,7 +573,7 @@ export default function Results() {
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-stone-500 underline underline-offset-4 hover:text-stone-950"
+                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#0F2742]"
                 >
                   Clear
                 </button>

@@ -228,7 +228,7 @@ export default function Home() {
       />
 
       <header className="border-b border-[#C7D4BB]/60 bg-[#F5F1E9]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#C7D4BB] bg-white p-1.5">
               <img
@@ -251,7 +251,7 @@ export default function Home() {
             </Link>
             <Link
               to="/quiz"
-              className="rounded-full bg-[#0F2742] px-4 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F3C982] transition hover:bg-[#0C1E35]"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F3C982] transition hover:bg-[#0C1E35] sm:px-4"
             >
               Take the Quiz
             </Link>
@@ -260,22 +260,19 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="px-4 pt-6 sm:px-6 sm:pt-10 lg:px-8">
+        <section className="px-4 pt-4 sm:px-6 sm:pt-10 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
-              <div className="relative h-[280px] overflow-hidden rounded-[1.75rem] bg-[#0C1E35] sm:h-[360px] lg:h-[440px]">
+            <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
+              <div className="relative h-[220px] overflow-hidden rounded-[1.75rem] bg-[#0C1E35] sm:h-[360px] lg:h-[440px]">
                 <img
                   src="/home-hero-dogs.jpg"
                   alt="Two adoptable dogs sitting together"
-                  className="absolute inset-0 h-full w-full object-cover"
+                  className="absolute inset-0 h-full w-full object-cover object-[50%_40%] sm:object-center"
                   onError={(e) => {
                     e.currentTarget.style.visibility = "hidden";
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0C1E35]/85 via-[#0C1E35]/10 to-transparent" />
-                <div className="absolute left-4 top-4 rounded-full bg-[#F5F1E9]/92 px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#0F2742]">
-                  Free dog adoption matching
-                </div>
                 <p className="absolute bottom-4 left-4 right-4 text-[13px] font-medium text-[#F5F1E9] opacity-90">
                   Real shelter &amp; rescue dogs, near you
                 </p>
@@ -285,13 +282,13 @@ export default function Home() {
                 <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#D5AB70]">
                   Free dog adoption matching tool
                 </p>
-                <h1 className="mt-3 font-['Fraunces',serif] text-[2.2rem] font-semibold leading-[1.08] text-[#0F2742] sm:text-5xl lg:text-[3.25rem]">
+                <h1 className="mt-2 font-['Fraunces',serif] text-[2.2rem] font-semibold leading-[1.08] text-[#0F2742] sm:mt-3 sm:text-5xl lg:text-[3.25rem]">
                   Find adoptable dogs that fit your real life.
                 </h1>
-                <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-[#6F6A66] sm:text-base">
-                  Hooman Finder helps you discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
+                <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-[#6F6A66] sm:mt-4 sm:text-base">
+                  Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
                 </p>
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row">
                   <Link
                     to="/quiz"
                     className="inline-flex min-h-[3.1rem] items-center justify-center rounded-2xl bg-[#0F2742] px-7 text-sm font-bold text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35]"

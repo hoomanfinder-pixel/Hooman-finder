@@ -105,7 +105,7 @@ export default function Saved() {
   const count = useMemo(() => dogs.length, [dogs]);
 
   return (
-    <div className="min-h-screen bg-[#f4f1ea] text-stone-950">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742]">
       <SEO
         title="Saved Adoptable Dogs | Hooman Finder"
         description="Review the adoptable dogs you saved while browsing Hooman Finder."
@@ -114,12 +114,12 @@ export default function Saved() {
         ogImageAlt="Saved adoptable dogs on Hooman Finder"
         noindex
       />
-      <header className="sticky top-0 z-50 border-b border-stone-950/10 bg-[#f4f1ea]/92 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-[#0F2742]/10 bg-[#F5F1E9]/92 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="text-xs font-bold uppercase tracking-[0.14em] text-stone-600 hover:text-stone-950"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#0F2742]"
           >
             ← Back
           </button>
@@ -137,7 +137,7 @@ export default function Saved() {
 
           <Link
             to="/dogs"
-            className="text-xs font-bold uppercase tracking-[0.14em] text-stone-600 hover:text-stone-950"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#0F2742]"
           >
             Browse
           </Link>
@@ -146,37 +146,37 @@ export default function Saved() {
 
       <main className="mx-auto w-full max-w-4xl px-3.5 py-4 sm:px-6 sm:py-8">
         <section className="pb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-stone-500">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#6F6A66]">
             Your shortlist
           </p>
 
           <div className="mt-2 flex items-end justify-between gap-4">
             <div>
-              <h1 className="text-[2.65rem] font-semibold leading-[0.9] tracking-[-0.065em] text-stone-950 sm:text-6xl">
+              <h1 className="font-['Fraunces',serif] text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.02em] text-[#0F2742] sm:text-6xl">
                 Saved
               </h1>
 
-              <p className="mt-3 max-w-xl text-sm leading-6 text-stone-600 sm:text-base">
-                Review dogs you’ve saved, then open a profile to continue with the listing shelter or rescue.
+              <p className="mt-3 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
+                Review dogs you've saved, then open a profile to continue with the listing shelter or rescue.
               </p>
             </div>
 
             <Link
               to="/dogs"
-              className="hidden rounded-full border border-stone-950 bg-stone-950 px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-white hover:bg-transparent hover:text-stone-950 sm:inline-flex"
+              className="hidden rounded-full border border-[#0F2742] bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35] sm:inline-flex"
             >
               Browse more
             </Link>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
-            <span className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2">
+          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+            <span className="shrink-0 rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2">
               {count} saved dog{count === 1 ? "" : "s"}
             </span>
 
             <Link
               to="/quiz"
-              className="shrink-0 rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 hover:bg-white"
+              className="shrink-0 rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2 hover:bg-white"
             >
               Find my match
             </Link>
@@ -184,7 +184,7 @@ export default function Saved() {
         </section>
 
         {loading ? (
-          <div className="mt-4 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm font-semibold text-stone-600">
+          <div className="mt-4 rounded-[1.35rem] border border-[#0F2742]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
             Loading saved dogs…
           </div>
         ) : error ? (
@@ -192,45 +192,45 @@ export default function Saved() {
             {error}
           </div>
         ) : !savedIds.length ? (
-          <div className="mt-4 rounded-[1.6rem] border border-stone-950/10 bg-white/62 p-5">
+          <div className="mt-4 rounded-[1.6rem] border border-[#0F2742]/10 bg-white/62 p-5">
             <div className="text-4xl">♡</div>
 
-            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-stone-950">
+            <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold tracking-[-0.01em] text-[#0F2742]">
               No saved dogs yet.
             </h2>
 
-            <p className="mt-2 text-sm leading-6 text-stone-600">
+            <p className="mt-2 text-sm leading-6 text-[#6F6A66]">
               Tap the heart on any dog card to build your shortlist.
             </p>
 
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/dogs"
-                className="rounded-2xl bg-stone-950 px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-white"
+                className="rounded-2xl bg-[#0F2742] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
               >
                 Browse dogs
               </Link>
 
               <Link
                 to="/quiz"
-                className="rounded-2xl border border-stone-950 px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-stone-950"
+                className="rounded-2xl border border-[#0F2742] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#0F2742]"
               >
                 Take quiz
               </Link>
             </div>
           </div>
         ) : dogs.length === 0 ? (
-          <div className="mt-4 rounded-[1.35rem] border border-stone-950/10 bg-white/60 p-5 text-sm leading-6 text-stone-700">
-            Saved dogs couldn’t be loaded. They may have been removed or marked unavailable.
+          <div className="mt-4 rounded-[1.35rem] border border-[#0F2742]/10 bg-white/60 p-5 text-sm leading-6 text-[#6F6A66]">
+            Saved dogs couldn't be loaded. They may have been removed or marked unavailable.
           </div>
         ) : (
           <section className="mt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-stone-500">
+              <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
                 Saved picks
               </h2>
 
-              <span className="rounded-full border border-stone-950/10 bg-white/58 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">
+              <span className="rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 {dogs.length} loaded
               </span>
             </div>
