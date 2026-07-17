@@ -230,7 +230,7 @@ export default function Home() {
       <header className="border-b border-[#C7D4BB]/60 bg-[#F5F1E9]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-[#C7D4BB] bg-white p-1.5">
+            <span className="flex h-16 w-[75px] shrink-0 items-center justify-center rounded-xl border border-[#C7D4BB] bg-white p-1">
               <img
                 src="/logo.png"
                 alt="Hooman Finder"
@@ -263,17 +263,17 @@ export default function Home() {
         <section className="px-4 pt-4 sm:px-6 sm:pt-10 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <div className="grid gap-4 sm:gap-6 lg:grid-cols-2 lg:items-center lg:gap-10">
-              <div className="relative h-[220px] overflow-hidden rounded-[1.75rem] bg-[#0C1E35] sm:h-[360px] lg:h-[440px]">
+              <div className="relative h-[165px] overflow-hidden rounded-[1.75rem] bg-[#0C1E35] sm:h-[360px] lg:h-[440px]">
                 <img
                   src="/home-hero-dogs.jpg"
                   alt="Two adoptable dogs sitting together"
-                  className="absolute inset-0 h-full w-full object-cover object-[50%_40%] sm:object-center"
+                  className="absolute inset-0 h-full w-full object-cover object-[50%_38%] sm:object-center"
                   onError={(e) => {
                     e.currentTarget.style.visibility = "hidden";
                   }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0C1E35]/85 via-[#0C1E35]/10 to-transparent" />
-                <p className="absolute bottom-4 left-4 right-4 text-[13px] font-medium text-[#F5F1E9] opacity-90">
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0C1E35]/60 via-transparent to-transparent sm:from-[#0C1E35]/85 sm:via-[#0C1E35]/10" />
+                <p className="absolute bottom-4 left-4 right-4 hidden text-[13px] font-medium text-[#F5F1E9] opacity-90 sm:block">
                   Real shelter &amp; rescue dogs, near you
                 </p>
               </div>
@@ -288,16 +288,16 @@ export default function Home() {
                 <p className="mt-3 max-w-lg text-[15px] leading-relaxed text-[#6F6A66] sm:mt-4 sm:text-base">
                   Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
                 </p>
-                <div className="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row">
+                <div className="mt-4 flex flex-row gap-2 sm:mt-6 sm:gap-3">
                   <Link
                     to="/quiz"
-                    className="inline-flex min-h-[3.1rem] items-center justify-center rounded-2xl bg-[#0F2742] px-7 text-sm font-bold text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35]"
+                    className="inline-flex min-h-[2.85rem] flex-1 items-center justify-center rounded-2xl bg-[#0F2742] px-3 text-sm font-bold text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35] sm:min-h-[3.1rem] sm:flex-initial sm:px-7"
                   >
                     Take the Quiz
                   </Link>
                   <Link
                     to="/dogs"
-                    className="inline-flex min-h-[3.1rem] items-center justify-center rounded-2xl border border-[#C7D4BB] bg-white px-7 text-sm font-bold text-[#0F2742] transition hover:bg-[#EFE8DC]"
+                    className="inline-flex min-h-[2.85rem] flex-1 items-center justify-center rounded-2xl border border-[#C7D4BB] bg-white px-3 text-sm font-bold text-[#0F2742] transition hover:bg-[#EFE8DC] sm:min-h-[3.1rem] sm:flex-initial sm:px-7"
                   >
                     Browse Dogs
                   </Link>
@@ -307,16 +307,16 @@ export default function Home() {
           </div>
         </section>
 
-        <section aria-label="Why adopters can trust Hooman Finder" className="px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+        <section aria-label="Why adopters can trust Hooman Finder" className="px-4 py-5 sm:px-6 sm:py-10 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-4">
               {TRUST_POINTS.map(([title, text], index) => (
-                <div key={title} className="rounded-2xl border border-[#C7D4BB] bg-white p-4">
-                  <div className="mb-2.5 flex h-8 w-8 items-center justify-center rounded-lg bg-[#DFE7D7] text-sm">
+                <div key={title} className="rounded-xl border border-[#C7D4BB] bg-white p-3 sm:rounded-2xl sm:p-4">
+                  <div className="mb-1.5 flex h-6 w-6 items-center justify-center rounded-lg bg-[#DFE7D7] text-xs sm:mb-2.5 sm:h-8 sm:w-8 sm:text-sm">
                     {TRUST_ICONS[index]}
                   </div>
-                  <p className="text-[13px] font-bold text-[#0F2742]">{title}</p>
-                  <p className="mt-1 text-[11.5px] leading-5 text-[#6F6A66]">{text}</p>
+                  <p className="text-[12.5px] font-bold text-[#0F2742] sm:text-[13px]">{title}</p>
+                  <p className="mt-0.5 text-[11px] leading-4 text-[#6F6A66] sm:mt-1 sm:text-[11.5px] sm:leading-5">{text}</p>
                 </div>
               ))}
             </div>
