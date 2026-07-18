@@ -42,8 +42,8 @@ export const ALL_QUESTIONS = [
     description: "Pick all ages you're open to.",
     exclusiveValues: ["flexible"],
     options: [
-      { value: "puppy", label: "Puppy (0–1)" },
-      { value: "adult", label: "Adult (2–6)" },
+      { value: "puppy", label: "Puppy (0 to 1)" },
+      { value: "adult", label: "Adult (2 to 6)" },
       { value: "senior", label: "Senior (7+)" },
       { value: "flexible", label: "Any age / flexible" },
     ],
@@ -59,9 +59,9 @@ export const ALL_QUESTIONS = [
     options: [
       { value: "no_children", label: "No children in the home" },
       { value: "under_3", label: "Under 3" },
-      { value: "3_5", label: "3–5" },
-      { value: "6_9", label: "6–9" },
-      { value: "10_12", label: "10–12" },
+      { value: "3_5", label: "3 to 5" },
+      { value: "6_9", label: "6 to 9" },
+      { value: "10_12", label: "10 to 12" },
       { value: "13_plus", label: "13+" },
       { value: "children_visit", label: "Children visit sometimes" },
     ],
@@ -202,8 +202,8 @@ export const ALL_QUESTIONS = [
     type: QUESTION_TYPES.SINGLE,
     title: "How much training time are you willing to put in (weekly)?",
     options: [
-      { value: "low", label: "Low (0–1 hrs/week)" },
-      { value: "medium", label: "Medium (1–3 hrs/week)" },
+      { value: "low", label: "Low (0 to 1 hrs/week)" },
+      { value: "medium", label: "Medium (1 to 3 hrs/week)" },
       { value: "high", label: "High (3+ hrs/week)" },
       { value: "not_sure", label: "Not sure" },
     ],
@@ -297,9 +297,9 @@ export const ALL_QUESTIONS = [
     type: QUESTION_TYPES.SINGLE,
     title: "On most days, how much walking/exercise can you realistically do?",
     options: [
-      { value: "0_15", label: "0–15 minutes/day" },
-      { value: "15_30", label: "15–30 minutes/day" },
-      { value: "30_60", label: "30–60 minutes/day" },
+      { value: "0_15", label: "0 to 15 minutes/day" },
+      { value: "15_30", label: "15 to 30 minutes/day" },
+      { value: "30_60", label: "30 to 60 minutes/day" },
       { value: "60_plus", label: "60+ minutes/day" },
       { value: "not_sure", label: "Not sure / varies" },
     ],
@@ -343,7 +343,7 @@ export const ALL_QUESTIONS = [
     // ✅ no_preference is exclusive
     exclusiveValues: ["no_preference"],
     options: [
-      { value: "fetch_returns", label: "Fetch — brings it back" },
+      { value: "fetch_returns", label: "Fetch and brings it back" },
       { value: "tug", label: "Tug-of-war" },
       { value: "chase_flirt_pole", label: "Chase games / flirt pole" },
       { value: "scent_sniffing", label: "Scent games / sniffing" },
@@ -389,8 +389,8 @@ export const ALL_QUESTIONS = [
     title: "On a typical weekday, how long will the dog be alone?",
     options: [
       { value: "lt4", label: "Less than 4 hours" },
-      { value: "4_6", label: "4–6 hours" },
-      { value: "6_8", label: "6–8 hours" },
+      { value: "4_6", label: "4 to 6 hours" },
+      { value: "6_8", label: "6 to 8 hours" },
       { value: "8_plus", label: "8+ hours" },
       { value: "not_sure", label: "Not sure / varies" },
     ],
@@ -433,8 +433,8 @@ export const ALL_QUESTIONS = [
     type: QUESTION_TYPES.SINGLE,
     title: "Monthly pet budget comfort (roughly)?",
     options: [
-      { value: "low", label: "Low ($0–$75)" },
-      { value: "medium", label: "Medium ($75–$200)" },
+      { value: "low", label: "Low ($0 to $75)" },
+      { value: "medium", label: "Medium ($75 to $200)" },
       { value: "high", label: "High ($200+)" },
       { value: "not_sure", label: "Not sure" },
     ],

@@ -13,7 +13,7 @@ function Card({ title, id, children }) {
       className="rounded-2xl border border-[#C7D4BB] bg-white p-6 shadow-sm"
     >
       {title ? (
-        <h2 className="font-['Fraunces',serif] text-base font-semibold text-[#0F2742]">{title}</h2>
+        <h2 className="font-['Fraunces',serif] text-base font-semibold text-[#183D35]">{title}</h2>
       ) : null}
       <div className={title ? "mt-4" : ""}>{children}</div>
     </section>
@@ -37,11 +37,11 @@ function StepPill({ n, title, desc }) {
   return (
     <div className="rounded-2xl border border-[#C7D4BB] bg-white p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#0F2742] text-xs font-bold text-[#F3C982]">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#183D35] text-xs font-bold text-[#F3C982]">
           {n}
         </span>
         <div>
-          <p className="text-sm font-semibold text-[#0F2742]">{title}</p>
+          <p className="text-sm font-semibold text-[#183D35]">{title}</p>
           <p className="mt-1 text-sm text-[#6F6A66]">{desc}</p>
         </div>
       </div>
@@ -69,37 +69,36 @@ export default function JoinShelters() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742] flex flex-col">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
       <SiteHeader />
 
       <div className="mx-auto max-w-5xl w-full px-6 py-10 flex-1">
         {/* Hero */}
         <div>
-          <h1 className="font-['Fraunces',serif] text-3xl md:text-4xl font-semibold text-[#0F2742]">
+          <h1 className="font-['Fraunces',serif] text-3xl md:text-4xl font-semibold text-[#183D35]">
             For Shelters &amp; Rescues
           </h1>
           <p className="mt-3 max-w-2xl text-[#6F6A66]">
-            Hooman Finder helps match adopters with compatible rescue dogs using a
-            short lifestyle quiz and ranked results — without changing how you
-            handle applications.
+            Hooman Finder helps adopters discover listed dogs through a short lifestyle
+            quiz and ranked results. Applications and final decisions stay with you.
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
-              onClick={() => navigate("/results")}
-              className="rounded-full bg-[#0F2742] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#0C1E35]"
+              onClick={() => navigate("/dogs")}
+              className="rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
             >
-              View example dogs →
+              Browse adoptable dogs →
             </button>
             <button
               onClick={() => navigate("/")}
-              className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#0F2742] hover:bg-[#EFE8DC]"
+              className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#183D35] hover:bg-[#EFE8DC]"
             >
               Back to home
             </button>
             <button
               onClick={scrollToWhyJoin}
-              className="text-sm font-semibold text-[#0F2742] underline-offset-4 hover:underline"
+              className="text-sm font-semibold text-[#183D35] underline-offset-4 hover:underline"
             >
               Why join ↓
             </button>
@@ -137,7 +136,7 @@ export default function JoinShelters() {
             <BulletList
               items={[
                 "Adopters take a short lifestyle quiz.",
-                "Dogs are ranked based on compatibility — not just filters.",
+                "Dogs are ranked using quiz answers and available profile details.",
                 "Dog profiles link directly to your existing application process.",
                 "You keep full control over approvals and communication.",
               ]}
@@ -152,7 +151,7 @@ export default function JoinShelters() {
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-[#C7D4BB] bg-[#EFE8DC] p-4">
-                <p className="text-sm font-semibold text-[#0F2742]">
+                <p className="text-sm font-semibold text-[#183D35]">
                   Shelter / Rescue info
                 </p>
                 <div className="mt-3">
@@ -169,7 +168,7 @@ export default function JoinShelters() {
               </div>
 
               <div className="rounded-xl border border-[#C7D4BB] bg-[#EFE8DC] p-4">
-                <p className="text-sm font-semibold text-[#0F2742]">Dog profile fields</p>
+                <p className="text-sm font-semibold text-[#183D35]">Dog profile fields</p>
                 <div className="mt-3">
                   <BulletList
                     items={[
@@ -194,14 +193,14 @@ export default function JoinShelters() {
             <div className="flex flex-wrap items-center gap-3">
               <a
                 href={`mailto:${CONTACT_EMAIL}`}
-                className="text-sm font-semibold text-[#0F2742] underline decoration-[#C7D4BB] hover:decoration-[#0F2742]"
+                className="text-sm font-semibold text-[#183D35] underline decoration-[#C7D4BB] hover:decoration-[#183D35]"
               >
                 {CONTACT_EMAIL}
               </a>
 
               <button
                 onClick={copyEmail}
-                className="rounded-full border border-[#C7D4BB] bg-[#EFE8DC] px-3 py-1.5 text-xs font-semibold text-[#0F2742] hover:bg-[#DFE7D7]"
+                className="rounded-full border border-[#C7D4BB] bg-[#EFE8DC] px-3 py-1.5 text-xs font-semibold text-[#183D35] hover:bg-[#DFE7D7]"
               >
                 {copied ? "Copied" : "Copy"}
               </button>
@@ -209,14 +208,14 @@ export default function JoinShelters() {
 
             <div className="mt-4 flex flex-wrap gap-3">
               <button
-                onClick={() => navigate("/results")}
-                className="rounded-full bg-[#0F2742] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#0C1E35]"
+                onClick={() => navigate("/dogs")}
+                className="rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
               >
-                View example dogs →
+                Browse adoptable dogs →
               </button>
               <button
                 onClick={() => navigate("/")}
-                className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#0F2742] hover:bg-[#EFE8DC]"
+                className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#183D35] hover:bg-[#EFE8DC]"
               >
                 Back to home
               </button>
@@ -232,13 +231,12 @@ export default function JoinShelters() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <div>
                 <p className="text-sm text-[#6F6A66]">
-                  Hooman Finder is designed to help your dogs reach people who are
-                  likely to be a good fit — and reduce "bad-fit" inquiries by
-                  showing compatibility up front.
+                  Hooman Finder helps your dogs reach adopters searching by lifestyle,
+                  while setting clearer expectations before they apply.
                 </p>
 
                 <div className="mt-4">
-                  <p className="text-sm font-semibold text-[#0F2742]">
+                  <p className="text-sm font-semibold text-[#183D35]">
                     Best fit for shelters/rescues who…
                   </p>
                   <div className="mt-3">
@@ -255,7 +253,7 @@ export default function JoinShelters() {
               </div>
 
               <div>
-                <p className="text-sm font-semibold text-[#0F2742]">
+                <p className="text-sm font-semibold text-[#183D35]">
                   Target adopter audience
                 </p>
                 <p className="mt-2 text-sm text-[#6F6A66]">
@@ -277,7 +275,7 @@ export default function JoinShelters() {
             </div>
 
             <div className="mt-5 rounded-xl border border-[#C7D4BB] bg-[#EFE8DC] p-4">
-              <p className="text-sm font-semibold text-[#0F2742]">
+              <p className="text-sm font-semibold text-[#183D35]">
                 Important: applications stay with you
               </p>
               <p className="mt-1 text-sm text-[#6F6A66]">

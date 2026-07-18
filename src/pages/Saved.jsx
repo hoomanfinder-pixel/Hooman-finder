@@ -105,7 +105,7 @@ export default function Saved() {
   const count = useMemo(() => dogs.length, [dogs]);
 
   return (
-    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742]">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
         title="Saved Adoptable Dogs | Hooman Finder"
         description="Review the adoptable dogs you saved while browsing Hooman Finder."
@@ -114,12 +114,12 @@ export default function Saved() {
         ogImageAlt="Saved adoptable dogs on Hooman Finder"
         noindex
       />
-      <header className="sticky top-0 z-50 border-b border-[#0F2742]/10 bg-[#F5F1E9]/92 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-[#183D35]/10 bg-[#F5F1E9]/92 backdrop-blur">
         <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#0F2742]"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#183D35]"
           >
             ← Back
           </button>
@@ -137,7 +137,7 @@ export default function Saved() {
 
           <Link
             to="/dogs"
-            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#0F2742]"
+            className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] hover:text-[#183D35]"
           >
             Browse
           </Link>
@@ -152,7 +152,7 @@ export default function Saved() {
 
           <div className="mt-2 flex items-end justify-between gap-4">
             <div>
-              <h1 className="font-['Fraunces',serif] text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.02em] text-[#0F2742] sm:text-6xl">
+              <h1 className="font-['Fraunces',serif] text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.02em] text-[#183D35] sm:text-6xl">
                 Saved
               </h1>
 
@@ -163,20 +163,20 @@ export default function Saved() {
 
             <Link
               to="/dogs"
-              className="hidden rounded-full border border-[#0F2742] bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35] sm:inline-flex"
+              className="hidden rounded-full border border-[#183D35] bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C] sm:inline-flex"
             >
               Browse more
             </Link>
           </div>
 
           <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
-            <span className="shrink-0 rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2">
+            <span className="shrink-0 rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2">
               {count} saved dog{count === 1 ? "" : "s"}
             </span>
 
             <Link
               to="/quiz"
-              className="shrink-0 rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2 hover:bg-white"
+              className="shrink-0 rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2 hover:bg-white"
             >
               Find my match
             </Link>
@@ -184,7 +184,7 @@ export default function Saved() {
         </section>
 
         {loading ? (
-          <div className="mt-4 rounded-[1.35rem] border border-[#0F2742]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
+          <div className="mt-4 rounded-[1.35rem] border border-[#183D35]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
             Loading saved dogs…
           </div>
         ) : error ? (
@@ -192,10 +192,10 @@ export default function Saved() {
             {error}
           </div>
         ) : !savedIds.length ? (
-          <div className="mt-4 rounded-[1.6rem] border border-[#0F2742]/10 bg-white/62 p-5">
+          <div className="mt-4 rounded-[1.6rem] border border-[#183D35]/10 bg-white/62 p-5">
             <div className="text-4xl">♡</div>
 
-            <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold tracking-[-0.01em] text-[#0F2742]">
+            <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold tracking-[-0.01em] text-[#183D35]">
               No saved dogs yet.
             </h2>
 
@@ -206,21 +206,21 @@ export default function Saved() {
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/dogs"
-                className="rounded-2xl bg-[#0F2742] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
+                className="rounded-2xl bg-[#183D35] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C]"
               >
                 Browse dogs
               </Link>
 
               <Link
                 to="/quiz"
-                className="rounded-2xl border border-[#0F2742] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#0F2742]"
+                className="rounded-2xl border border-[#183D35] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#183D35]"
               >
                 Take quiz
               </Link>
             </div>
           </div>
         ) : dogs.length === 0 ? (
-          <div className="mt-4 rounded-[1.35rem] border border-[#0F2742]/10 bg-white/60 p-5 text-sm leading-6 text-[#6F6A66]">
+          <div className="mt-4 rounded-[1.35rem] border border-[#183D35]/10 bg-white/60 p-5 text-sm leading-6 text-[#6F6A66]">
             Saved dogs couldn't be loaded. They may have been removed or marked unavailable.
           </div>
         ) : (
@@ -230,7 +230,7 @@ export default function Saved() {
                 Saved picks
               </h2>
 
-              <span className="rounded-full border border-[#0F2742]/10 bg-white/58 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+              <span className="rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 {dogs.length} loaded
               </span>
             </div>

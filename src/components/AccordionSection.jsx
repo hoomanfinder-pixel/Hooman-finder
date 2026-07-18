@@ -5,14 +5,14 @@ function Badge({ status }) {
   const base = "rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em]";
 
   if (status === "complete") {
-    return <span className={`${base} bg-[#dfe7d7] text-[#0f2742]`}>Complete</span>;
+    return <span className={`${base} bg-[#dfe7d7] text-[#183D35]`}>Complete</span>;
   }
 
   if (status === "partial") {
     return <span className={`${base} bg-[#FBF0DC] text-[#8A6A2F]`}>In progress</span>;
   }
 
-  return <span className={`${base} bg-[#f5f1e9] text-[#0f2742]/55`}>Not started</span>;
+  return <span className={`${base} bg-[#f5f1e9] text-[#183D35]/55`}>Not started</span>;
 }
 
 export default function AccordionSection({
@@ -28,10 +28,10 @@ export default function AccordionSection({
     <section
       id={id}
       className={[
-        "overflow-hidden rounded-[1.35rem] border shadow-sm shadow-[#0F2742]/5 transition",
+        "overflow-hidden rounded-[1.35rem] border shadow-sm shadow-[#183D35]/5 transition",
         isOpen
-          ? "border-[#0F2742]/22 bg-white"
-          : "border-[#0f2742]/10 bg-white/72",
+          ? "border-[#183D35]/22 bg-white"
+          : "border-[#183D35]/10 bg-white/72",
       ].join(" ")}
     >
       <button
@@ -43,7 +43,7 @@ export default function AccordionSection({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-['Fraunces',serif] text-sm font-semibold text-[#0f2742] sm:text-base">
+              <h2 className="font-['Fraunces',serif] text-sm font-semibold text-[#183D35] sm:text-base">
                 {title}
               </h2>
 
@@ -61,8 +61,8 @@ export default function AccordionSection({
             className={[
               "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-base font-black transition",
               isOpen
-                ? "border-[#0F2742]/20 bg-[#dfe7d7] text-[#0f2742]"
-                : "border-[#0f2742]/10 bg-[#f5f1e9] text-[#0f2742]/60",
+                ? "border-[#183D35]/20 bg-[#dfe7d7] text-[#183D35]"
+                : "border-[#183D35]/10 bg-[#f5f1e9] text-[#183D35]/60",
             ].join(" ")}
           >
             {isOpen ? "⌄" : "›"}

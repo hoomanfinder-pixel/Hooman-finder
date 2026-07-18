@@ -15,31 +15,31 @@ export default function SiteFooter() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
             <Link
               to="/about"
-              className="text-[#0F2742]/75 underline-offset-4 hover:text-[#0F2742] hover:underline"
+              className="text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
             >
               About
             </Link>
             <Link
               to="/shelters/join"
-              className="text-[#0F2742]/75 underline-offset-4 hover:text-[#0F2742] hover:underline"
+              className="text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
             >
               For shelters &amp; rescues
             </Link>
             <Link
               to="/contact"
-              className="text-[#0F2742]/75 underline-offset-4 hover:text-[#0F2742] hover:underline"
+              className="text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
             >
               Contact
             </Link>
             <Link
               to="/privacy"
-              className="text-[#0F2742]/75 underline-offset-4 hover:text-[#0F2742] hover:underline"
+              className="text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
             >
               Privacy
             </Link>
             <Link
               to="/terms"
-              className="text-[#0F2742]/75 underline-offset-4 hover:text-[#0F2742] hover:underline"
+              className="text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
             >
               Terms
             </Link>

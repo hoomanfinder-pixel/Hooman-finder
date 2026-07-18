@@ -3,8 +3,8 @@ import React from "react";
 import { Link } from "react-router-dom";
 
 const CTA_VARIANTS = {
-  primary: "bg-[#0F2742] text-[#F3C982] hover:bg-[#0C1E35]",
-  secondary: "border border-[#C7D4BB] bg-white text-[#0F2742] hover:bg-[#EFE8DC]",
+  primary: "bg-[#183D35] text-[#F3C982] hover:bg-[#12332C]",
+  secondary: "border border-[#C7D4BB] bg-white text-[#183D35] hover:bg-[#EFE8DC]",
 };
 
 // Shared chrome for pages with a simple "logo + CTAs" or "back link + CTAs"
@@ -18,7 +18,7 @@ export default function SiteHeader({ back = null, ctas = [] }) {
         {back ? (
           <Link
             to={back.to}
-            className="shrink-0 text-sm font-semibold text-[#0F2742] hover:underline"
+            className="shrink-0 text-sm font-semibold text-[#183D35] hover:underline"
           >
             ← {back.label}
           </Link>

@@ -87,7 +87,7 @@ export default function Shelter() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742] flex flex-col">
+      <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
         <SiteHeader />
         <div className="p-10 text-[#6F6A66]">Loading shelter…</div>
         <SiteFooter />
@@ -97,7 +97,7 @@ export default function Shelter() {
 
   if (error || !shelter) {
     return (
-      <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742] flex flex-col">
+      <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
         <SiteHeader />
         <div className="p-10">
           <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700">
@@ -113,13 +113,13 @@ export default function Shelter() {
   const applyUrl = normalizeExternalUrl(shelter.apply_url || shelter.website || "");
 
   return (
-    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742] flex flex-col">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
       <SiteHeader />
 
       <div className="mx-auto max-w-6xl w-full px-6 py-10 flex-1">
         <button
           onClick={() => navigate(-1)}
-          className="text-sm text-[#6F6A66] hover:text-[#0F2742]"
+          className="text-sm text-[#6F6A66] hover:text-[#183D35]"
         >
           ← Back
         </button>
@@ -128,7 +128,7 @@ export default function Shelter() {
         <div className="mt-6 rounded-2xl border border-[#C7D4BB] bg-white p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="font-['Fraunces',serif] text-2xl font-semibold text-[#0F2742]">
+              <h1 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
                 {shelter.name || "Shelter"}
               </h1>
               {locationLine && (
@@ -142,7 +142,7 @@ export default function Shelter() {
                   href={applyUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-full border border-[#C7D4BB] bg-white px-4 py-2 text-sm font-semibold text-[#0F2742] hover:bg-[#EFE8DC]"
+                  className="rounded-full border border-[#C7D4BB] bg-white px-4 py-2 text-sm font-semibold text-[#183D35] hover:bg-[#EFE8DC]"
                 >
                   Apply / Visit site →
                 </a>
@@ -150,7 +150,7 @@ export default function Shelter() {
 
               <button
                 onClick={viewDogs}
-                className="rounded-full bg-[#0F2742] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#0C1E35]"
+                className="rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
               >
                 View dogs →
               </button>
@@ -160,7 +160,7 @@ export default function Shelter() {
 
         {/* Dogs preview */}
         <div className="mt-8">
-          <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#0F2742]">
+          <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#183D35]">
             Dogs at this shelter
           </h2>
 
@@ -185,7 +185,7 @@ export default function Shelter() {
             <div className="mt-6">
               <button
                 onClick={viewDogs}
-                className="text-sm font-semibold text-[#0F2742] underline hover:decoration-[#0F2742]"
+                className="text-sm font-semibold text-[#183D35] underline hover:decoration-[#183D35]"
               >
                 View all {dogs.length} dogs →
               </button>

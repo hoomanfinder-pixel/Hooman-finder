@@ -295,36 +295,8 @@ export default function Dogs() {
     });
   }
 
-  const quickFilters = [
-    {
-      label: "All dogs",
-      active: activeFilterCount === 0,
-      onClick: resetFilters,
-    },
-    {
-      label: "Good with kids",
-      active: kidsOnly,
-      onClick: () => setKidsOnly((current) => !current),
-    },
-    {
-      label: "Low energy",
-      active: energyFilter === "Low",
-      onClick: () => setEnergyFilter((current) => (current === "Low" ? "all" : "Low")),
-    },
-    {
-      label: "Puppies",
-      active: ageFilter === "puppy",
-      onClick: () => setAgeFilter((current) => (current === "puppy" ? "all" : "puppy")),
-    },
-    {
-      label: "Small",
-      active: sizeFilter === "Small",
-      onClick: () => setSizeFilter((current) => (current === "Small" ? "all" : "Small")),
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742]">
+    <div className="min-h-screen overflow-x-hidden bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
         title="Browse Adoptable Dogs | Hooman Finder"
         description="Browse adoptable shelter and rescue dogs and save favorites while you compare fit by home, lifestyle, energy, care needs, and source details."
@@ -353,11 +325,11 @@ export default function Dogs() {
           <button
             type="button"
             onClick={toggleFilters}
-            className="mx-auto inline-flex min-h-10 w-full max-w-[11rem] items-center justify-center rounded-full bg-[#0F2742] px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35]"
+            className="mx-auto inline-flex min-h-10 w-full max-w-[11rem] items-center justify-center rounded-full bg-[#183D35] px-4 text-[11px] font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm transition hover:bg-[#12332C]"
           >
             Filter
             {activeFilterCount > 0 ? (
-              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F3C982] px-1.5 text-[10px] font-bold text-[#0C1E35]">
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F3C982] px-1.5 text-[10px] font-bold text-[#12332C]">
                 {activeFilterCount}
               </span>
             ) : null}
@@ -366,37 +338,20 @@ export default function Dogs() {
           <div className="flex items-center justify-end gap-2">
             <Link
               to="/saved"
-              className="hidden rounded-full border border-[#C7D4BB] bg-white px-3.5 py-2 text-[11px] font-bold text-[#0F2742] hover:bg-[#EFE8DC] sm:inline-flex"
+              className="hidden rounded-full border border-[#C7D4BB] bg-white px-3.5 py-2 text-[11px] font-bold text-[#183D35] hover:bg-[#EFE8DC] sm:inline-flex"
             >
               Saved
             </Link>
 
             <Link
               to="/quiz"
-              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[#0F2742] px-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm transition hover:bg-[#0C1E35]"
+              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[#183D35] px-3.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm transition hover:bg-[#12332C]"
             >
               Quiz
             </Link>
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto px-4 pb-3 sm:px-6 lg:px-8">
-          {quickFilters.map((chip) => (
-            <button
-              key={chip.label}
-              type="button"
-              onClick={chip.onClick}
-              className={[
-                "shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition",
-                chip.active
-                  ? "border-[#C7D4BB] bg-[#DFE7D7] text-[#0F2742]"
-                  : "border-[#C7D4BB] bg-white text-[#6F6A66] hover:bg-[#EFE8DC]",
-              ].join(" ")}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
@@ -405,46 +360,46 @@ export default function Dogs() {
             Available dogs
           </p>
 
-          <h1 className="mt-1.5 max-w-2xl font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#0F2742] sm:text-4xl">
-            Find your next favorite face.
+          <h1 className="mt-1.5 max-w-2xl font-['Fraunces',serif] text-[1.75rem] font-semibold leading-[1.05] text-[#183D35] sm:text-4xl">
+            Browse adoptable dogs.
           </h1>
 
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#6F6A66] sm:text-base">
-            Browse adoptable dogs in Michigan, save favorites, and take the quiz when you're ready for lifestyle-based matches.
+          <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-[#6F6A66] sm:text-base sm:leading-6">
+            Save favorites or take the quiz for guided matches.
           </p>
         </section>
 
         {filtersOpen ? (
           <section
             ref={filtersRef}
-            className="scroll-mt-20 rounded-[1.5rem] border border-[#C7D4BB] bg-white p-4 shadow-lg shadow-[#0F2742]/5 sm:p-5"
+            className="max-w-full min-w-0 scroll-mt-20 overflow-hidden rounded-[1.5rem] border border-[#C7D4BB] bg-white p-4 shadow-lg shadow-[#183D35]/5 sm:p-5"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-['Fraunces',serif] text-xl font-semibold text-[#0F2742]">
+                <h2 className="font-['Fraunces',serif] text-xl font-semibold text-[#183D35]">
                   Narrow your search
                 </h2>
                 <p className="mt-1 text-sm leading-6 text-[#6F6A66]">
-                  Keep the adoptable dog list broad, then filter by what really matters for your home.
+                  Filter by the details that matter for your home.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={resetFilters}
-                className="shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#0F2742]"
+                className="shrink-0 text-xs font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#183D35]"
               >
                 Reset
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-              <label className="col-span-2 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] md:col-span-1">
+            <div className="mt-4 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
+              <label className="col-span-2 min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] md:col-span-1">
                 Shelter or rescue
                 <select
                   value={rescueFilter}
                   onChange={(e) => setRescueFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
+                  className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   <option value="all">All sources</option>
                   {rescueOptions.map((rescue) => (
@@ -455,12 +410,12 @@ export default function Dogs() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+              <label className="min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Age
                 <select
                   value={ageFilter}
                   onChange={(e) => setAgeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
+                  className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {AGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -470,12 +425,12 @@ export default function Dogs() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+              <label className="min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Size
                 <select
                   value={sizeFilter}
                   onChange={(e) => setSizeFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
+                  className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {SIZE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -485,12 +440,12 @@ export default function Dogs() {
                 </select>
               </label>
 
-              <label className="text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+              <label className="min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
                 Energy
                 <select
                   value={energyFilter}
                   onChange={(e) => setEnergyFilter(e.target.value)}
-                  className="mt-2 w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#0F2742]"
+                  className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {ENERGY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -501,7 +456,7 @@ export default function Dogs() {
               </label>
             </div>
 
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
               {[
                 ["Hypoallergenic", hypoOnly, setHypoOnly],
                 ["Potty trained", pottyOnly, setPottyOnly],
@@ -514,7 +469,7 @@ export default function Dogs() {
                   className={[
                     "shrink-0 rounded-full border px-3 py-2 text-xs font-bold uppercase tracking-[0.14em]",
                     checked
-                      ? "border-[#0F2742] bg-[#0F2742] text-[#F3C982]"
+                      ? "border-[#183D35] bg-[#183D35] text-[#F3C982]"
                       : "border-[#C7D4BB] bg-[#F5F1E9] text-[#6F6A66]",
                   ].join(" ")}
                 >
@@ -532,7 +487,7 @@ export default function Dogs() {
             <button
               type="button"
               onClick={() => setFiltersOpen(false)}
-              className="mt-4 mb-2 w-full rounded-full bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#0C1E35]"
+              className="mt-4 mb-2 w-full rounded-full bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C]"
               style={{ marginBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
             >
               Show {filteredDogs.length} dogs
@@ -546,7 +501,7 @@ export default function Dogs() {
           </div>
         ) : filteredDogs.length === 0 ? (
           <div className="mt-5 rounded-[1.35rem] border border-[#C7D4BB] bg-white/60 p-5">
-            <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#0F2742]">
+            <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
               No dogs match those filters yet.
             </h2>
 
@@ -558,14 +513,14 @@ export default function Dogs() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-2xl bg-[#0F2742] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982]"
+                className="rounded-2xl bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982]"
               >
                 Clear filters
               </button>
 
               <Link
                 to="/quiz"
-                className="rounded-2xl border border-[#0F2742] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#0F2742]"
+                className="rounded-2xl border border-[#183D35] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#183D35]"
               >
                 Take quiz
               </Link>
@@ -575,14 +530,14 @@ export default function Dogs() {
           <section className="mt-4 sm:mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-[#6F6A66]">
-                <span className="font-bold text-[#0F2742]">{filteredDogs.length}</span> available dogs
+                <span className="font-bold text-[#183D35]">{filteredDogs.length}</span> available dogs
               </p>
 
               {activeFilterCount > 0 ? (
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#0F2742]"
+                  className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#6F6A66] underline underline-offset-4 hover:text-[#183D35]"
                 >
                   Clear
                 </button>

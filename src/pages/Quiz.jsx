@@ -242,7 +242,7 @@ export default function Quiz() {
       : "Fine-tune how Hooman Finder ranks adoptable dogs using your lifestyle and care preferences.";
 
   return (
-    <div className="min-h-screen bg-[#f5f1e9] font-['Inter',sans-serif] text-[#0f2742]">
+    <div className="min-h-screen bg-[#f5f1e9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
         title="Dog Adoption Matching Quiz | Hooman Finder"
         description="Take Hooman Finder's dog adoption matching quiz to compare adoptable shelter and rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
@@ -252,17 +252,17 @@ export default function Quiz() {
         noindex={Boolean(sessionFromUrl)}
       />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-32 pt-1.5 sm:px-5 sm:pb-32 sm:pt-3">
-        <header className="sticky top-0 z-30 -mx-3 border-b border-[#0f2742]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
+        <header className="sticky top-0 z-30 -mx-3 border-b border-[#183D35]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
           <div className="flex items-center justify-between gap-2.5">
             <button
               type="button"
-              className="inline-flex items-center gap-1 text-xs font-black text-[#0f2742] hover:opacity-75 sm:text-sm"
+              className="inline-flex items-center gap-1 text-xs font-black text-[#183D35] hover:opacity-75 sm:text-sm"
               onClick={() => navigate("/dogs")}
             >
               ← Back to dogs
             </button>
 
-            <div className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-right text-[10px] font-black uppercase tracking-[0.12em] text-[#0f2742] ring-1 ring-[#0f2742]/8">
+            <div className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-right text-[10px] font-black uppercase tracking-[0.12em] text-[#183D35] ring-1 ring-[#183D35]/8">
               {completion.answered}/{completion.total} answered
             </div>
           </div>
@@ -273,7 +273,7 @@ export default function Quiz() {
                 key={idx}
                 className={[
                   "h-1 min-w-0 flex-1 rounded-full transition",
-                  idx < completion.answered ? "bg-[#0F2742]" : "bg-[#0f2742]/12",
+                  idx < completion.answered ? "bg-[#183D35]" : "bg-[#183D35]/12",
                 ].join(" ")}
               />
             ))}
@@ -284,11 +284,11 @@ export default function Quiz() {
           <section ref={quizTopRef} className="scroll-mt-20 py-2.5 sm:scroll-mt-24 sm:py-4">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.26em] text-[#0f2742]/55 sm:text-[10px]">
+                <p className="text-[9px] font-extrabold uppercase tracking-[0.26em] text-[#183D35]/55 sm:text-[10px]">
                   Hooman Finder Quiz
                 </p>
 
-                <h1 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#0f2742] sm:text-5xl">
+                <h1 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-5xl">
                   {pageTitle}
                 </h1>
 
@@ -306,7 +306,7 @@ export default function Quiz() {
           </section>
 
           {loading ? (
-            <div className="rounded-[1.35rem] border border-[#0f2742]/10 bg-white/70 p-4 text-sm font-semibold text-[#0f2742]/70">
+            <div className="rounded-[1.35rem] border border-[#183D35]/10 bg-white/70 p-4 text-sm font-semibold text-[#183D35]/70">
               Loading…
             </div>
           ) : mode === QUIZ_MODES.DEALBREAKERS ? (
@@ -365,13 +365,13 @@ export default function Quiz() {
           )}
         </main>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#0f2742]/10 bg-[#f5f1e9]/96 px-3 pb-2.5 pt-2 shadow-2xl backdrop-blur sm:px-5 sm:pb-3">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#183D35]/10 bg-[#f5f1e9]/96 px-3 pb-2.5 pt-2 shadow-2xl backdrop-blur sm:px-5 sm:pb-3">
           <div className="mx-auto max-w-3xl">
             <div className="grid grid-cols-[1fr_1.1fr] gap-2">
               <button
                 type="button"
                 onClick={saveAndSeeMatches}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#0f2742]/18 bg-white px-3 py-2 text-xs font-black text-[#0f2742] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35]/18 bg-white px-3 py-2 text-xs font-black text-[#183D35] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
               >
                 See Matches
               </button>
@@ -380,7 +380,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goRefine}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 py-2 text-center text-xs font-black leading-snug text-[#F3C982] shadow-sm hover:bg-[#0C1E35] sm:px-4 sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 py-2 text-center text-xs font-black leading-snug text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:px-4 sm:text-sm"
                 >
                   Deeper questions →
                 </button>
@@ -388,7 +388,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goResults}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 py-2 text-xs font-black text-[#F3C982] shadow-sm hover:bg-[#0C1E35] sm:text-sm"
+                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 py-2 text-xs font-black text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:text-sm"
                 >
                   See matches →
                 </button>
@@ -397,7 +397,7 @@ export default function Quiz() {
 
             <div
               className={[
-                "mt-1 flex items-center gap-2 text-[10px] font-semibold text-[#0f2742]/55",
+                "mt-1 flex items-center gap-2 text-[10px] font-semibold text-[#183D35]/55",
                 mode === QUIZ_MODES.DEALBREAKERS ? "justify-center" : "justify-between",
               ].join(" ")}
             >
@@ -405,7 +405,7 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goDealbreakers}
-                  className="underline underline-offset-4 hover:text-[#0f2742]"
+                  className="underline underline-offset-4 hover:text-[#183D35]"
                 >
                   Back to essentials
                 </button>

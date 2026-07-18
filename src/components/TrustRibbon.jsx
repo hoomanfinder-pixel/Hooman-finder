@@ -95,13 +95,19 @@ const SOURCES = {
   expectations: "https://pubmed.ncbi.nlm.nih.gov/35565480/",
   returnedDogFactors: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7552273/",
   behaviorLimitations: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7401658/",
+  shelterOutcomes2025: "https://www.shelteranimalscount.org/2025-report",
 };
 
 const RIBBON_ITEMS = [
   { text: "Free to use", icon: HeartIcon },
   { text: "No account required", icon: BoltIcon },
   { text: "Real shelter and rescue listings", icon: HomeIcon },
-  { text: "Lifestyle fit—not just breed or looks", icon: PawIcon },
+  {
+    text: "About one dog is euthanized in a U.S. shelter every 99 seconds",
+    icon: HeartIcon,
+    source: SOURCES.shelterOutcomes2025,
+  },
+  { text: "Lifestyle fit goes beyond breed and looks", icon: PawIcon },
   {
     text: "Better starts begin with realistic expectations",
     icon: CompassIcon,
@@ -112,9 +118,9 @@ const RIBBON_ITEMS = [
     icon: ScaleIcon,
     source: SOURCES.returnedDogFactors,
   },
-  { text: "Shelter counseling and meet-and-greets still matter", icon: ChatIcon },
+  { text: "Shelter counseling and meet and greets still matter", icon: ChatIcon },
   {
-    text: "Match guidance—not a guarantee",
+    text: "Match guidance is never a guarantee",
     icon: InfoIcon,
     source: SOURCES.behaviorLimitations,
   },
@@ -124,7 +130,7 @@ function Divider() {
   return (
     <span
       aria-hidden="true"
-      className="ribbon-divider mx-4 h-4 w-px shrink-0 self-center bg-[#C7D4BB] sm:mx-5"
+      className="ribbon-divider mx-4 h-4 w-px shrink-0 self-center bg-[#2490C0]/25 sm:mx-5"
     />
   );
 }
@@ -136,8 +142,8 @@ function RibbonItem({ item, interactive }) {
       className="ribbon-item flex shrink-0 items-center gap-2.5"
       role={interactive ? "listitem" : undefined}
     >
-      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#0F2742]/75" />
-      <span className="ribbon-item-text whitespace-nowrap text-[13px] font-medium text-[#0F2742]">
+      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#2490C0]" />
+      <span className="ribbon-item-text whitespace-nowrap text-[13px] font-semibold text-[#2490C0]">
         {item.text}
       </span>
       {item.source ? (
@@ -146,7 +152,7 @@ function RibbonItem({ item, interactive }) {
             href={item.source}
             target="_blank"
             rel="noopener noreferrer"
-            className="whitespace-nowrap rounded-sm text-[10.5px] font-bold uppercase tracking-wide text-[#8A6A2F] underline decoration-dotted underline-offset-2 transition hover:text-[#0F2742] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742]"
+            className="whitespace-nowrap rounded-sm text-[10.5px] font-bold uppercase tracking-wide text-[#8A6A2F] underline decoration-dotted underline-offset-2 transition hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
           >
             Source
           </a>
@@ -184,16 +190,19 @@ export default function TrustRibbon() {
   const paused = !isPlaying || isFocusWithin;
 
   return (
-    <section aria-label="Trust and evidence" className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+    <section
+      aria-label="Trust and evidence"
+      className="px-4 pb-1 pt-5 sm:px-6 sm:pb-3 sm:pt-7 lg:px-8"
+    >
       <div className="mx-auto max-w-6xl">
-        <div className="relative rounded-2xl border-y border-[#C7D4BB]/70 bg-gradient-to-b from-white/70 to-[#EFE8DC] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+        <div className="relative rounded-2xl border border-[#2490C0]/20 bg-[#F1F9FC] shadow-[0_8px_22px_rgba(36,144,192,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
           <div
-            className="ribbon-viewport overflow-hidden py-3 pl-4 pr-14 sm:pl-6 sm:pr-16"
+            className="ribbon-viewport overflow-hidden py-[0.875rem] pl-5 pr-16 sm:pl-6 sm:pr-20"
             style={{
               WebkitMaskImage:
-                "linear-gradient(to right, transparent, black 4%, black 90%, transparent)",
+                "linear-gradient(to right, transparent, black 10%, black 84%, transparent)",
               maskImage:
-                "linear-gradient(to right, transparent, black 4%, black 90%, transparent)",
+                "linear-gradient(to right, transparent, black 10%, black 84%, transparent)",
             }}
             onFocusCapture={() => setIsFocusWithin(true)}
             onBlurCapture={(event) => {
@@ -216,20 +225,19 @@ export default function TrustRibbon() {
             onClick={() => setIsPlaying((prev) => !prev)}
             aria-pressed={!isPlaying}
             aria-label={isPlaying ? "Pause scrolling ribbon" : "Play scrolling ribbon"}
-            className="ribbon-toggle absolute right-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-[#C7D4BB]/80 bg-white/80 text-[#0F2742]/70 shadow-sm transition hover:bg-white hover:text-[#0F2742] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742] sm:right-4"
+            className="ribbon-toggle absolute right-4 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-[#2490C0]/30 bg-white/90 text-[#2490C0] shadow-sm transition hover:bg-white hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0]"
           >
             {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
           </button>
         </div>
 
-        <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-[#6F6A66] sm:text-[13px]">
-          Research suggests realistic expectations and post-adoption support matter. Hooman
-          Finder helps adopters ask better questions before applying.
-        </p>
-        <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-[#6F6A66]/75">
-          Individual studies reflect specific shelter samples and general findings—not
-          universal guarantees.
-        </p>
+        <a
+          href="#how-it-works"
+          className="mx-auto mt-4 flex w-fit items-center gap-2 rounded-full px-3 py-2 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:text-[13px]"
+        >
+          See how Hooman Finder works
+          <span aria-hidden="true" className="text-base leading-none">↓</span>
+        </a>
       </div>
 
       <style>{`

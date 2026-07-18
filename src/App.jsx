@@ -1,6 +1,6 @@
 // src/App.jsx
-import React from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import React, { useLayoutEffect } from "react";
+import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
 import Quiz from "./pages/Quiz.jsx";
@@ -15,34 +15,53 @@ import Contact from "./pages/Contact.jsx";
 import Privacy from "./pages/Privacy.jsx";
 import Terms from "./pages/Terms.jsx";
 
+function ScrollToTop() {
+  const location = useLocation();
+
+  useLayoutEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [location.key]);
+
+  return null;
+}
+
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
+    <>
+      <ScrollToTop />
+      <Routes>
+        <Route path="/" element={<Home />} />
 
-      <Route path="/quiz" element={<Quiz />} />
-      <Route path="/results" element={<Results />} />
+        <Route path="/quiz" element={<Quiz />} />
+        <Route path="/results" element={<Results />} />
 
-      <Route path="/dogs" element={<Dogs />} />
-      <Route path="/saved" element={<Saved />} />
+        <Route path="/dogs" element={<Dogs />} />
+        <Route path="/saved" element={<Saved />} />
 
-      <Route path="/about" element={<About />} />
-      <Route path="/contact" element={<Contact />} />
-      <Route path="/privacy" element={<Privacy />} />
-      <Route path="/terms" element={<Terms />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
 
-      {/* Dog profile page (support BOTH /dog/:id and /dogs/:id so nothing breaks) */}
-      <Route path="/dog/:id" element={<DogDetail />} />
-      <Route path="/dogs/:id" element={<DogDetail />} />
+        {/* Dog profile page (support BOTH /dog/:id and /dogs/:id so nothing breaks) */}
+        <Route path="/dog/:id" element={<DogDetail />} />
+        <Route path="/dogs/:id" element={<DogDetail />} />
 
-      {/* Shelter profile page */}
-      <Route path="/shelter/:id" element={<Shelter />} />
+        {/* Shelter profile page */}
+        <Route path="/shelter/:id" element={<Shelter />} />
 
-      {/* Shelter onboarding / join page */}
-      <Route path="/shelters/join" element={<JoinShelters />} />
+        {/* Shelter onboarding / join page */}
+        <Route path="/shelters/join" element={<JoinShelters />} />
 
-      {/* Fallback */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

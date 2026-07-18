@@ -96,10 +96,10 @@ export default function OptionSelect({
   const isTextQuestion = type === "text";
 
   return (
-    <section className="rounded-[1.35rem] border border-[#0f2742]/10 bg-white/95 p-2.5 shadow-sm shadow-[#0F2742]/5 sm:p-3.5">
+    <section className="rounded-[1.35rem] border border-[#183D35]/10 bg-white/95 p-2.5 shadow-sm shadow-[#183D35]/5 sm:p-3.5">
       <div className="mb-2.5 flex items-start gap-2.5">
         {number !== null ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-xs font-black text-[#0f2742] ring-1 ring-[#0f2742]/5">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-xs font-black text-[#183D35] ring-1 ring-[#183D35]/5">
             {number}
           </div>
         ) : null}
@@ -112,12 +112,12 @@ export default function OptionSelect({
 
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="font-['Fraunces',serif] text-sm font-semibold leading-tight text-[#0f2742] sm:text-base">
+                <h3 className="font-['Fraunces',serif] text-sm font-semibold leading-tight text-[#183D35] sm:text-base">
                   {title}
                 </h3>
 
                 {statusText ? (
-                  <span className="inline-flex max-w-full rounded-full bg-[#f5f1e9] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-[#0f2742]/58 ring-1 ring-[#0f2742]/8">
+                  <span className="inline-flex max-w-full rounded-full bg-[#f5f1e9] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-[#183D35]/58 ring-1 ring-[#183D35]/8">
                     {statusText}
                   </span>
                 ) : null}
@@ -142,7 +142,7 @@ export default function OptionSelect({
             value={typeof value === "string" ? value : ""}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
-            className="min-h-11 w-full rounded-2xl border border-[#0f2742]/12 bg-[#f5f1e9]/50 px-3.5 py-2.5 text-sm font-bold text-[#0f2742] outline-none transition placeholder:text-[#0f2742]/35 focus:border-[#0F2742]/45 focus:bg-white focus:ring-4 focus:ring-[#0F2742]/10"
+            className="min-h-11 w-full rounded-2xl border border-[#183D35]/12 bg-[#f5f1e9]/50 px-3.5 py-2.5 text-sm font-bold text-[#183D35] outline-none transition placeholder:text-[#183D35]/35 focus:border-[#183D35]/45 focus:bg-white focus:ring-4 focus:ring-[#183D35]/10"
           />
         </label>
       ) : (
@@ -172,8 +172,8 @@ export default function OptionSelect({
                   "min-h-10 sm:min-h-11",
                   shouldSpan ? "col-span-2" : "",
                   selected
-                    ? "border-[#0F2742]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#0F2742]/10"
-                    : "border-[#0f2742]/10 bg-white hover:border-[#0F2742]/25 hover:bg-[#EFE8DC]",
+                    ? "border-[#183D35]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#183D35]/10"
+                    : "border-[#183D35]/10 bg-white hover:border-[#183D35]/25 hover:bg-[#EFE8DC]",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -189,7 +189,7 @@ export default function OptionSelect({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="text-xs font-extrabold leading-tight text-[#0f2742] sm:text-sm">
+                      <div className="text-xs font-extrabold leading-tight text-[#183D35] sm:text-sm">
                         {opt.label}
                       </div>
 
@@ -206,8 +206,8 @@ export default function OptionSelect({
                       "flex h-4 w-4 shrink-0 items-center justify-center border transition",
                       mark === "radio" ? "rounded-full" : "rounded-md",
                       selected
-                        ? "border-[#0F2742] bg-[#0F2742] text-white"
-                        : "border-[#0f2742]/24 bg-white text-transparent",
+                        ? "border-[#183D35] bg-[#183D35] text-white"
+                        : "border-[#183D35]/24 bg-white text-transparent",
                     ].join(" ")}
                   >
                     {selected ? (

@@ -12,17 +12,17 @@ const HOW_IT_WORKS = [
   {
     number: "01",
     title: "Tell us about your life",
-    text: "Answer a short quiz about your home, routine, household, activity level, and care preferences.",
+    text: "Answer a short quiz about your home, routine, and preferences.",
   },
   {
     number: "02",
     title: "See lifestyle-based matches",
-    text: "We compare your answers with the available details on real, adoptable dogs from shelter and rescue sources.",
+    text: "We compare your answers with available details on adoptable dogs.",
   },
   {
     number: "03",
     title: "Continue with the source",
-    text: "Review profiles, save a shortlist, and contact the listed shelter or rescue to ask questions and continue the adoption process.",
+    text: "Save a shortlist, then continue directly with the listing shelter or rescue.",
   },
 ];
 
@@ -210,10 +210,10 @@ export default function Home() {
   const sneakPeekDogs = howItWorksRows.filter((row) => row.dog);
 
   return (
-    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#0F2742]">
+    <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
         title="Free Dog Adoption Matching Tool | Hooman Finder"
-        description="Discover real adoptable shelter and rescue dogs based on lifestyle fit—not just breed or looks. Hooman Finder is free to use, with no account required."
+        description="Discover real adoptable shelter and rescue dogs based on lifestyle fit, not just breed or looks. Hooman Finder is free to use, with no account required."
         canonicalPath="/"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Shelter and rescue dogs looking for their future home"
@@ -234,16 +234,16 @@ export default function Home() {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-5 text-[13px] font-semibold text-[#0F2742]">
-            <Link to="/about" className="hidden hover:text-[#0F4F88] sm:inline">
+          <nav className="flex items-center gap-5 text-[13px] font-semibold text-[#183D35]">
+            <Link to="/about" className="hidden hover:text-[#183D35] sm:inline">
               About
             </Link>
-            <Link to="/saved" className="hidden hover:text-[#0F4F88] sm:inline">
+            <Link to="/saved" className="hidden hover:text-[#183D35] sm:inline">
               Saved
             </Link>
             <Link
               to="/quiz"
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#0F2742] px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F3C982] transition hover:bg-[#0C1E35] sm:px-4"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[#F3C982] transition hover:bg-[#12332C] sm:px-4"
             >
               Take the Quiz
             </Link>
@@ -254,20 +254,23 @@ export default function Home() {
       <main>
         <section className="px-4 pt-4 sm:px-6 sm:pt-8 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="relative min-h-[500px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] bg-[#0C1E35] shadow-sm sm:min-h-[520px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[480px]">
-              <img
-                src="/home-hero-dogs.jpg"
-                alt="Two adoptable dogs sitting together"
-                className="absolute inset-0 h-full w-full object-cover object-[50%_50%] sm:object-[50%_100%] lg:object-[50%_100%]"
-                onError={(e) => {
-                  e.currentTarget.style.visibility = "hidden";
-                }}
-              />
-              <div className="absolute inset-0 bg-[#0C1E35]/5" />
-              <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-[#0C1E35]/98 via-[#0C1E35]/82 to-transparent" />
+            <div className="relative min-h-[430px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] bg-[#183D35] shadow-sm sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[480px]">
+              <div className="absolute inset-x-0 top-0 lg:inset-0">
+                <img
+                  src="/home-hero-dogs.jpg"
+                  alt="Two adoptable dogs sitting together"
+                  className="h-auto w-full [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] lg:h-full lg:object-cover lg:object-[50%_100%] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = "hidden";
+                  }}
+                />
+              </div>
+              <div className="absolute inset-0 bg-[#183D35]/5" />
+              <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-[#183D35] via-[#183D35]/72 to-transparent lg:h-[68%] lg:via-[#183D35]/76" />
+              <div className="absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(24,61,53,0.58)_0%,rgba(24,61,53,0.2)_44%,transparent_70%)] lg:block" />
 
-              <div className="relative flex min-h-[500px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[520px] sm:px-8 sm:pb-8 lg:min-h-[480px] lg:px-12 lg:pb-8">
-                <div className="lg:max-w-xl">
+              <div className="relative flex min-h-[430px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[560px] sm:px-8 sm:pb-8 lg:min-h-[480px] lg:px-12 lg:pb-8">
+                <div className="lg:max-w-[34rem]">
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#FFD98A] [text-shadow:0_1px_4px_rgba(0,0,0,0.95)] sm:text-xs sm:tracking-[0.24em]">
                     Free dog adoption matching tool
                   </p>
@@ -277,12 +280,12 @@ export default function Home() {
                     your real life.
                   </h1>
                   <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:text-base">
-                    Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
+                    Discover real shelter and rescue dogs based on lifestyle fit, not just breed or looks.
                   </p>
                   <div className="mt-3 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">
                     <Link
                       to="/quiz"
-                      className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-2xl bg-[#F3C982] px-3 text-sm font-bold text-[#0F2742] shadow-sm transition hover:bg-[#E9BD70] sm:min-h-[2.85rem] sm:flex-initial sm:px-7"
+                      className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-2xl bg-[#F3C982] px-3 text-sm font-bold text-[#183D35] shadow-sm transition hover:bg-[#E9BD70] sm:min-h-[2.85rem] sm:flex-initial sm:px-7"
                     >
                       Take the Quiz
                     </Link>
@@ -301,26 +304,29 @@ export default function Home() {
 
         <TrustRibbon />
 
-        <section className="px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
+        <section
+          id="how-it-works"
+          className="scroll-mt-4 px-4 pb-8 pt-3 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
+        >
           <div className="mx-auto max-w-6xl">
             <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
               How it works
             </p>
-            <h2 className="mt-2 max-w-xl font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#0F2742] sm:text-4xl">
+            <h2 className="mt-2 max-w-xl font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
               Three steps to a more informed shortlist.
             </h2>
             <p className="mt-3 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
-              Your answers guide the matches you see. They do not decide whether a dog is right for you or whether an adoption is approved.
+              Matches guide your search. Shelters and rescues still manage counseling, applications, and final decisions.
             </p>
 
             <div className="mt-8 grid gap-6 sm:grid-cols-3 sm:gap-5">
               {HOW_IT_WORKS.map((row) => (
                 <div key={row.number} className="flex gap-4 sm:flex-col sm:gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0F2742] font-['Fraunces',serif] text-sm font-semibold text-[#F3C982]">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#183D35] font-['Fraunces',serif] text-sm font-semibold text-[#F3C982]">
                     {row.number}
                   </div>
                   <div>
-                    <h3 className="text-[15px] font-semibold text-[#0F2742]">{row.title}</h3>
+                    <h3 className="text-[15px] font-semibold text-[#183D35]">{row.title}</h3>
                     <p className="mt-1 text-sm leading-6 text-[#6F6A66]">{row.text}</p>
                   </div>
                 </div>
@@ -330,45 +336,62 @@ export default function Home() {
         </section>
 
         {sneakPeekDogs.length > 0 ? (
-          <section className="py-2 sm:py-4">
+          <section className="py-3 sm:py-6">
             <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-              <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
-                Sneak peek
-              </p>
-              <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold text-[#0F2742]">
-                Dogs waiting nearby
-              </h2>
-            </div>
-
-            <div className="mt-4 flex gap-3 overflow-x-auto px-4 pb-2 sm:px-6 lg:px-8">
-              {sneakPeekDogs.map((row) => (
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
+                    Available now
+                  </p>
+                  <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold text-[#183D35] sm:text-3xl">
+                    Featured adoptable dogs
+                  </h2>
+                </div>
                 <Link
-                  key={row.dog.id}
-                  to={dogProfilePath(row.dog)}
-                  aria-label={`View ${row.dog.name}'s profile`}
-                  className="w-32 shrink-0 overflow-hidden rounded-2xl border border-[#C7D4BB] bg-white transition hover:-translate-y-0.5 hover:shadow-md"
+                  to="/dogs"
+                  className="hidden text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:inline"
                 >
-                  <div className="h-24 w-full bg-[#EFE8DC]">
-                    <img
-                      src={row.image}
-                      alt={`${row.dog.name}, an adoptable dog`}
-                      className="h-full w-full object-cover"
-                      onError={(event) => {
-                        event.currentTarget.onerror = null;
-                        event.currentTarget.src = fallbackDogImages[0];
-                      }}
-                    />
-                  </div>
-                  <div className="p-2.5">
-                    <p className="truncate text-[13px] font-semibold text-[#0F2742]">
-                      {row.dog.name}
-                    </p>
-                    <p className="truncate text-[11px] text-[#6F6A66]">
-                      {row.rescueName || "Adoptable dog"}
-                    </p>
-                  </div>
+                  Browse all dogs
                 </Link>
-              ))}
+              </div>
+
+              <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
+                {sneakPeekDogs.map((row) => (
+                  <Link
+                    key={row.dog.id}
+                    to={dogProfilePath(row.dog)}
+                    aria-label={`View ${row.dog.name}'s profile`}
+                    className="w-40 shrink-0 overflow-hidden rounded-2xl border border-[#C7D4BB] bg-white transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto"
+                  >
+                    <div className="h-28 w-full bg-[#EFE8DC] sm:h-48">
+                      <img
+                        src={row.image}
+                        alt={`${row.dog.name}, an adoptable dog`}
+                        className="h-full w-full object-cover"
+                        onError={(event) => {
+                          event.currentTarget.onerror = null;
+                          event.currentTarget.src = fallbackDogImages[0];
+                        }}
+                      />
+                    </div>
+                    <div className="p-3 sm:p-4">
+                      <p className="truncate font-['Fraunces',serif] text-base font-semibold text-[#183D35] sm:text-xl">
+                        {row.dog.name}
+                      </p>
+                      <p className="mt-0.5 truncate text-[11px] text-[#6F6A66] sm:text-xs">
+                        {row.rescueName || "Adoptable dog"}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+
+              <Link
+                to="/dogs"
+                className="mt-2 inline-flex text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:hidden"
+              >
+                Browse all dogs
+              </Link>
             </div>
 
             {dogLoadFailed && (
@@ -384,7 +407,7 @@ export default function Home() {
             <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
               Why matching matters
             </p>
-            <h2 className="mt-2 max-w-lg font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#0F2742] sm:text-4xl">
+            <h2 className="mt-2 max-w-lg font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
               Better fit starts with better questions.
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6F6A66] sm:text-base">
@@ -400,7 +423,7 @@ export default function Home() {
                   <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#D5AB70]">
                     {item.label}
                   </p>
-                  <h3 className="mt-4 font-['Fraunces',serif] text-xl font-semibold leading-tight text-[#0F2742]">
+                  <h3 className="mt-4 font-['Fraunces',serif] text-xl font-semibold leading-tight text-[#183D35]">
                     {item.headline}
                   </h3>
                   <p className="mt-3 text-sm leading-6 text-[#6F6A66]">{item.text}</p>
@@ -416,7 +439,7 @@ export default function Home() {
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6F6A66]">
                 For shelters and rescues
               </p>
-              <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold leading-tight text-[#0F2742] sm:text-3xl">
+              <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold leading-tight text-[#183D35] sm:text-3xl">
                 Help adopters start with fit.
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
@@ -424,13 +447,13 @@ export default function Home() {
               </p>
               <Link
                 to="/shelters/join"
-                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-[#0F2742] px-6 text-sm font-bold text-[#0F2742] transition hover:bg-[#0F2742] hover:text-white"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-[#183D35] px-6 text-sm font-bold text-[#183D35] transition hover:bg-[#183D35] hover:text-white"
               >
                 Shelter or rescue inquiries
               </Link>
             </article>
 
-            <article className="rounded-[1.75rem] bg-[#0F2742] p-6 text-white sm:p-8">
+            <article className="rounded-[1.75rem] bg-[#183D35] p-6 text-white sm:p-8">
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/55">
                 Our mission
               </p>
@@ -442,7 +465,7 @@ export default function Home() {
               </p>
               <Link
                 to="/about"
-                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-white/45 px-6 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-[#0F2742]"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full border border-white/45 px-6 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-[#183D35]"
               >
                 About Hooman Finder
               </Link>
@@ -451,7 +474,7 @@ export default function Home() {
         </section>
 
         <section className="px-4 pb-10 sm:px-6 sm:pb-16 lg:px-8">
-          <div className="mx-auto max-w-6xl rounded-[1.75rem] bg-[#0F2742] p-8 text-center sm:p-12">
+          <div className="mx-auto max-w-6xl rounded-[1.75rem] bg-[#183D35] p-8 text-center sm:p-12">
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-white/55">
               Start here
             </p>
@@ -464,19 +487,19 @@ export default function Home() {
             <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
               <Link
                 to="/quiz"
-                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#F3C982] px-7 text-sm font-bold text-[#0C1E35] transition hover:bg-white"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#F3C982] px-7 text-sm font-bold text-[#12332C] transition hover:bg-white"
               >
                 Take the Quiz
               </Link>
               <Link
                 to="/dogs"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/55 px-7 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-[#0F2742]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/55 px-7 text-sm font-bold text-white transition hover:border-white hover:bg-white hover:text-[#183D35]"
               >
                 Browse Dogs
               </Link>
             </div>
             <p className="mx-auto mt-6 max-w-lg text-xs leading-5 text-white/55">
-              Hooman Finder does not replace adoption counseling, applications, meet-and-greets, or final decisions made by shelters and rescues.
+              Hooman Finder does not replace adoption counseling, applications, meet and greets, or final decisions made by shelters and rescues.
             </p>
           </div>
         </section>
@@ -495,12 +518,12 @@ export default function Home() {
             </div>
 
             <nav aria-label="Footer" className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm font-medium text-[#6F6A66] sm:grid-cols-3">
-              <Link to="/about" className="hover:text-[#0F2742]">About</Link>
-              <Link to="/contact" className="hover:text-[#0F2742]">Contact</Link>
-              <a href="mailto:info@hoomanfinder.com" className="hover:text-[#0F2742]">Email us</a>
-              <Link to="/privacy" className="hover:text-[#0F2742]">Privacy</Link>
-              <Link to="/terms" className="hover:text-[#0F2742]">Terms &amp; disclaimer</Link>
-              <Link to="/shelters/join" className="hover:text-[#0F2742]">For shelters &amp; rescues</Link>
+              <Link to="/about" className="hover:text-[#183D35]">About</Link>
+              <Link to="/contact" className="hover:text-[#183D35]">Contact</Link>
+              <a href="mailto:info@hoomanfinder.com" className="hover:text-[#183D35]">Email us</a>
+              <Link to="/privacy" className="hover:text-[#183D35]">Privacy</Link>
+              <Link to="/terms" className="hover:text-[#183D35]">Terms &amp; disclaimer</Link>
+              <Link to="/shelters/join" className="hover:text-[#183D35]">For shelters &amp; rescues</Link>
             </nav>
           </div>
 
