@@ -96,12 +96,12 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
 
         @media (prefers-reduced-motion: reduce) {
           .hf-runner-strip {
-            animation: hf-runner-frames 4800ms steps(5, end) infinite !important;
+            animation: hf-runner-frames 840ms steps(5, end) infinite !important;
             animation-play-state: var(--hf-runner-state, running) !important;
           }
 
           .hf-runner-ground {
-            animation: hf-runner-ground 2400ms linear infinite !important;
+            animation: hf-runner-ground 2000ms linear infinite !important;
             animation-play-state: var(--hf-runner-state, running) !important;
           }
         }
