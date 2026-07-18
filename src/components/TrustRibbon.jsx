@@ -1,0 +1,298 @@
+// src/components/TrustRibbon.jsx
+import { Fragment, useState } from "react";
+
+function HeartIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 20.5s-7-4.35-9.5-8.8C1 8.4 2.5 5 6 5c2 0 3.5 1.2 6 4 2.5-2.8 4-4 6-4 3.5 0 5 3.4 3.5 6.7C19 16.15 12 20.5 12 20.5z" />
+    </svg>
+  );
+}
+
+function BoltIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" />
+    </svg>
+  );
+}
+
+function HomeIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M6 9.5V20h12V9.5" />
+    </svg>
+  );
+}
+
+function PawIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path fill="none" d="M8 14.5c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5-1.8 4-4 4-4-1.5-4-4Z" />
+      <circle cx="6.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="10.5" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function CompassIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="m14.3 9.7-1.3 3.6-3.6 1.3 1.3-3.6z" />
+    </svg>
+  );
+}
+
+function ScaleIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 4v16M7 7h10M4.5 13a2.5 2.5 0 0 0 5 0L7 7l-2.5 6ZM16.5 13a2.5 2.5 0 0 0 5 0L19 7l-2.5 6Z" />
+    </svg>
+  );
+}
+
+function ChatIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect x="4" y="5" width="16" height="10.5" rx="3" />
+      <path d="M9 15.5v3l4-3" />
+    </svg>
+  );
+}
+
+function ChartIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 20V11M10.5 20V4M17 20v-6.5M3.5 20h17" />
+    </svg>
+  );
+}
+
+function InfoIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 11v5" />
+      <path d="M12 8v.01" />
+    </svg>
+  );
+}
+
+function PlayIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M8 5.5v13l11-6.5-11-6.5Z" />
+    </svg>
+  );
+}
+
+function PauseIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </svg>
+  );
+}
+
+const SOURCES = {
+  expectations: "https://pubmed.ncbi.nlm.nih.gov/35565480/",
+  returnedDogFactors: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7552273/",
+  nationalData2025: "https://www.shelteranimalscount.org/2025-report",
+  behaviorLimitations: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7401658/",
+};
+
+const RIBBON_ITEMS = [
+  { text: "Free to use", icon: HeartIcon },
+  { text: "No account required", icon: BoltIcon },
+  { text: "Real shelter and rescue listings", icon: HomeIcon },
+  { text: "Lifestyle fit—not just breed or looks", icon: PawIcon },
+  {
+    text: "Better starts begin with realistic expectations",
+    icon: CompassIcon,
+    source: SOURCES.expectations,
+  },
+  {
+    text: "Behavior and household fit can influence adoption outcomes",
+    icon: ScaleIcon,
+    source: SOURCES.returnedDogFactors,
+  },
+  { text: "Shelter counseling and meet-and-greets still matter", icon: ChatIcon },
+  {
+    text: "4.2 million shelter and rescue pets were adopted in the U.S. in 2025",
+    icon: ChartIcon,
+    source: SOURCES.nationalData2025,
+  },
+  {
+    text: "Match guidance—not a guarantee",
+    icon: InfoIcon,
+    source: SOURCES.behaviorLimitations,
+  },
+];
+
+function Divider() {
+  return (
+    <span
+      aria-hidden="true"
+      className="ribbon-divider mx-4 h-4 w-px shrink-0 self-center bg-[#C7D4BB] sm:mx-5"
+    />
+  );
+}
+
+function RibbonItem({ item, interactive }) {
+  const Icon = item.icon;
+  return (
+    <div
+      className="ribbon-item flex shrink-0 items-center gap-2.5"
+      role={interactive ? "listitem" : undefined}
+    >
+      <Icon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#0F2742]/75" />
+      <span className="ribbon-item-text whitespace-nowrap text-[13px] font-medium text-[#0F2742]">
+        {item.text}
+      </span>
+      {item.source ? (
+        interactive ? (
+          <a
+            href={item.source}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="whitespace-nowrap rounded-sm text-[10.5px] font-bold uppercase tracking-wide text-[#8A6A2F] underline decoration-dotted underline-offset-2 transition hover:text-[#0F2742] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742]"
+          >
+            Source
+          </a>
+        ) : (
+          <span className="whitespace-nowrap text-[10.5px] font-bold uppercase tracking-wide text-[#8A6A2F]/70">
+            Source
+          </span>
+        )
+      ) : null}
+    </div>
+  );
+}
+
+function RibbonGroup({ interactive }) {
+  return (
+    <div
+      className="ribbon-group flex shrink-0 items-center"
+      aria-hidden={interactive ? undefined : "true"}
+      role={interactive ? "list" : undefined}
+    >
+      {RIBBON_ITEMS.map((item, index) => (
+        <Fragment key={`${interactive ? "real" : "dup"}-${index}`}>
+          {index > 0 && <Divider />}
+          <RibbonItem item={item} interactive={interactive} />
+        </Fragment>
+      ))}
+      <Divider />
+    </div>
+  );
+}
+
+export default function TrustRibbon() {
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocusWithin, setIsFocusWithin] = useState(false);
+  const paused = !isPlaying || isHovered || isFocusWithin;
+
+  return (
+    <section aria-label="Trust and evidence" className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="relative rounded-2xl border-y border-[#C7D4BB]/70 bg-gradient-to-b from-white/70 to-[#EFE8DC] shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]">
+          <div
+            className="ribbon-viewport overflow-hidden py-3 pl-4 pr-14 sm:pl-6 sm:pr-16"
+            style={{
+              WebkitMaskImage:
+                "linear-gradient(to right, transparent, black 4%, black 90%, transparent)",
+              maskImage:
+                "linear-gradient(to right, transparent, black 4%, black 90%, transparent)",
+            }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            onFocusCapture={() => setIsFocusWithin(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) {
+                setIsFocusWithin(false);
+              }
+            }}
+          >
+            <div
+              className="ribbon-track flex w-max items-center"
+              style={{ animationPlayState: paused ? "paused" : "running" }}
+            >
+              <RibbonGroup interactive />
+              <RibbonGroup />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsPlaying((prev) => !prev)}
+            aria-pressed={!isPlaying}
+            aria-label={isPlaying ? "Pause scrolling ribbon" : "Play scrolling ribbon"}
+            className="ribbon-toggle absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#C7D4BB] bg-white/90 text-[#0F2742] shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742] sm:right-4"
+          >
+            {isPlaying ? <PauseIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+
+        <p className="mt-3 max-w-3xl text-[12.5px] leading-relaxed text-[#6F6A66] sm:text-[13px]">
+          Research suggests realistic expectations and post-adoption support matter. Hooman
+          Finder helps adopters ask better questions before applying.
+        </p>
+        <p className="mt-1 max-w-3xl text-[11px] leading-relaxed text-[#6F6A66]/75">
+          Individual studies reflect specific shelter samples and general findings—not
+          universal guarantees.
+        </p>
+      </div>
+
+      <style>{`
+        .ribbon-track {
+          animation: trust-ribbon-scroll 52s linear infinite;
+        }
+        @keyframes trust-ribbon-scroll {
+          from { transform: translateX(0); }
+          to { transform: translateX(-50%); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .ribbon-track {
+            animation: none !important;
+            transform: none !important;
+            width: 100% !important;
+          }
+          .ribbon-track > .ribbon-group:first-child {
+            display: flex;
+            flex: 1 1 100%;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.25rem;
+            width: 100%;
+          }
+          .ribbon-track > .ribbon-group:first-child .ribbon-item {
+            flex: 1 1 16rem;
+            min-width: 0;
+          }
+          .ribbon-track > .ribbon-group:first-child .ribbon-item-text {
+            min-width: 0;
+            white-space: normal;
+          }
+          .ribbon-track > .ribbon-group[aria-hidden="true"],
+          .ribbon-divider {
+            display: none !important;
+          }
+          .ribbon-viewport {
+            overflow-x: visible;
+            padding-right: 1rem;
+            -webkit-mask-image: none !important;
+            mask-image: none !important;
+          }
+          .ribbon-toggle {
+            display: none;
+          }
+        }
+      `}</style>
+    </section>
+  );
+}

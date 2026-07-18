@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
+import TrustRibbon from "../components/TrustRibbon";
 import { getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
@@ -42,52 +43,6 @@ const WHY_FIT_MATTERS = [
     text: "A score is a starting point. Shelter or rescue counseling and time spent with a dog remain essential.",
   },
 ];
-
-const TRUST_POINTS = [
-  ["Free to use", "No fees to explore matches"],
-  ["No account required", "Start the quiz right away"],
-  ["Real adoptable dogs", "From shelter and rescue sources"],
-  ["Lifestyle-based", "More than breed or looks"],
-];
-
-function HeartIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M12 20.5s-7-4.35-9.5-8.8C1 8.4 2.5 5 6 5c2 0 3.5 1.2 6 4 2.5-2.8 4-4 6-4 3.5 0 5 3.4 3.5 6.7C19 16.15 12 20.5 12 20.5z" />
-    </svg>
-  );
-}
-
-function BoltIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M13 3 4 14h6l-1 7 9-11h-6l1-7Z" />
-    </svg>
-  );
-}
-
-function HomeIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M4 10.5 12 4l8 6.5" />
-      <path d="M6 9.5V20h12V9.5" />
-    </svg>
-  );
-}
-
-function PawIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path fill="none" d="M8 14.5c0-2.5 1.8-4.5 4-4.5s4 2 4 4.5-1.8 4-4 4-4-1.5-4-4Z" />
-      <circle cx="6.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="10.5" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="15" cy="5.5" r="1.3" fill="currentColor" stroke="none" />
-      <circle cx="18.5" cy="8.5" r="1.3" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-const TRUST_ICON_COMPONENTS = [HeartIcon, BoltIcon, HomeIcon, PawIcon];
 
 const fallbackDogImages = [
   "/home-hero-dogs.jpg",
@@ -343,26 +298,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section aria-label="Why adopters can trust Hooman Finder" className="px-4 py-6 sm:px-6 sm:py-10 lg:px-8">
-          <div className="mx-auto max-w-6xl">
-            <div className="grid grid-cols-2 divide-x divide-y divide-[#C7D4BB] overflow-hidden rounded-2xl border border-[#C7D4BB] bg-[#DFE7D7]/40 sm:grid-cols-4 sm:divide-y-0">
-              {TRUST_POINTS.map(([title, text], index) => {
-                const Icon = TRUST_ICON_COMPONENTS[index];
-                return (
-                  <div key={title} className="flex flex-col gap-2 p-4 sm:gap-3 sm:p-5">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white sm:h-9 sm:w-9">
-                      <Icon className="h-4 w-4 text-[#0F2742] sm:h-[18px] sm:w-[18px]" />
-                    </span>
-                    <div>
-                      <p className="text-[12.5px] font-bold text-[#0F2742] sm:text-[13px]">{title}</p>
-                      <p className="mt-0.5 text-[11px] leading-4 text-[#6F6A66] sm:mt-1 sm:text-[11.5px] sm:leading-5">{text}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </section>
+        <TrustRibbon />
 
         <section className="px-4 py-8 sm:px-6 sm:py-12 lg:px-8">
           <div className="mx-auto max-w-6xl">
