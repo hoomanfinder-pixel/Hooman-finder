@@ -290,35 +290,6 @@ export default function TrustRibbon({ stat = null }) {
           from { transform: translate3d(0, 0, 0); }
           to { transform: translate3d(-50%, 0, 0); }
         }
-        @media (prefers-reduced-motion: reduce) {
-          .ribbon-track {
-            animation: none !important;
-            transform: none !important;
-            width: max-content !important;
-            min-width: max-content !important;
-          }
-          .ribbon-track > .ribbon-group:first-child {
-            display: flex;
-            flex-wrap: nowrap;
-            width: max-content;
-          }
-          .ribbon-track > .ribbon-group:first-child .ribbon-item:not(:first-child) {
-            display: none;
-          }
-          .ribbon-track > .ribbon-group[aria-hidden="true"],
-          .ribbon-divider {
-            display: none !important;
-          }
-          .ribbon-viewport {
-            overflow: hidden;
-            padding-right: 3.5rem;
-            -webkit-mask-image: none !important;
-            mask-image: none !important;
-          }
-          .ribbon-toggle {
-            display: none;
-          }
-        }
       `}</style>
     </section>
   );
