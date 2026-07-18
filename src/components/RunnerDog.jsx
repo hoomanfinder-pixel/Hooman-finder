@@ -42,10 +42,10 @@ export default function RunnerDog({ trackRef, className = "" }) {
     <div
       ref={laneRef}
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-6 items-end justify-center overflow-hidden text-[#2490C0] ${className}`}
+      className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-5 items-end justify-center overflow-hidden text-[#2490C0] sm:h-6 ${className}`}
     >
       <div className="hf-runner-ground absolute bottom-0.5 left-1/2 h-px w-9 -translate-x-1/2" />
-      <div className="hf-runner-cycle relative z-10 h-5 w-8 bg-current opacity-60" />
+      <div className="hf-runner-cycle relative z-10 h-4 w-7 bg-current opacity-60 sm:h-5 sm:w-8" />
 
       <style>{`
         .hf-runner-cycle {

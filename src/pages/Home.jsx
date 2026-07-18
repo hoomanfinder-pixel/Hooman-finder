@@ -327,9 +327,9 @@ export default function Home() {
       />
 
       <header className="border-b border-[#C7D4BB]/70 bg-white shadow-[0_4px_18px_rgba(24,61,53,0.04)]">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-1 sm:px-6 sm:py-3 lg:px-8">
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
-            <span className="flex h-16 w-[82px] shrink-0 items-center justify-center">
+            <span className="flex h-14 w-[76px] shrink-0 items-center justify-center sm:h-16 sm:w-[82px]">
               <img
                 src="/logo.png"
                 alt="Hooman Finder"
@@ -359,9 +359,9 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="px-4 pt-4 sm:px-6 sm:pt-8 lg:px-8">
+        <section className="px-4 pt-3 sm:px-6 sm:pt-8 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="relative min-h-[430px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] border border-[#183D35]/10 bg-[#183D35] shadow-[0_22px_60px_rgba(24,61,53,0.16)] sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[500px]">
+            <div className="relative min-h-[380px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] border border-[#183D35]/10 bg-[#183D35] shadow-[0_22px_60px_rgba(24,61,53,0.16)] sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[500px]">
               <div className="absolute inset-x-0 top-0 lg:inset-0">
                 <img
                   src="/home-hero-adopter-dog-hd.jpg"
@@ -377,20 +377,20 @@ export default function Home() {
               <div className="absolute inset-0 hidden bg-[linear-gradient(270deg,rgba(24,61,53,0.97)_0%,rgba(24,61,53,0.88)_34%,rgba(24,61,53,0.42)_58%,rgba(24,61,53,0.08)_76%,transparent_90%)] lg:block" />
               <div className="absolute inset-x-0 bottom-0 hidden h-28 bg-gradient-to-t from-[#102D27]/55 to-transparent lg:block" />
 
-              <div className="relative flex min-h-[430px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[560px] sm:px-8 sm:pb-8 lg:min-h-[500px] lg:px-12 lg:py-12">
+              <div className="relative flex min-h-[380px] flex-col justify-end px-4 pb-3 pt-2 sm:min-h-[560px] sm:px-8 sm:pb-8 lg:min-h-[500px] lg:px-12 lg:py-12">
                 <div className="lg:ml-auto lg:w-[43%] lg:min-w-[31rem] lg:max-w-[38rem]">
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#FFD98A] [text-shadow:0_1px_4px_rgba(0,0,0,0.95)] sm:text-xs sm:tracking-[0.24em]">
                     Free dog adoption matching tool
                   </p>
-                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] [text-shadow:0_2px_10px_rgba(0,0,0,0.85)] sm:mt-2 sm:text-[2.3rem] lg:max-w-[38rem] lg:text-[2.75rem] lg:leading-[1.04]">
+                  <h1 className="mt-1 max-w-xl font-['Fraunces',serif] text-[1.55rem] font-semibold leading-[1.06] text-[#F5F1E9] [text-shadow:0_2px_10px_rgba(0,0,0,0.85)] sm:mt-2 sm:text-[2.3rem] lg:max-w-[38rem] lg:text-[2.75rem] lg:leading-[1.04]">
                     Find adoptable dogs that fit{" "}
                     <br className="hidden sm:block lg:hidden" />
                     your real life.
                   </h1>
-                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:max-w-[31rem] lg:text-base">
+                  <p className="mt-1.5 max-w-md text-[12px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:max-w-[31rem] lg:text-base">
                     Discover real shelter and rescue dogs based on lifestyle fit, not just breed or looks.
                   </p>
-                  <div className="mt-3 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">
+                  <div className="mt-2.5 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">
                     <Link
                       to="/quiz"
                       className="inline-flex min-h-[2.75rem] flex-1 items-center justify-center rounded-2xl bg-[#F3C982] px-3 text-sm font-bold text-[#183D35] shadow-sm transition hover:bg-[#E9BD70] sm:min-h-[2.85rem] sm:flex-initial sm:px-7"
@@ -417,8 +417,8 @@ export default function Home() {
                   value: shelterCount,
                   label:
                     shelterCount === 1
-                      ? "shelter or rescue represented in current listings"
-                      : "shelters and rescues represented in current listings",
+                      ? "shelter or rescue in current listings"
+                      : "shelters and rescues in current listings",
                 }
               : null
           }

@@ -193,18 +193,18 @@ function StatRow({ value, label }) {
   if (!Number.isFinite(value) || value <= 0) return null;
 
   return (
-    <div className="flex items-center gap-2.5 border-b border-[#183D35]/10 px-5 py-1.5 sm:px-6 sm:py-2">
+    <div className="flex items-center gap-2 border-b border-[#183D35]/10 px-4 py-1 sm:gap-2.5 sm:px-6 sm:py-2">
       <span
         aria-hidden="true"
-        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982] sm:h-7 sm:w-7"
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982] sm:h-7 sm:w-7"
       >
         <PawIcon className="h-3 w-3" />
       </span>
-      <p className="text-[13px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
+      <p className="text-[12px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
         <span
           ref={ref}
           aria-hidden="true"
-          className="tabular-nums font-['Fraunces',serif] text-lg font-bold text-[#183D35] sm:text-xl"
+          className="tabular-nums font-['Fraunces',serif] text-[17px] font-bold text-[#183D35] sm:text-xl"
           style={{ minWidth: `${digits}ch`, display: "inline-block" }}
         >
           {displayValue}
@@ -225,17 +225,17 @@ export default function TrustRibbon({ stat = null }) {
   return (
     <section
       aria-label="Trust and evidence"
-      className="px-4 pb-1 pt-2 sm:px-6 sm:pb-1 sm:pt-3 lg:px-8"
+      className="px-4 pb-1 pt-1 sm:px-6 sm:pb-1 sm:pt-3 lg:px-8"
     >
       <div className="mx-auto max-w-6xl">
         <div
           ref={trackRef}
-          className="relative overflow-hidden rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-5 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm"
+          className="relative overflow-hidden rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-4 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-5"
         >
           {stat ? <StatRow value={stat.value} label={stat.label} /> : null}
 
           <div
-            className="ribbon-viewport relative overflow-hidden py-3 pl-5 pr-16 sm:pl-6 sm:pr-20"
+            className="ribbon-viewport relative overflow-hidden py-2 pl-4 pr-14 sm:py-3 sm:pl-6 sm:pr-20"
             style={{
               WebkitMaskImage:
                 "linear-gradient(to right, transparent, black 10%, black 84%, transparent)",
@@ -273,7 +273,7 @@ export default function TrustRibbon({ stat = null }) {
 
         <a
           href="#how-it-works"
-          className="mx-auto mt-1 flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:text-[13px]"
+          className="mx-auto mt-0.5 flex min-h-8 w-fit items-center gap-2 rounded-full px-3 py-0.5 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:mt-1 sm:py-1 sm:text-[13px]"
         >
           See how Hooman Finder works
           <span aria-hidden="true" className="text-base leading-none">↓</span>
