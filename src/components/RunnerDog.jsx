@@ -5,10 +5,11 @@ import { useEffect, useRef } from "react";
 // The dog stays in place while the dashed ground moves beneath it, creating
 // a treadmill effect without competing with the trust-bar content.
 //
-// The transparent sprite uses standard background-position animation rather
-// than an animated CSS mask. Mobile Safari can display a mask correctly while
-// leaving its position frozen, so background-position is the more dependable
-// way to show the same six-frame run cycle on iPhone.
+// The six-frame strip is animated with a GPU-composited transform (translateX)
+// rather than by animating background-position. iOS Safari reliably hardware-
+// accelerates transform animations but is known to stutter/skip frames when
+// background-position is animated directly, which is what caused the glitchy
+// run cycle specifically on iPhone while desktop looked fine.
 export default function RunnerDog({ trackRef, paused = false, className = "" }) {
   const laneRef = useRef(null);
 
@@ -52,17 +53,23 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
       style={{ "--hf-runner-state": paused ? "paused" : "running" }}
     >
       <div className="hf-runner-ground absolute bottom-0.5 left-1/2 h-px w-9 -translate-x-1/2" />
-      <div className="hf-runner-cycle relative z-10 h-5 w-8 opacity-75" />
+      <div className="relative z-10 h-5 w-8 overflow-hidden">
+        <div className="hf-runner-strip h-full opacity-75" />
+      </div>
 
       <style>{`
-        .hf-runner-cycle {
+        .hf-runner-strip {
+          width: 600%;
+          height: 100%;
           background-image: url(/assets/dog-run-cycle.png);
           background-repeat: no-repeat;
-          background-size: 600% 100%;
-          background-position: 0% 0;
+          background-size: 100% 100%;
+          transform: translate3d(0, 0, 0);
           animation: hf-runner-frames 840ms steps(5, end) infinite;
           animation-play-state: var(--hf-runner-state, running);
-          will-change: background-position;
+          will-change: transform;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
         }
 
         .hf-runner-ground {
@@ -78,8 +85,8 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
         }
 
         @keyframes hf-runner-frames {
-          from { background-position: 0% 0; }
-          to { background-position: 100% 0; }
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-83.3333%, 0, 0); }
         }
 
         @keyframes hf-runner-ground {
@@ -88,7 +95,7 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .hf-runner-cycle {
+          .hf-runner-strip {
             animation: hf-runner-frames 4800ms steps(5, end) infinite !important;
             animation-play-state: var(--hf-runner-state, running) !important;
           }
