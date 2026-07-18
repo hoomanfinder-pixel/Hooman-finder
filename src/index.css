@@ -108,4 +108,11 @@ button:disabled,
   button:not(:disabled):not([aria-disabled="true"]):active {
     transform: none;
   }
+
+  /* Keep the slow trust marquee usable on devices that report reduced
+     motion. It remains user-pausable; decorative motion stays disabled. */
+  .ribbon-track {
+    animation-duration: 90s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

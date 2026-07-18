@@ -329,7 +329,7 @@ export default function Home() {
       <header className="border-b border-[#C7D4BB]/70 bg-white shadow-[0_4px_18px_rgba(24,61,53,0.04)]">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6 sm:py-3 lg:px-8">
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
-            <span className="flex h-16 w-[75px] shrink-0 items-center justify-center rounded-xl border border-[#C7D4BB] bg-white p-1">
+            <span className="flex h-16 w-[82px] shrink-0 items-center justify-center">
               <img
                 src="/logo.png"
                 alt="Hooman Finder"
