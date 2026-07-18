@@ -64,14 +64,6 @@ function ChatIcon(props) {
   );
 }
 
-function ChartIcon(props) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M4 20V11M10.5 20V4M17 20v-6.5M3.5 20h17" />
-    </svg>
-  );
-}
-
 function InfoIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -102,7 +94,6 @@ function PauseIcon(props) {
 const SOURCES = {
   expectations: "https://pubmed.ncbi.nlm.nih.gov/35565480/",
   returnedDogFactors: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7552273/",
-  nationalData2025: "https://www.shelteranimalscount.org/2025-report",
   behaviorLimitations: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7401658/",
 };
 
@@ -122,11 +113,6 @@ const RIBBON_ITEMS = [
     source: SOURCES.returnedDogFactors,
   },
   { text: "Shelter counseling and meet-and-greets still matter", icon: ChatIcon },
-  {
-    text: "4.2 million shelter and rescue pets were adopted in the U.S. in 2025",
-    icon: ChartIcon,
-    source: SOURCES.nationalData2025,
-  },
   {
     text: "Match guidance—not a guarantee",
     icon: InfoIcon,
