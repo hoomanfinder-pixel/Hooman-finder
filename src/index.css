@@ -109,8 +109,9 @@ button:disabled,
     transform: none;
   }
 
-  /* Keep the slow trust marquee usable on devices that report reduced
-     motion. It remains user-pausable; decorative motion stays disabled. */
+  /* Keep the slow trust presentation usable on devices that report reduced
+     motion. The ribbon and dog are both controlled by the visible pause
+     button; the dog component separately slows its run cycle in this mode. */
   .ribbon-track {
     animation-duration: 90s !important;
     animation-iteration-count: infinite !important;

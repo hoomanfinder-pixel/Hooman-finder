@@ -268,7 +268,7 @@ export default function TrustRibbon({ stat = null }) {
             </button>
           </div>
 
-          <RunnerDog trackRef={trackRef} />
+          <RunnerDog trackRef={trackRef} paused={paused} />
         </div>
 
         <a

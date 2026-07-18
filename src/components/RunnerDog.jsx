@@ -1,6 +1,5 @@
 // src/components/RunnerDog.jsx
 import { useEffect, useRef } from "react";
-import usePrefersReducedMotion from "../hooks/usePrefersReducedMotion";
 
 // A centered, frame-by-frame gallop using an original transparent sprite.
 // The dog stays in place while the dashed ground moves beneath it, creating
@@ -10,14 +9,24 @@ import usePrefersReducedMotion from "../hooks/usePrefersReducedMotion";
 // than an animated CSS mask. Mobile Safari can display a mask correctly while
 // leaving its position frozen, so background-position is the more dependable
 // way to show the same six-frame run cycle on iPhone.
-export default function RunnerDog({ trackRef, className = "" }) {
+export default function RunnerDog({ trackRef, paused = false, className = "" }) {
   const laneRef = useRef(null);
-  const reducedMotion = usePrefersReducedMotion();
 
   useEffect(() => {
     const track = trackRef.current;
     const lane = laneRef.current;
-    if (!track || !lane || reducedMotion || typeof IntersectionObserver === "undefined") {
+    if (!track || !lane) {
+      return undefined;
+    }
+
+    if (paused) {
+      lane.style.setProperty("--hf-runner-state", "paused");
+      return undefined;
+    }
+
+    lane.style.setProperty("--hf-runner-state", "running");
+
+    if (typeof IntersectionObserver === "undefined") {
       return undefined;
     }
 
@@ -33,16 +42,17 @@ export default function RunnerDog({ trackRef, className = "" }) {
 
     observer.observe(track);
     return () => observer.disconnect();
-  }, [trackRef, reducedMotion]);
+  }, [trackRef, paused]);
 
   return (
     <div
       ref={laneRef}
       aria-hidden="true"
-      className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-5 items-end justify-center overflow-hidden text-[#2490C0] sm:h-6 ${className}`}
+      className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-6 items-end justify-center overflow-hidden text-[#2490C0] ${className}`}
+      style={{ "--hf-runner-state": paused ? "paused" : "running" }}
     >
       <div className="hf-runner-ground absolute bottom-0.5 left-1/2 h-px w-9 -translate-x-1/2" />
-      <div className="hf-runner-cycle relative z-10 h-4 w-7 opacity-70 sm:h-5 sm:w-8" />
+      <div className="hf-runner-cycle relative z-10 h-5 w-8 opacity-75" />
 
       <style>{`
         .hf-runner-cycle {
@@ -78,9 +88,14 @@ export default function RunnerDog({ trackRef, className = "" }) {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .hf-runner-cycle,
+          .hf-runner-cycle {
+            animation: hf-runner-frames 4800ms steps(5, end) infinite !important;
+            animation-play-state: var(--hf-runner-state, running) !important;
+          }
+
           .hf-runner-ground {
-            animation: none !important;
+            animation: hf-runner-ground 2400ms linear infinite !important;
+            animation-play-state: var(--hf-runner-state, running) !important;
           }
         }
       `}</style>
