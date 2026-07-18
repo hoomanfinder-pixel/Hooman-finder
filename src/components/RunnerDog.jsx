@@ -60,7 +60,7 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
           background-repeat: no-repeat;
           background-size: 600% 100%;
           background-position: 0% 0;
-          animation: hf-runner-frames 2400ms steps(5, end) infinite;
+          animation: hf-runner-frames 840ms steps(5, end) infinite;
           animation-play-state: var(--hf-runner-state, running);
           will-change: background-position;
         }
@@ -72,7 +72,7 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
             transparent 3px 8px
           );
           opacity: 0.16;
-          animation: hf-runner-ground 1200ms linear infinite;
+          animation: hf-runner-ground 2000ms linear infinite;
           animation-play-state: var(--hf-runner-state, running);
           will-change: background-position;
         }
