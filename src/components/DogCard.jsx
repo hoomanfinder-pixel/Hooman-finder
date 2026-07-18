@@ -628,14 +628,14 @@ export default function DogCard({
         <Link
           to={dogLink}
           state={linkState}
-          className="group flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-[#183D35]/10 bg-white shadow-sm transition duration-300 hover:-translate-y-0.5 hover:shadow-xl sm:rounded-[1.5rem]"
+          className="group relative aspect-square min-w-0 overflow-hidden rounded-2xl border border-[#183D35]/10 bg-[#EFE8DC] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:aspect-auto sm:flex sm:h-full sm:flex-col sm:rounded-[1.5rem] sm:bg-white sm:duration-300 sm:hover:shadow-xl"
         >
-          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EFE8DC]">
+          <div className="absolute inset-0 overflow-hidden bg-[#EFE8DC] sm:relative sm:inset-auto sm:aspect-[4/3] sm:w-full">
             {imgSrc ? (
               <img
                 src={imgSrc}
                 alt={imgAlt}
-                className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035] sm:object-center"
                 loading="lazy"
                 onError={() => setImageFailed(true)}
               />
@@ -644,17 +644,18 @@ export default function DogCard({
             )}
 
             <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-[#102d27]/95 via-[#102d27]/55 to-transparent sm:hidden" />
 
-            <div className="absolute left-2.5 right-2.5 top-2.5 flex items-start justify-between gap-2">
+            <div className="absolute left-2 right-2 top-2 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
               <div className="flex min-w-0 flex-wrap gap-1">
-                <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] text-[#183D35] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]">
+                <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-[#183D35] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]">
                   {rankLabel}
                 </span>
 
                 {showMatch && tier ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px]",
+                      "inline-flex items-center rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] shadow-sm backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]",
                       tier.className,
                     ].join(" ")}
                     title={matchState.pillText}
@@ -666,7 +667,7 @@ export default function DogCard({
                 {urgency !== "Standard" ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px]",
+                      "hidden items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:inline-flex sm:px-2.5 sm:py-1 sm:text-[10px]",
                       urgencyStyle(urgency),
                     ].join(" ")}
                   >
@@ -677,9 +678,25 @@ export default function DogCard({
 
               {heartButton}
             </div>
+
+            <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:hidden">
+              <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-white/75">
+                {shelterName(dog)}
+              </p>
+
+              <h2 className="mt-0.5 truncate font-['Fraunces',serif] text-lg font-semibold leading-tight">
+                {dog?.name || "Unnamed"}
+              </h2>
+
+              {[ageLabel, dog?.size].filter(Boolean).length ? (
+                <p className="mt-0.5 truncate text-[10px] font-medium leading-4 text-white/85">
+                  {[ageLabel, dog?.size].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
+            </div>
           </div>
 
-          <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+          <div className="hidden flex-1 flex-col sm:flex sm:p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">

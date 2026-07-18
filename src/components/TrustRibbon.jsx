@@ -250,7 +250,7 @@ export default function TrustRibbon({ stat = null }) {
             }}
           >
             <div
-              className="ribbon-track flex w-max items-center"
+              className="ribbon-track flex w-max min-w-max flex-nowrap items-center"
               style={{ animationPlayState: paused ? "paused" : "running" }}
             >
               <RibbonGroup interactive />
@@ -283,39 +283,35 @@ export default function TrustRibbon({ stat = null }) {
       <style>{`
         .ribbon-track {
           animation: trust-ribbon-scroll 90s linear infinite;
+          transform: translate3d(0, 0, 0);
+          will-change: transform;
         }
         @keyframes trust-ribbon-scroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-50%, 0, 0); }
         }
         @media (prefers-reduced-motion: reduce) {
           .ribbon-track {
             animation: none !important;
             transform: none !important;
-            width: 100% !important;
+            width: max-content !important;
+            min-width: max-content !important;
           }
           .ribbon-track > .ribbon-group:first-child {
             display: flex;
-            flex: 1 1 100%;
-            flex-wrap: wrap;
-            gap: 0.75rem 1.25rem;
-            width: 100%;
+            flex-wrap: nowrap;
+            width: max-content;
           }
-          .ribbon-track > .ribbon-group:first-child .ribbon-item {
-            flex: 1 1 16rem;
-            min-width: 0;
-          }
-          .ribbon-track > .ribbon-group:first-child .ribbon-item-text {
-            min-width: 0;
-            white-space: normal;
+          .ribbon-track > .ribbon-group:first-child .ribbon-item:not(:first-child) {
+            display: none;
           }
           .ribbon-track > .ribbon-group[aria-hidden="true"],
           .ribbon-divider {
             display: none !important;
           }
           .ribbon-viewport {
-            overflow-x: visible;
-            padding-right: 1rem;
+            overflow: hidden;
+            padding-right: 3.5rem;
             -webkit-mask-image: none !important;
             mask-image: none !important;
           }
