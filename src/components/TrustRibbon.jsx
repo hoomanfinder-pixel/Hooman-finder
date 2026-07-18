@@ -1,5 +1,7 @@
 // src/components/TrustRibbon.jsx
-import { Fragment, useState } from "react";
+import { Fragment, useRef, useState } from "react";
+import RunnerDog from "./RunnerDog";
+import useCountUp from "../hooks/useCountUp";
 
 function HeartIcon(props) {
   return (
@@ -184,20 +186,56 @@ function RibbonGroup({ interactive }) {
   );
 }
 
-export default function TrustRibbon() {
+function StatRow({ value, label }) {
+  const { ref, value: displayValue } = useCountUp(value);
+  const digits = String(value).length;
+
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  return (
+    <div className="flex items-center gap-2.5 border-b border-[#183D35]/10 px-5 py-1.5 sm:px-6 sm:py-2">
+      <span
+        aria-hidden="true"
+        className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982] sm:h-7 sm:w-7"
+      >
+        <PawIcon className="h-3 w-3" />
+      </span>
+      <p className="text-[13px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
+        <span
+          ref={ref}
+          aria-hidden="true"
+          className="tabular-nums font-['Fraunces',serif] text-lg font-bold text-[#183D35] sm:text-xl"
+          style={{ minWidth: `${digits}ch`, display: "inline-block" }}
+        >
+          {displayValue}
+        </span>{" "}
+        <span aria-hidden="true">{label}</span>
+        <span className="sr-only">{`${value} ${label}`}</span>
+      </p>
+    </div>
+  );
+}
+
+export default function TrustRibbon({ stat = null }) {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFocusWithin, setIsFocusWithin] = useState(false);
   const paused = !isPlaying || isFocusWithin;
+  const trackRef = useRef(null);
 
   return (
     <section
       aria-label="Trust and evidence"
-      className="px-4 pb-1 pt-5 sm:px-6 sm:pb-3 sm:pt-7 lg:px-8"
+      className="px-4 pb-1 pt-2 sm:px-6 sm:pb-1 sm:pt-3 lg:px-8"
     >
       <div className="mx-auto max-w-6xl">
-        <div className="relative rounded-2xl border border-[#2490C0]/20 bg-[#F1F9FC] shadow-[0_8px_22px_rgba(36,144,192,0.10),inset_0_1px_0_rgba(255,255,255,0.9)]">
+        <div
+          ref={trackRef}
+          className="relative overflow-hidden rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-5 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm"
+        >
+          {stat ? <StatRow value={stat.value} label={stat.label} /> : null}
+
           <div
-            className="ribbon-viewport overflow-hidden py-[0.875rem] pl-5 pr-16 sm:pl-6 sm:pr-20"
+            className="ribbon-viewport relative overflow-hidden py-3 pl-5 pr-16 sm:pl-6 sm:pr-20"
             style={{
               WebkitMaskImage:
                 "linear-gradient(to right, transparent, black 10%, black 84%, transparent)",
@@ -218,22 +256,24 @@ export default function TrustRibbon() {
               <RibbonGroup interactive />
               <RibbonGroup />
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsPlaying((prev) => !prev)}
+              aria-pressed={!isPlaying}
+              aria-label={isPlaying ? "Pause scrolling ribbon" : "Play scrolling ribbon"}
+              className="ribbon-toggle absolute right-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-[#2490C0]/30 bg-white/90 text-[#2490C0] shadow-sm transition hover:bg-white hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0]"
+            >
+              {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
+            </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsPlaying((prev) => !prev)}
-            aria-pressed={!isPlaying}
-            aria-label={isPlaying ? "Pause scrolling ribbon" : "Play scrolling ribbon"}
-            className="ribbon-toggle absolute right-4 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-[#2490C0]/30 bg-white/90 text-[#2490C0] shadow-sm transition hover:bg-white hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0]"
-          >
-            {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
-          </button>
+          <RunnerDog trackRef={trackRef} />
         </div>
 
         <a
           href="#how-it-works"
-          className="mx-auto mt-4 flex w-fit items-center gap-2 rounded-full px-3 py-2 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:text-[13px]"
+          className="mx-auto mt-1 flex w-fit items-center gap-2 rounded-full px-3 py-1 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:text-[13px]"
         >
           See how Hooman Finder works
           <span aria-hidden="true" className="text-base leading-none">↓</span>

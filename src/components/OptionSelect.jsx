@@ -167,6 +167,7 @@ export default function OptionSelect({
                 key={key}
                 type="button"
                 onClick={() => toggle(opt.value)}
+                aria-pressed={selected}
                 className={[
                   "w-full rounded-2xl border px-2 py-1.5 text-left transition sm:px-3 sm:py-2",
                   "min-h-10 sm:min-h-11",

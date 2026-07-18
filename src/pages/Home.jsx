@@ -3,10 +3,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import TrustRibbon from "../components/TrustRibbon";
-import { getDogSourceName } from "../lib/dogSource";
+import { getDogSourceLocation, getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { supabase } from "../lib/supabase";
 import { normalizeImageUrl } from "../lib/urlSafety";
+import { formatAge, resolveAgeYears } from "../utils/formatAge";
+import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 
 const HOW_IT_WORKS = [
   {
@@ -76,6 +78,44 @@ function dogProfilePath(dog) {
   return dog?.id ? `/dog/${dog.id}` : "/dogs";
 }
 
+function previewDogAge(dog) {
+  const formatted = formatAge(resolveAgeYears(dog?.age_years, dog?.age_text));
+  if (formatted && formatted !== "Unknown") return formatted;
+  return dog?.age_text || "";
+}
+
+function previewDogLocation(dog) {
+  const location = getDogSourceLocation(dog, "");
+  return location && location !== "Location unknown" ? location : "";
+}
+
+// Rescue bios are often imported as "<name> <intake id> <weight> lb.
+// <sex>, approx <age> -<the actual personality text>". When that shelter
+// boilerplate is detectable up front, skip to the part a person would
+// actually want to read; otherwise fall back to the full text untouched.
+function skipIntakeBoilerplate(text) {
+  const dashIndex = text.indexOf(" -");
+  if (dashIndex < 0 || dashIndex > 140) return text;
+
+  const prefix = text.slice(0, dashIndex).toLowerCase();
+  const looksLikeIntakeBoilerplate = /(lb\.|approx|neutered|spayed)/.test(prefix);
+  const remainder = text.slice(dashIndex + 2).trim();
+
+  return looksLikeIntakeBoilerplate && remainder ? remainder : text;
+}
+
+// Uses the dog's own listing text (never an AI-generated claim) for a short
+// personality line, same source priority DogCard.jsx already treats as
+// confirmed listing content.
+function previewDogTagline(dog) {
+  const raw = dog?.description || dog?.bio || dog?.placement_note || dog?.notes || "";
+  const decoded = decodeHtmlEntities(raw).replace(/\s+/g, " ").trim();
+  const clean = skipIntakeBoilerplate(decoded);
+
+  if (!clean) return "";
+  return clean.length > 78 ? `${clean.slice(0, 75)}...` : clean;
+}
+
 function rotatedPick(dogs, seed, usedIds = new Set()) {
   const available = dogs.filter((dog) => !usedIds.has(String(dog?.id)));
   const pool = available.length ? available : dogs;
@@ -100,16 +140,20 @@ function dailyShuffleDogs(dogs) {
   });
 }
 
-function pickDailyFeaturedDogs(dogs) {
+function pickDailyFeaturedDogs(dogs, count = 6) {
   const pool = dailyShuffleDogs(Array.isArray(dogs) ? dogs.filter((dog) => dog?.id) : []);
   const urgentPool = pool.filter((dog) =>
     ["Critical", "High", "Urgent"].includes(dog?.urgency_level)
   );
   const seed = dateSeed();
   const usedIds = new Set();
+  const picks = [];
 
   const first = rotatedPick(pool, seed, usedIds);
-  if (first?.id) usedIds.add(String(first.id));
+  if (first?.id) {
+    usedIds.add(String(first.id));
+    picks.push(first);
+  }
 
   const availableUrgentDogs = urgentPool.filter((dog) => !usedIds.has(String(dog?.id)));
   const second = rotatedPick(
@@ -117,16 +161,37 @@ function pickDailyFeaturedDogs(dogs) {
     seed + 1,
     usedIds
   );
-  if (second?.id) usedIds.add(String(second.id));
+  if (second?.id) {
+    usedIds.add(String(second.id));
+    picks.push(second);
+  }
 
-  const third = rotatedPick(pool, seed + 2, usedIds);
+  for (let index = 2; picks.length < count && index < count + 3; index += 1) {
+    const next = rotatedPick(pool, seed + index, usedIds);
+    if (!next?.id || usedIds.has(String(next.id))) continue;
 
-  return [first, second, third].filter(Boolean);
+    usedIds.add(String(next.id));
+    picks.push(next);
+  }
+
+  return picks;
+}
+
+function distinctShelterCount(dogs) {
+  const names = new Set();
+
+  for (const dog of Array.isArray(dogs) ? dogs : []) {
+    const name = getDogSourceName(dog, "");
+    if (name) names.add(name.toLowerCase());
+  }
+
+  return names.size;
 }
 
 export default function Home() {
   const [featuredDogs, setFeaturedDogs] = useState([]);
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
+  const [shelterCount, setShelterCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -196,18 +261,60 @@ export default function Home() {
     };
   }, []);
 
-  const howItWorksRows = useMemo(() => {
-    return HOW_IT_WORKS.map((row, index) => ({
-      ...row,
-      dog: featuredDogs[index] || null,
-      image:
-        normalizeImageUrl(featuredDogs[index]?.photo_url, { allowRelative: false }) ||
-        fallbackDogImages[index],
-      rescueName: featuredDogs[index] ? getDogSourceName(featuredDogs[index], "") : "",
-    }));
-  }, [featuredDogs]);
+  // Separate, lightweight query (few columns, no image requirement, no cap)
+  // so the trust-bar stat reflects every currently public listing rather
+  // than just the 48 dogs sampled above for the homepage preview cards.
+  useEffect(() => {
+    let isMounted = true;
 
-  const sneakPeekDogs = howItWorksRows.filter((row) => row.dog);
+    async function loadShelterCount() {
+      try {
+        // Reuses the same "*, shelters(...)" select shape as the working
+        // dog queries elsewhere in the app (Dogs.jsx, Results.jsx) instead
+        // of hand-picking column names, so this never drifts out of sync
+        // with the real dogs table schema.
+        const { data, error } = await supabase
+          .from("dogs")
+          .select(`
+            *,
+            shelters ( id, name, city, state, website, apply_url, logo_url )
+          `)
+          .eq("adoptable", true)
+          .or("adoption_pending.is.null,adoption_pending.eq.false")
+          .in("availability_status", ["available", "active", "unknown"])
+          .limit(4000);
+
+        if (error) throw error;
+        if (!isMounted) return;
+
+        setShelterCount(distinctShelterCount(filterPublicDogs(data)));
+      } catch (error) {
+        console.error("Could not load shelter count:", error);
+      }
+    }
+
+    loadShelterCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Up to 6 real, currently available dogs for the "Meet some dogs" preview.
+  // featuredDogs is already filtered to public/adoptable dogs with photos and
+  // daily-rotated, so this just caps the count without touching that logic.
+  // Extra display-time guard for this homepage feature specifically: some
+  // shelter feeds put status text directly in the dog's name field (e.g.
+  // "Bette - Adoption Pending") rather than the structured adoption_pending
+  // column the shared visibility filter checks. Never surface that on the
+  // homepage, even if it technically passed the structured-field filter.
+  const previewDogs = useMemo(
+    () =>
+      featuredDogs
+        .filter((dog) => dog?.id && !/adopt(ed|ion pending)|pending/i.test(dog?.name || ""))
+        .slice(0, 6),
+    [featuredDogs]
+  );
 
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
@@ -215,8 +322,8 @@ export default function Home() {
         title="Free Dog Adoption Matching Tool | Hooman Finder"
         description="Discover real adoptable shelter and rescue dogs based on lifestyle fit, not just breed or looks. Hooman Finder is free to use, with no account required."
         canonicalPath="/"
-        ogImage="/home-hero-dogs.jpg"
-        ogImageAlt="Shelter and rescue dogs looking for their future home"
+        ogImage="/home-hero-adopter-dog-hd.jpg"
+        ogImageAlt="A woman sharing a warm moment with a rescue dog"
       />
 
       <header className="border-b border-[#C7D4BB]/60 bg-[#F5F1E9]">
@@ -254,32 +361,33 @@ export default function Home() {
       <main>
         <section className="px-4 pt-4 sm:px-6 sm:pt-8 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <div className="relative min-h-[430px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] bg-[#183D35] shadow-sm sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[480px]">
+            <div className="relative min-h-[430px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] border border-[#183D35]/10 bg-[#183D35] shadow-[0_22px_60px_rgba(24,61,53,0.16)] sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[500px]">
               <div className="absolute inset-x-0 top-0 lg:inset-0">
                 <img
-                  src="/home-hero-dogs.jpg"
-                  alt="Two adoptable dogs sitting together"
-                  className="h-auto w-full [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] lg:h-full lg:object-cover lg:object-[50%_100%] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
+                  src="/home-hero-adopter-dog-hd.jpg"
+                  alt="A woman gently holding paws with a rescue dog"
+                  className="h-auto w-full [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] lg:h-full lg:object-cover lg:object-[45%_48%] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
                   onError={(e) => {
                     e.currentTarget.style.visibility = "hidden";
                   }}
                 />
               </div>
-              <div className="absolute inset-0 bg-[#183D35]/5" />
-              <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-[#183D35] via-[#183D35]/72 to-transparent lg:h-[68%] lg:via-[#183D35]/76" />
-              <div className="absolute inset-0 hidden bg-[linear-gradient(90deg,rgba(24,61,53,0.58)_0%,rgba(24,61,53,0.2)_44%,transparent_70%)] lg:block" />
+              <div className="absolute inset-0 bg-[#183D35]/5 lg:bg-transparent" />
+              <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-[#183D35] via-[#183D35]/72 to-transparent lg:hidden" />
+              <div className="absolute inset-0 hidden bg-[linear-gradient(270deg,rgba(24,61,53,0.97)_0%,rgba(24,61,53,0.88)_34%,rgba(24,61,53,0.42)_58%,rgba(24,61,53,0.08)_76%,transparent_90%)] lg:block" />
+              <div className="absolute inset-x-0 bottom-0 hidden h-28 bg-gradient-to-t from-[#102D27]/55 to-transparent lg:block" />
 
-              <div className="relative flex min-h-[430px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[560px] sm:px-8 sm:pb-8 lg:min-h-[480px] lg:px-12 lg:pb-8">
-                <div className="lg:max-w-[34rem]">
+              <div className="relative flex min-h-[430px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[560px] sm:px-8 sm:pb-8 lg:min-h-[500px] lg:px-12 lg:py-12">
+                <div className="lg:ml-auto lg:w-[43%] lg:min-w-[31rem] lg:max-w-[38rem]">
                   <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#FFD98A] [text-shadow:0_1px_4px_rgba(0,0,0,0.95)] sm:text-xs sm:tracking-[0.24em]">
                     Free dog adoption matching tool
                   </p>
-                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] [text-shadow:0_2px_10px_rgba(0,0,0,0.85)] sm:mt-2 sm:text-[2.3rem] lg:text-[2.6rem] lg:leading-[1.05]">
-                    Find adoptable dogs that fit
-                    <br />
+                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] [text-shadow:0_2px_10px_rgba(0,0,0,0.85)] sm:mt-2 sm:text-[2.3rem] lg:max-w-[38rem] lg:text-[2.75rem] lg:leading-[1.04]">
+                    Find adoptable dogs that fit{" "}
+                    <br className="hidden sm:block lg:hidden" />
                     your real life.
                   </h1>
-                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:text-base">
+                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:max-w-[31rem] lg:text-base">
                     Discover real shelter and rescue dogs based on lifestyle fit, not just breed or looks.
                   </p>
                   <div className="mt-3 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">
@@ -302,7 +410,19 @@ export default function Home() {
           </div>
         </section>
 
-        <TrustRibbon />
+        <TrustRibbon
+          stat={
+            shelterCount > 0
+              ? {
+                  value: shelterCount,
+                  label:
+                    shelterCount === 1
+                      ? "shelter or rescue represented in current listings"
+                      : "shelters and rescues represented in current listings",
+                }
+              : null
+          }
+        />
 
         <section
           id="how-it-works"
@@ -335,72 +455,111 @@ export default function Home() {
           </div>
         </section>
 
-        {sneakPeekDogs.length > 0 ? (
-          <section className="py-3 sm:py-6">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
-                    Available now
-                  </p>
-                  <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold text-[#183D35] sm:text-3xl">
-                    Featured adoptable dogs
-                  </h2>
-                </div>
+        <section className="py-3 sm:py-6">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
+                  Available now
+                </p>
+                <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold text-[#183D35] sm:text-3xl">
+                  Meet some dogs looking for their human.
+                </h2>
+              </div>
+              {previewDogs.length > 0 ? (
                 <Link
                   to="/dogs"
-                  className="hidden text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:inline"
+                  className="hidden shrink-0 text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:inline"
                 >
                   Browse all dogs
                 </Link>
-              </div>
-
-              <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
-                {sneakPeekDogs.map((row) => (
-                  <Link
-                    key={row.dog.id}
-                    to={dogProfilePath(row.dog)}
-                    aria-label={`View ${row.dog.name}'s profile`}
-                    className="w-40 shrink-0 overflow-hidden rounded-2xl border border-[#C7D4BB] bg-white transition hover:-translate-y-0.5 hover:shadow-md sm:w-auto"
-                  >
-                    <div className="h-28 w-full bg-[#EFE8DC] sm:h-48">
-                      <img
-                        src={row.image}
-                        alt={`${row.dog.name}, an adoptable dog`}
-                        className="h-full w-full object-cover"
-                        onError={(event) => {
-                          event.currentTarget.onerror = null;
-                          event.currentTarget.src = fallbackDogImages[0];
-                        }}
-                      />
-                    </div>
-                    <div className="p-3 sm:p-4">
-                      <p className="truncate font-['Fraunces',serif] text-base font-semibold text-[#183D35] sm:text-xl">
-                        {row.dog.name}
-                      </p>
-                      <p className="mt-0.5 truncate text-[11px] text-[#6F6A66] sm:text-xs">
-                        {row.rescueName || "Adoptable dog"}
-                      </p>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-
-              <Link
-                to="/dogs"
-                className="mt-2 inline-flex text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:hidden"
-              >
-                Browse all dogs
-              </Link>
+              ) : null}
             </div>
 
-            {dogLoadFailed && (
-              <p className="mx-auto max-w-6xl px-4 pt-2 text-xs leading-6 text-[#6F6A66] sm:px-6 lg:px-8">
-                Live dog photos did not load, so this section is using homepage fallback images for now.
-              </p>
+            {previewDogs.length > 0 ? (
+              <>
+                <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
+                  {previewDogs.map((dog) => {
+                    const image =
+                      normalizeImageUrl(dog?.photo_url, { allowRelative: false }) ||
+                      fallbackDogImages[0];
+                    const age = previewDogAge(dog);
+                    const location = previewDogLocation(dog);
+                    const tagline = previewDogTagline(dog);
+                    const metaLine = [age, location].filter(Boolean).join(" · ");
+
+                    return (
+                      <Link
+                        key={dog.id}
+                        to={dogProfilePath(dog)}
+                        aria-label={`View ${dog.name}'s profile`}
+                        className="w-48 shrink-0 overflow-hidden rounded-2xl border border-[#C7D4BB] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg sm:w-auto"
+                      >
+                        <div className="h-28 w-full bg-[#EFE8DC] sm:h-48">
+                          <img
+                            src={image}
+                            alt={`${dog.name}, an adoptable dog`}
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null;
+                              event.currentTarget.src = fallbackDogImages[0];
+                            }}
+                          />
+                        </div>
+                        <div className="p-3 sm:p-4">
+                          <p className="line-clamp-2 font-['Fraunces',serif] text-base font-semibold leading-tight text-[#183D35] sm:line-clamp-1 sm:text-xl">
+                            {dog.name}
+                          </p>
+                          {metaLine ? (
+                            <p className="mt-0.5 truncate text-[11px] text-[#6F6A66] sm:text-xs">
+                              {metaLine}
+                            </p>
+                          ) : null}
+                          {tagline ? (
+                            <p className="mt-1.5 hidden line-clamp-2 text-xs leading-5 text-[#6F6A66] sm:block">
+                              {tagline}
+                            </p>
+                          ) : null}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                <Link
+                  to="/dogs"
+                  className="mt-2 inline-flex text-sm font-bold text-[#183D35] underline-offset-4 hover:underline sm:hidden"
+                >
+                  Browse all dogs
+                </Link>
+
+                <div className="mt-6 flex justify-center sm:mt-8">
+                  <Link
+                    to="/quiz"
+                    className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#183D35] px-7 text-sm font-bold text-[#F3C982] shadow-sm transition duration-200 hover:-translate-y-0.5 hover:bg-[#12332C]"
+                  >
+                    Take the quiz to find your match
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-[#C7D4BB] bg-white p-6 text-center sm:p-8">
+                <p className="text-sm leading-6 text-[#6F6A66]">
+                  {dogLoadFailed
+                    ? "We could not load dogs right now. Please try again in a moment."
+                    : "New adoptable dogs are added regularly. Check back soon, or browse the full list."}
+                </p>
+                <Link
+                  to="/dogs"
+                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35] px-6 text-sm font-bold text-[#183D35] transition hover:bg-[#183D35] hover:text-white"
+                >
+                  Browse Dogs
+                </Link>
+              </div>
             )}
-          </section>
-        ) : null}
+          </div>
+        </section>
 
         <section className="bg-[#EFE8DC] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
           <div className="mx-auto max-w-6xl">

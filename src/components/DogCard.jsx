@@ -721,21 +721,22 @@ export default function DogCard({
   }
 
   const metaLine = [ageLabel, displayBreed(dog), dog?.size].filter(Boolean).join(" · ");
+  const mobileMetaLine = [ageLabel, dog?.size].filter(Boolean).join(" · ");
 
   return (
     <>
       <Link
         to={dogLink}
         state={linkState}
-        className="group flex flex-row items-start gap-3 overflow-hidden rounded-2xl border border-[#183D35]/10 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:h-full sm:flex-col sm:items-stretch sm:gap-0 sm:rounded-[1.5rem] sm:p-0 sm:duration-300 sm:hover:shadow-xl"
+        className="group relative aspect-square min-w-0 overflow-hidden rounded-2xl border border-[#183D35]/10 bg-[#EFE8DC] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:aspect-auto sm:h-full sm:bg-white sm:flex sm:flex-col sm:items-stretch sm:rounded-[1.5rem] sm:duration-300 sm:hover:shadow-xl"
       >
-        {/* Compact square photo on mobile; full-width 4:3 photo from sm: up (unchanged desktop design). */}
-        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl bg-[#EFE8DC] sm:h-auto sm:w-full sm:aspect-[4/3] sm:rounded-none">
+        {/* The mobile card is a compact photo tile. Tablet and desktop keep the existing 4:3 card image. */}
+        <div className="absolute inset-0 overflow-hidden bg-[#EFE8DC] sm:relative sm:inset-auto sm:aspect-[4/3] sm:h-auto sm:w-full">
           {imgSrc ? (
             <img
               src={imgSrc}
               alt={imgAlt}
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"
+              className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035] sm:object-center"
               loading="lazy"
               onError={() => setImageFailed(true)}
             />
@@ -743,9 +744,10 @@ export default function DogCard({
             <PlaceholderPhoto name={dog?.name} />
           )}
 
-          <div className="absolute inset-x-0 top-0 hidden h-20 bg-gradient-to-b from-black/35 to-transparent sm:block" />
+          <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/35 to-transparent sm:h-20" />
+          <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-[#102d27]/95 via-[#102d27]/55 to-transparent sm:hidden" />
 
-          <div className="absolute left-1.5 right-1.5 top-1.5 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
+          <div className="absolute left-2 right-2 top-2 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
             <div className="flex min-w-0 flex-wrap gap-1">
               {urgency !== "Standard" ? (
                 <span
@@ -761,24 +763,40 @@ export default function DogCard({
 
             {heartButton}
           </div>
+
+          <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:hidden">
+            <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-white/75">
+              {shelterName(dog)}
+            </p>
+
+            <h2 className="mt-0.5 truncate font-['Fraunces',serif] text-lg font-semibold leading-tight">
+              {dog?.name || "Unnamed"}
+            </h2>
+
+            {mobileMetaLine ? (
+              <p className="mt-0.5 truncate text-[10px] font-medium leading-4 text-white/85">
+                {mobileMetaLine}
+              </p>
+            ) : null}
+          </div>
         </div>
 
-        {/* Compact info column on mobile (no bio, line-clamped facts); original desktop column from sm: up. */}
-        <div className="min-w-0 flex-1 sm:flex sm:flex-1 sm:flex-col sm:p-4">
+        {/* Full details remain in the roomier tablet and desktop card. */}
+        <div className="hidden min-w-0 flex-1 sm:flex sm:flex-1 sm:flex-col sm:p-4">
           <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">
             {shelterName(dog)}
           </p>
 
-          <h2 className="mt-0.5 truncate font-['Fraunces',serif] text-base font-semibold leading-tight text-[#183D35] sm:mt-1 sm:text-2xl sm:leading-none sm:text-3xl">
+          <h2 className="mt-1 truncate font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
             {dog?.name || "Unnamed"}
           </h2>
 
           {metaLine ? (
-            <p className="mt-1 text-xs leading-5 text-[#6F6A66] sm:text-sm">{metaLine}</p>
+            <p className="mt-1 text-sm leading-5 text-[#6F6A66]">{metaLine}</p>
           ) : null}
 
           {fitChips.length ? (
-            <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3">
+            <div className="mt-3 flex flex-wrap gap-1.5">
               {fitChips.map((chip) => (
                 <span
                   key={chip.label}
@@ -796,7 +814,7 @@ export default function DogCard({
             </div>
           ) : null}
 
-          <div className="mt-auto hidden pt-4 sm:block">
+          <div className="mt-auto pt-4">
             <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-[#183D35] px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[#F3C982] transition group-hover:bg-[#12332C]">
               View Profile
             </span>

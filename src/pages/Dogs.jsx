@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import DogCard from "../components/DogCard";
+import DogGridSkeleton from "../components/DogGridSkeleton";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 import { filterPublicDogs } from "../lib/dogVisibility";
@@ -496,9 +497,7 @@ export default function Dogs() {
         ) : null}
 
         {loading ? (
-          <div className="mt-5 rounded-[1.35rem] border border-[#C7D4BB] bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
-            Loading adoptable dogs…
-          </div>
+          <DogGridSkeleton count={6} />
         ) : filteredDogs.length === 0 ? (
           <div className="mt-5 rounded-[1.35rem] border border-[#C7D4BB] bg-white/60 p-5">
             <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
@@ -544,7 +543,7 @@ export default function Dogs() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
               {filteredDogs.map((dog) => (
                 <DogCard
                   key={dog.id}

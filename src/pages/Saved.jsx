@@ -184,8 +184,24 @@ export default function Saved() {
         </section>
 
         {loading ? (
-          <div className="mt-4 rounded-[1.35rem] border border-[#183D35]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
-            Loading saved dogs…
+          <div className="mt-4 space-y-3">
+            <p role="status" className="sr-only">
+              Loading saved dogs.
+            </p>
+            {Array.from({ length: Math.max(1, savedIds.length) }).map((_, index) => (
+              <div
+                key={index}
+                aria-hidden="true"
+                className="grid grid-cols-[92px_1fr] items-center gap-3 rounded-[1.35rem] border border-[#183D35]/10 bg-white/80 p-2.5 sm:grid-cols-[116px_1fr] sm:p-3"
+              >
+                <div className="hf-skeleton aspect-square rounded-[1.05rem]" />
+                <div className="space-y-2 py-1">
+                  <div className="hf-skeleton h-5 w-1/2 rounded-full" />
+                  <div className="hf-skeleton h-3 w-1/3 rounded-full" />
+                  <div className="hf-skeleton h-3 w-2/3 rounded-full" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="mt-4 rounded-[1.35rem] border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">

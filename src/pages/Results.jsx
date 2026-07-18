@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import DogCard from "../components/DogCard";
+import DogGridSkeleton from "../components/DogGridSkeleton";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
@@ -371,7 +372,15 @@ export default function Results() {
 
           <div className="mt-1 flex flex-col gap-1.5 sm:mt-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
+                {!loading ? (
+                  <span
+                    aria-hidden="true"
+                    className="hf-success-bounce inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#183D35] text-[10px] text-[#F3C982]"
+                  >
+                    ✓
+                  </span>
+                ) : null}
                 Your matches
               </p>
 
@@ -514,9 +523,7 @@ export default function Results() {
         ) : null}
 
         {loading ? (
-          <div className="mt-5 rounded-[1.35rem] border border-[#183D35]/10 bg-white/60 p-5 text-sm font-semibold text-[#6F6A66]">
-            Loading matches…
-          </div>
+          <DogGridSkeleton count={6} label="Loading matches." />
         ) : err ? (
           <div className="mt-5 rounded-[1.6rem] border border-red-200 bg-red-50 p-5">
             <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
