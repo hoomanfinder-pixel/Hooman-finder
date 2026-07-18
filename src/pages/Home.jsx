@@ -263,19 +263,20 @@ export default function Home() {
                   e.currentTarget.style.visibility = "hidden";
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-b from-[#0C1E35]/5 via-[#0C1E35]/10 to-[#0C1E35]/96" />
+              <div className="absolute inset-0 bg-[#0C1E35]/5" />
+              <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-[#0C1E35]/98 via-[#0C1E35]/82 to-transparent" />
 
               <div className="relative flex min-h-[500px] flex-col justify-end px-5 pb-4 pt-3 sm:min-h-[520px] sm:px-8 sm:pb-8 lg:min-h-[480px] lg:px-12 lg:pb-8">
                 <div className="lg:max-w-xl">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#F3C982] sm:text-xs sm:tracking-[0.24em]">
+                  <p className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-[#FFD98A] [text-shadow:0_1px_4px_rgba(0,0,0,0.95)] sm:text-xs sm:tracking-[0.24em]">
                     Free dog adoption matching tool
                   </p>
-                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] sm:mt-2 sm:text-[2.3rem] lg:text-[2.6rem] lg:leading-[1.05]">
+                  <h1 className="mt-1.5 max-w-xl font-['Fraunces',serif] text-[1.7rem] font-semibold leading-[1.08] text-[#F5F1E9] [text-shadow:0_2px_10px_rgba(0,0,0,0.85)] sm:mt-2 sm:text-[2.3rem] lg:text-[2.6rem] lg:leading-[1.05]">
                     Find adoptable dogs that fit
                     <br />
                     your real life.
                   </h1>
-                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/80 sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:text-base">
+                  <p className="mt-2 max-w-md text-[13px] leading-snug text-[#F5F1E9]/90 [text-shadow:0_1px_5px_rgba(0,0,0,0.9)] sm:mt-3 sm:text-[14.5px] sm:leading-relaxed lg:text-base">
                     Discover real shelter and rescue dogs based on lifestyle fit—not just breed or looks.
                   </p>
                   <div className="mt-3 flex flex-row gap-2 sm:mt-4 sm:gap-3 lg:mt-4">

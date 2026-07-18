@@ -194,9 +194,8 @@ function RibbonGroup({ interactive }) {
 
 export default function TrustRibbon() {
   const [isPlaying, setIsPlaying] = useState(true);
-  const [isHovered, setIsHovered] = useState(false);
   const [isFocusWithin, setIsFocusWithin] = useState(false);
-  const paused = !isPlaying || isHovered || isFocusWithin;
+  const paused = !isPlaying || isFocusWithin;
 
   return (
     <section aria-label="Trust and evidence" className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -210,8 +209,6 @@ export default function TrustRibbon() {
               maskImage:
                 "linear-gradient(to right, transparent, black 4%, black 90%, transparent)",
             }}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
             onFocusCapture={() => setIsFocusWithin(true)}
             onBlurCapture={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -233,9 +230,9 @@ export default function TrustRibbon() {
             onClick={() => setIsPlaying((prev) => !prev)}
             aria-pressed={!isPlaying}
             aria-label={isPlaying ? "Pause scrolling ribbon" : "Play scrolling ribbon"}
-            className="ribbon-toggle absolute right-3 top-1/2 z-10 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-[#C7D4BB] bg-white/90 text-[#0F2742] shadow-sm transition hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742] sm:right-4"
+            className="ribbon-toggle absolute right-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-[#C7D4BB]/80 bg-white/80 text-[#0F2742]/70 shadow-sm transition hover:bg-white hover:text-[#0F2742] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0F2742] sm:right-4"
           >
-            {isPlaying ? <PauseIcon className="h-3.5 w-3.5" /> : <PlayIcon className="h-3.5 w-3.5" />}
+            {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
           </button>
         </div>
 
@@ -251,7 +248,7 @@ export default function TrustRibbon() {
 
       <style>{`
         .ribbon-track {
-          animation: trust-ribbon-scroll 52s linear infinite;
+          animation: trust-ribbon-scroll 90s linear infinite;
         }
         @keyframes trust-ribbon-scroll {
           from { transform: translateX(0); }
