@@ -1,6 +1,6 @@
 // src/pages/Quiz.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import AccordionSection from "../components/AccordionSection";
 import SEO from "../components/SEO";
@@ -272,13 +272,33 @@ export default function Quiz() {
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-36 pt-1.5 sm:px-5 sm:pb-36 sm:pt-3">
         <header className="sticky top-0 z-30 -mx-3 border-b border-[#183D35]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
           <div className="flex items-center justify-between gap-2.5">
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 text-xs font-black text-[#183D35] hover:opacity-75 sm:text-sm"
-              onClick={() => navigate("/dogs")}
-            >
-              ← Back to dogs
-            </button>
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+              <Link
+                to="/"
+                aria-label="Go to Hooman Finder homepage"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-[#183D35]/12 bg-white p-1 sm:h-9 sm:w-9"
+              >
+                <img
+                  src="/logo-180.png"
+                  alt="Hooman Finder"
+                  width="180"
+                  height="163"
+                  decoding="async"
+                  className="h-full w-full object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.visibility = "hidden";
+                  }}
+                />
+              </Link>
+
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-xs font-black text-[#183D35] hover:opacity-75 sm:text-sm"
+                onClick={() => navigate("/dogs")}
+              >
+                ← Back to dogs
+              </button>
+            </div>
 
             <div className="flex shrink-0 items-center gap-2">
               <button
