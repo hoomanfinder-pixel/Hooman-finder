@@ -1,6 +1,5 @@
 // src/components/TrustRibbon.jsx
-import { Fragment, useRef, useState } from "react";
-import RunnerDog from "./RunnerDog";
+import { Fragment, useState } from "react";
 import useCountUp from "../hooks/useCountUp";
 
 function HeartIcon(props) {
@@ -220,7 +219,6 @@ export default function TrustRibbon({ stat = null }) {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFocusWithin, setIsFocusWithin] = useState(false);
   const paused = !isPlaying || isFocusWithin;
-  const trackRef = useRef(null);
 
   return (
     <section
@@ -229,8 +227,7 @@ export default function TrustRibbon({ stat = null }) {
     >
       <div className="mx-auto max-w-6xl">
         <div
-          ref={trackRef}
-          className="relative overflow-hidden rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-4 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-5"
+          className="relative rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-4 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-5"
         >
           {stat ? <StatRow value={stat.value} label={stat.label} /> : null}
 
@@ -268,7 +265,15 @@ export default function TrustRibbon({ stat = null }) {
             </button>
           </div>
 
-          <RunnerDog trackRef={trackRef} paused={paused} />
+          <img
+            src="/assets/resting-dog-silhouette.webp"
+            alt=""
+            aria-hidden="true"
+            width="256"
+            height="90"
+            decoding="async"
+            className="pointer-events-none absolute -bottom-2.5 left-3 z-20 w-16 select-none opacity-80 sm:-bottom-3 sm:left-5 sm:w-20"
+          />
         </div>
 
         <a

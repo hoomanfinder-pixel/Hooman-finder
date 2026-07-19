@@ -133,8 +133,7 @@ button:disabled,
   }
 
   /* Keep the slow trust presentation usable on devices that report reduced
-     motion. The ribbon and dog are both controlled by the visible pause
-     button, and the dog keeps one consistent run cycle across screen sizes. */
+     motion. The ribbon remains controlled by its visible pause button. */
   .ribbon-track {
     animation-duration: 90s !important;
     animation-iteration-count: infinite !important;
