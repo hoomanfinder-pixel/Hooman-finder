@@ -33,19 +33,29 @@ const HOW_IT_WORKS = [
 
 const WHY_FIT_MATTERS = [
   {
-    label: "Look deeper",
-    headline: "Beyond breed and looks",
-    text: "Energy, routine, home setup, and care needs can shape daily life with a dog just as much as appearance.",
+    label: "Picture the everyday",
+    headline: "Look past the first impression",
+    text: "Energy, routine, home setup, and care needs shape daily life with a dog long after the first photo catches your eye.",
+    cardClass: "border-[#B8C9A8] bg-[#DDE7D3]",
+    labelClass: "text-[#43614F]",
+    bodyClass: "text-[#506059]",
   },
   {
-    label: "Start informed",
-    headline: "A more useful shortlist",
-    text: "Quiz answers help surface dogs whose available profiles align more closely with the life you described.",
+    label: "Use what is known",
+    headline: "Build a shortlist with context",
+    text: "Your answers are compared with available listing details, helping you focus on dogs whose needs may better align with your life.",
+    cardClass: "border-[#D5A74F] bg-[#F3C982]",
+    labelClass: "text-[#704B1F]",
+    bodyClass: "text-[#59451F]",
   },
   {
-    label: "Keep it human",
-    headline: "Guidance, not a guarantee",
-    text: "A score is a starting point. Shelter or rescue counseling and time spent with a dog remain essential.",
+    label: "Keep the conversation human",
+    headline: "Turn a score into better questions",
+    text: "A match is a starting point. The shelter or rescue, your questions, and time spent with a dog still guide the final decision.",
+    cardClass: "border-[#183D35] bg-[#183D35]",
+    labelClass: "text-[#F3C982]",
+    headlineClass: "text-[#F5F1E9]",
+    bodyClass: "text-white/72",
   },
 ];
 
@@ -161,16 +171,54 @@ function skipIntakeBoilerplate(text) {
   return looksLikeIntakeBoilerplate && remainder ? remainder : text;
 }
 
+function escapeRegExp(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Uses the dog's own listing text (never an AI-generated claim) for a short
 // personality line, same source priority DogCard.jsx already treats as
 // confirmed listing content.
 function previewDogTagline(dog) {
   const raw = dog?.description || dog?.bio || dog?.placement_note || dog?.notes || "";
   const decoded = decodeHtmlEntities(raw).replace(/\s+/g, " ").trim();
-  const clean = skipIntakeBoilerplate(decoded);
+  let clean = skipIntakeBoilerplate(decoded);
 
   if (!clean) return "";
-  return clean.length > 78 ? `${clean.slice(0, 75)}...` : clean;
+
+  if (dog?.name) {
+    clean = clean
+      .replace(
+        new RegExp(`^meet\\s+${escapeRegExp(dog.name)}(?:\\s+is)?[\\s,:–—-]*`, "i"),
+        ""
+      )
+      .trim();
+  }
+
+  if (!clean) return "";
+
+  const sentences = clean.match(/[^.!?]+[.!?]+/g)?.map((sentence) => sentence.trim());
+  if (/^named after\b/i.test(clean) && sentences?.[1]) {
+    clean = sentences[1];
+  }
+
+  if (clean.length <= 82) return clean;
+
+  const completeSentence = clean.match(/^(.{28,96}?[.!?])(?:\s|$)/)?.[1];
+  if (completeSentence) return completeSentence;
+
+  const phrase = clean.slice(0, 88);
+  const naturalBreak = Math.max(
+    phrase.lastIndexOf(", "),
+    phrase.lastIndexOf("; "),
+    phrase.lastIndexOf(" — "),
+    phrase.lastIndexOf(" – ")
+  );
+
+  if (naturalBreak >= 44) {
+    return `${phrase.slice(0, naturalBreak).trim()}…`;
+  }
+
+  return truncateAtWord(clean, 82);
 }
 
 function rotatedPick(dogs, seed, usedIds = new Set()) {
@@ -497,38 +545,7 @@ export default function Home() {
           }
         />
 
-        <section
-          id="how-it-works"
-          className="scroll-mt-4 px-4 pb-8 pt-3 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
-        >
-          <div className="mx-auto max-w-6xl">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
-              How it works
-            </p>
-            <h2 className="mt-2 max-w-xl font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
-              Three steps to a more informed shortlist.
-            </h2>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
-              Matches guide your search. Shelters and rescues still manage counseling, applications, and final decisions.
-            </p>
-
-            <div className="mt-8 grid gap-6 sm:grid-cols-3 sm:gap-5">
-              {HOW_IT_WORKS.map((row) => (
-                <div key={row.number} className="flex gap-4 sm:flex-col sm:gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#183D35] font-['Fraunces',serif] text-sm font-semibold text-[#F3C982]">
-                    {row.number}
-                  </div>
-                  <div>
-                    <h3 className="text-[15px] font-semibold text-[#183D35]">{row.title}</h3>
-                    <p className="mt-1 text-sm leading-6 text-[#6F6A66]">{row.text}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="py-3 sm:py-6">
+        <section className="py-5 sm:py-8">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
             <div className="flex items-end justify-between gap-4">
               <div>
@@ -591,7 +608,7 @@ export default function Home() {
                             </p>
                           ) : null}
                           {tagline ? (
-                            <p className="mt-1.5 hidden line-clamp-2 text-xs leading-5 text-[#6F6A66] sm:block">
+                            <p className="mt-1.5 hidden text-xs leading-5 text-[#6F6A66] sm:block">
                               {tagline}
                             </p>
                           ) : null}
@@ -618,7 +635,7 @@ export default function Home() {
                 </div>
               </>
             ) : (
-              <div className="mt-4 rounded-2xl border border-[#C7D4BB] bg-white p-6 text-center sm:p-8">
+              <div className="mt-4 flex min-h-72 flex-col items-center justify-center rounded-2xl border border-[#C7D4BB] bg-white p-6 text-center sm:min-h-[22rem] sm:p-8">
                 <p className="text-sm leading-6 text-[#6F6A66]">
                   {dogLoadFailed
                     ? "We could not load dogs right now. Please try again in a moment."
@@ -632,6 +649,37 @@ export default function Home() {
                 </Link>
               </div>
             )}
+          </div>
+        </section>
+
+        <section
+          id="how-it-works"
+          className="scroll-mt-4 px-4 pb-8 pt-3 sm:px-6 sm:py-10 lg:px-8 lg:py-12"
+        >
+          <div className="mx-auto max-w-6xl">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
+              How it works
+            </p>
+            <h2 className="mt-2 max-w-xl font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
+              Three steps to a more informed shortlist.
+            </h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
+              Matches guide your search. Shelters and rescues still manage counseling, applications, and final decisions.
+            </p>
+
+            <div className="mt-8 grid gap-6 sm:grid-cols-3 sm:gap-5">
+              {HOW_IT_WORKS.map((row) => (
+                <div key={row.number} className="flex gap-4 sm:flex-col sm:gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#183D35] font-['Fraunces',serif] text-sm font-semibold text-[#F3C982]">
+                    {row.number}
+                  </div>
+                  <div>
+                    <h3 className="text-[15px] font-semibold text-[#183D35]">{row.title}</h3>
+                    <p className="mt-1 text-sm leading-6 text-[#6F6A66]">{row.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -651,15 +699,19 @@ export default function Home() {
               {WHY_FIT_MATTERS.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-2xl border border-[#C7D4BB] bg-white/85 p-5 shadow-[0_10px_30px_rgba(15,39,66,0.06)] sm:p-6"
+                  className={`flex min-h-full flex-col rounded-[1.5rem] border p-5 shadow-[0_14px_34px_rgba(24,61,53,0.08)] ${item.cardClass} sm:p-6`}
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7A5428]">
+                  <p
+                    className={`text-[10px] font-bold uppercase tracking-[0.16em] ${item.labelClass}`}
+                  >
                     {item.label}
                   </p>
-                  <h3 className="mt-4 font-['Fraunces',serif] text-xl font-semibold leading-tight text-[#183D35]">
+                  <h3
+                    className={`mt-5 font-['Fraunces',serif] text-xl font-semibold leading-tight ${item.headlineClass || "text-[#183D35]"}`}
+                  >
                     {item.headline}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-[#6F6A66]">{item.text}</p>
+                  <p className={`mt-3 text-sm leading-6 ${item.bodyClass}`}>{item.text}</p>
                 </article>
               ))}
             </div>
