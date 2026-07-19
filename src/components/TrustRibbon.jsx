@@ -272,7 +272,7 @@ export default function TrustRibbon({ stat = null }) {
             width="256"
             height="90"
             decoding="async"
-            className="pointer-events-none absolute -bottom-2.5 left-3 z-20 w-16 select-none opacity-80 sm:-bottom-3 sm:left-5 sm:w-20"
+            className="pointer-events-none absolute -bottom-3 left-5 z-20 w-20 select-none opacity-80 sm:-bottom-4 sm:left-7 sm:w-28"
           />
         </div>
 
