@@ -568,7 +568,7 @@ export default function Home() {
                           <img
                             src={image}
                             alt={`${dog.name}, an adoptable dog`}
-                            className="h-full w-full object-cover"
+                            className="h-full w-full object-cover object-[50%_30%]"
                             loading="lazy"
                             fetchPriority="low"
                             decoding="async"
