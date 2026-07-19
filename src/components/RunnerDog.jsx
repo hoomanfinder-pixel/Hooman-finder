@@ -52,7 +52,9 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
       className={`pointer-events-none absolute inset-x-0 bottom-0 flex h-6 items-end justify-center overflow-hidden text-[#2490C0] ${className}`}
       style={{ "--hf-runner-state": paused ? "paused" : "running" }}
     >
-      <div className="hf-runner-ground absolute bottom-0.5 left-1/2 h-px w-9 -translate-x-1/2" />
+      <div className="absolute bottom-0.5 left-1/2 h-px w-9 -translate-x-1/2 overflow-hidden">
+        <div className="hf-runner-ground h-full w-[calc(100%+8px)]" />
+      </div>
       <div className="relative z-10 h-5 w-8 overflow-hidden">
         <div className="hf-runner-strip h-full opacity-75" />
       </div>
@@ -79,9 +81,10 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
             transparent 3px 8px
           );
           opacity: 0.16;
+          transform: translate3d(0, 0, 0);
           animation: hf-runner-ground 2000ms linear infinite;
           animation-play-state: var(--hf-runner-state, running);
-          will-change: background-position;
+          will-change: transform;
         }
 
         @keyframes hf-runner-frames {
@@ -90,8 +93,8 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
         }
 
         @keyframes hf-runner-ground {
-          from { background-position: 0 0; }
-          to { background-position: -8px 0; }
+          from { transform: translate3d(0, 0, 0); }
+          to { transform: translate3d(-8px, 0, 0); }
         }
 
         @media (prefers-reduced-motion: reduce) {

@@ -1,0 +1,28 @@
+# Hooman Finder
+
+> Hooman Finder is a free dog-adoption discovery tool that helps people find currently adoptable shelter and rescue dogs whose published profiles may fit their lifestyle.
+
+## Important public routes
+
+- [Home](https://hoomanfinder.com/): Overview and entry points to matching and browsing.
+- [Browse adoptable dogs](https://hoomanfinder.com/dogs): Current public dog listings.
+- [Dog matching quiz](https://hoomanfinder.com/quiz): Lifestyle and preference questionnaire.
+- [About Hooman Finder](https://hoomanfinder.com/about): How the service works.
+- [Contact](https://hoomanfinder.com/contact): Contact information.
+- [Privacy](https://hoomanfinder.com/privacy): Privacy policy.
+- [Terms](https://hoomanfinder.com/terms): Terms of use.
+
+## Important context
+
+- Match results are guidance and are not a guarantee of compatibility, temperament, health, behavior, availability, or adoption.
+- Shelters and rescues control counseling, applications, meet-and-greets, eligibility requirements, and final adoption decisions.
+- Listing details come from participating shelters and rescues and are primarily synchronized from RescueGroups.org. Hooman Finder links people to the original source listing for current details and next steps.
+
+## Sitemaps
+
+- [Main sitemap](https://hoomanfinder.com/sitemap.xml): Public site routes and canonical adoptable-dog profiles.
+- [Dog sitemap](https://hoomanfinder.com/dog-sitemap.xml): Canonical profiles for currently public, adoptable dogs.
+
+## Contact
+
+- Email: info@hoomanfinder.com

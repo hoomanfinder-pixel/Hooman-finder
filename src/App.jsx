@@ -1,5 +1,5 @@
 // src/App.jsx
-import React, { lazy, Suspense, useLayoutEffect } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
@@ -34,16 +34,21 @@ function ScrollToTop() {
 
 export default function App() {
   const location = useLocation();
+  const hasMounted = useRef(false);
+
+  useEffect(() => {
+    hasMounted.current = true;
+  }, []);
 
   return (
     <>
       <ScrollToTop />
-      {/* Keying on pathname re-triggers the CSS entrance animation on every
-          route change (short fade + slight rise). Purely a class-driven
-          CSS animation, so it can't delay rendering or interfere with
-          ScrollToTop, and it's a no-op under prefers-reduced-motion via the
-          global media query in index.css. */}
-      <div key={location.pathname} className="hf-page-enter">
+      {/* Keep the short entrance animation for in-app route changes, but do
+          not hide the first paint behind it on a direct page load. */}
+      <div
+        key={location.pathname}
+        className={hasMounted.current ? "hf-page-enter" : undefined}
+      >
         <Suspense
           fallback={
             <div

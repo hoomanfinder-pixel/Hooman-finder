@@ -420,13 +420,19 @@ export default function Home() {
               <div className="absolute inset-x-0 top-0 lg:inset-0">
                 <picture>
                   <source
-                    media="(max-width: 767px)"
-                    srcSet="/home-hero-adopter-dog-768.jpg"
-                    type="image/jpeg"
+                    type="image/avif"
+                    srcSet="/home-hero-adopter-dog-480.avif 480w, /home-hero-adopter-dog-768.avif 768w, /home-hero-adopter-dog.avif 1537w"
+                    sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1279px) calc(100vw - 3rem), 1152px"
                   />
-                  <source srcSet="/home-hero-adopter-dog.avif" type="image/avif" />
+                  <source
+                    type="image/webp"
+                    srcSet="/home-hero-adopter-dog-480.webp 480w, /home-hero-adopter-dog-768.webp 768w, /home-hero-adopter-dog-1537.webp 1537w"
+                    sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1279px) calc(100vw - 3rem), 1152px"
+                  />
                   <img
                     src="/home-hero-adopter-dog-hd.jpg"
+                    srcSet="/home-hero-adopter-dog-768.jpg 768w, /home-hero-adopter-dog-hd.jpg 1537w"
+                    sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1279px) calc(100vw - 3rem), 1152px"
                     alt="A woman gently holding paws with a rescue dog"
                     width="1537"
                     height="1023"
