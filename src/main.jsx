@@ -1,6 +1,6 @@
 // src/main.jsx
 import React from "react";
-import ReactDOM from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import "./index.css";
@@ -24,10 +24,24 @@ window.addEventListener("vite:preloadError", () => {
   window.location.reload();
 });
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+const rootElement = document.getElementById("root");
+const app = (
   <React.StrictMode>
     <BrowserRouter>
       <App />
     </BrowserRouter>
   </React.StrictMode>
 );
+
+// Production serves a build-time-rendered homepage at `/`, while all other
+// direct routes receive the empty SPA shell. Hydrate only that exact homepage
+// shell; development and non-home routes continue using a normal client root.
+if (
+  rootElement.dataset.prerenderedHome === "true" &&
+  window.location.pathname === "/"
+) {
+  hydrateRoot(rootElement, app);
+} else {
+  rootElement.replaceChildren();
+  createRoot(rootElement).render(app);
+}

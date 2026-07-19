@@ -63,7 +63,7 @@ export default function RunnerDog({ trackRef, paused = false, className = "" }) 
         .hf-runner-strip {
           width: 600%;
           height: 100%;
-          background-image: url(/assets/dog-run-cycle.png);
+          background-image: url(/assets/dog-run-cycle.webp);
           background-repeat: no-repeat;
           background-size: 100% 100%;
           transform: translate3d(0, 0, 0);

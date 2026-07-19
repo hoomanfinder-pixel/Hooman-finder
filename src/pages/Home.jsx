@@ -99,7 +99,7 @@ function previewDogImage(rawUrl) {
   try {
     const url = new URL(image);
     if (url.hostname === "cdn.rescuegroups.org") {
-      url.searchParams.set("width", "500");
+      url.searchParams.set("width", "360");
       return url.toString();
     }
   } catch {
@@ -383,7 +383,7 @@ export default function Home() {
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
             <span className="flex h-14 w-[76px] shrink-0 items-center justify-center sm:h-16 sm:w-[82px]">
               <img
-                src="/logo-180.png"
+                src="/logo-144.avif"
                 alt="Hooman Finder"
                 width="180"
                 height="163"
@@ -421,12 +421,12 @@ export default function Home() {
                 <picture>
                   <source
                     type="image/avif"
-                    srcSet="/home-hero-adopter-dog-480.avif 480w, /home-hero-adopter-dog-768.avif 768w, /home-hero-adopter-dog.avif 1537w"
+                    srcSet="/home-hero-adopter-dog-480.avif 480w, /home-hero-adopter-dog-672.avif 672w, /home-hero-adopter-dog-768.avif 768w, /home-hero-adopter-dog.avif 1537w"
                     sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1279px) calc(100vw - 3rem), 1152px"
                   />
                   <source
                     type="image/webp"
-                    srcSet="/home-hero-adopter-dog-480.webp 480w, /home-hero-adopter-dog-768.webp 768w, /home-hero-adopter-dog-1537.webp 1537w"
+                    srcSet="/home-hero-adopter-dog-480.webp 480w, /home-hero-adopter-dog-672.webp 672w, /home-hero-adopter-dog-768.webp 768w, /home-hero-adopter-dog-1537.webp 1537w"
                     sizes="(max-width: 639px) calc(100vw - 2rem), (max-width: 1279px) calc(100vw - 3rem), 1152px"
                   />
                   <img
@@ -744,7 +744,7 @@ export default function Home() {
             <div>
               <Link to="/" aria-label="Hooman Finder home" className="inline-flex">
                 <img
-                  src="/logo-180.png"
+                  src="/logo-144.avif"
                   alt="Hooman Finder"
                   width="180"
                   height="163"

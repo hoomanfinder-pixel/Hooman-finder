@@ -219,7 +219,7 @@ async function fetchDog(id) {
 }
 
 async function fetchAppShell(request) {
-  const shellUrl = new URL("/index.html", request.url);
+  const shellUrl = new URL("/spa.html", request.url);
   return fetch(shellUrl, {
     headers: {
       "user-agent": request.headers.get("user-agent") || "Hooman-Finder-Metadata",

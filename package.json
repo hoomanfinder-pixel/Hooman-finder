@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build --ssr src/entry-server.jsx --outDir dist/server && node scripts/prerender-home.mjs",
     "dry-run:dacc": "node scripts/dry-run-dacc-rescuegroups.cjs",
     "inspect:dacc-fields": "node scripts/inspect-dacc-rescuegroups-fields.cjs",
     "import:rescuegroups:dacc": "node scripts/import-dacc-rescuegroups.cjs",
