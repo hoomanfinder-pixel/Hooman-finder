@@ -823,7 +823,7 @@ export default function DogDetail() {
                 <img
                   src={imgSrc}
                   alt={`${name}, adoptable ${breed}`}
-                  className="h-full w-full bg-[#EFE8DC] object-cover transition duration-200 group-hover:brightness-95"
+                  className="h-full w-full bg-[#EFE8DC] object-cover object-[50%_30%] transition duration-200 group-hover:brightness-95"
                   onError={() => setImgSrc(FALLBACK_IMG)}
                 />
               </button>

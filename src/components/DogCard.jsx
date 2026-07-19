@@ -635,7 +635,7 @@ export default function DogCard({
               <img
                 src={imgSrc}
                 alt={imgAlt}
-                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035] sm:object-center"
+                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035]"
                 loading="lazy"
                 onError={() => setImageFailed(true)}
               />
@@ -753,7 +753,7 @@ export default function DogCard({
             <img
               src={imgSrc}
               alt={imgAlt}
-              className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035] sm:object-center"
+              className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035]"
               loading="lazy"
               onError={() => setImageFailed(true)}
             />
