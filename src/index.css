@@ -80,14 +80,19 @@ button:disabled,
 @keyframes hf-fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
+/* Opacity-only on purpose: this wrapper sits above every page, including
+   ones with `position: fixed` bars/overlays (e.g. the quiz's bottom action
+   bar). Any CSS `transform` on this element -- even an identity no-op left
+   behind by a finished animation -- turns it into the containing block for
+   those fixed descendants instead of the viewport, pushing them off-screen.
+   Do not add translateY()/scale()/etc. back into this keyframe without
+   re-testing every fixed-position element on every page. */
 .hf-page-enter {
   animation: hf-fade-in-up 220ms ease-out both;
 }
@@ -102,7 +107,9 @@ button:disabled,
     opacity: 1;
   }
   100% {
-    transform: scale(1) translateY(0);
+    /* `none`, not `scale(1) translateY(0)` — same fixed-position containing-
+       block issue as the page-enter animation above. */
+    transform: none;
     opacity: 1;
   }
 }
