@@ -126,7 +126,7 @@ export default function Saved() {
 
           <Link to="/" className="shrink-0" aria-label="Go home">
             <img
-              src="/logo.png"
+              src="/logo-180.png"
               alt="Hooman Finder"
               className="h-9 w-auto object-contain sm:h-11"
               onError={(e) => {

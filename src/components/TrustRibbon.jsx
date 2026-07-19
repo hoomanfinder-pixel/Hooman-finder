@@ -273,7 +273,7 @@ export default function TrustRibbon({ stat = null }) {
 
         <a
           href="#how-it-works"
-          className="mx-auto mt-0.5 flex min-h-8 w-fit items-center gap-2 rounded-full px-3 py-0.5 text-[12px] font-bold text-[#2490C0] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:mt-1 sm:py-1 sm:text-[13px]"
+          className="mx-auto mt-0.5 flex min-h-8 w-fit items-center gap-2 rounded-full px-3 py-0.5 text-[12px] font-bold text-[#176B91] transition hover:bg-[#EAF6FB] hover:text-[#183D35] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2490C0] sm:mt-1 sm:py-1 sm:text-[13px]"
         >
           See how Hooman Finder works
           <span aria-hidden="true" className="text-base leading-none">↓</span>

@@ -5,10 +5,12 @@ import SEO from "../components/SEO";
 import TrustRibbon from "../components/TrustRibbon";
 import { getDogSourceLocation, getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
-import { supabase } from "../lib/supabase";
 import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge, resolveAgeYears } from "../utils/formatAge";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const HOW_IT_WORKS = [
   {
@@ -87,6 +89,60 @@ function previewDogAge(dog) {
 function previewDogLocation(dog) {
   const location = getDogSourceLocation(dog, "");
   return location && location !== "Location unknown" ? location : "";
+}
+
+function previewDogImage(rawUrl) {
+  const image = normalizeImageUrl(rawUrl, { allowRelative: false });
+  if (!image) return "";
+
+  try {
+    const url = new URL(image);
+    if (url.hostname === "cdn.rescuegroups.org") {
+      url.searchParams.set("width", "500");
+      return url.toString();
+    }
+  } catch {
+    return image;
+  }
+
+  return image;
+}
+
+async function fetchHomepageDogs({ select, limit, requirePhoto = false }) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing Supabase configuration");
+  }
+
+  const endpoint = new URL(`${SUPABASE_URL}/rest/v1/dogs`);
+  endpoint.searchParams.set("select", select.replace(/\s+/g, ""));
+  endpoint.searchParams.set("adoptable", "eq.true");
+  endpoint.searchParams.set(
+    "or",
+    "(adoption_pending.is.null,adoption_pending.eq.false)"
+  );
+  endpoint.searchParams.set(
+    "availability_status",
+    "in.(available,active,unknown)"
+  );
+  endpoint.searchParams.set("limit", String(limit));
+
+  if (requirePhoto) {
+    endpoint.searchParams.set("photo_url", "not.is.null");
+    endpoint.searchParams.set("order", "created_at.desc");
+  }
+
+  const response = await fetch(endpoint, {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Dog request failed with status ${response.status}`);
+  }
+
+  return response.json();
 }
 
 // Rescue bios are often imported as "<name> <intake id> <weight> lb.
@@ -198,9 +254,8 @@ export default function Home() {
 
     async function loadFeaturedDogs() {
       try {
-        const { data, error } = await supabase
-          .from("dogs")
-          .select(`
+        const data = await fetchHomepageDogs({
+          select: `
             *,
             shelters (
               id,
@@ -211,15 +266,10 @@ export default function Home() {
               apply_url,
               logo_url
             )
-          `)
-          .eq("adoptable", true)
-          .not("photo_url", "is", null)
-          .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .in("availability_status", ["available", "active", "unknown"])
-          .order("created_at", { ascending: false })
-          .limit(48);
-
-        if (error) throw error;
+          `,
+          limit: 48,
+          requirePhoto: true,
+        });
 
         const urgencyRank = {
           Critical: 1,
@@ -261,30 +311,33 @@ export default function Home() {
     };
   }, []);
 
-  // Separate, lightweight query (few columns, no image requirement, no cap)
+  // Separate, deferred query (few columns, no image or biography data)
   // so the trust-bar stat reflects every currently public listing rather
   // than just the 48 dogs sampled above for the homepage preview cards.
   useEffect(() => {
     let isMounted = true;
+    let timeoutId;
 
     async function loadShelterCount() {
       try {
-        // Reuses the same "*, shelters(...)" select shape as the working
-        // dog queries elsewhere in the app (Dogs.jsx, Results.jsx) instead
-        // of hand-picking column names, so this never drifts out of sync
-        // with the real dogs table schema.
-        const { data, error } = await supabase
-          .from("dogs")
-          .select(`
-            *,
-            shelters ( id, name, city, state, website, apply_url, logo_url )
-          `)
-          .eq("adoptable", true)
-          .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .in("availability_status", ["available", "active", "unknown"])
-          .limit(4000);
-
-        if (error) throw error;
+        const data = await fetchHomepageDogs({
+          select: `
+            id,
+            shelter_name,
+            rescuegroups_id,
+            rescuegroups_org_id,
+            source,
+            external_id,
+            adoptable,
+            adoption_pending,
+            urgency_level,
+            availability_status,
+            source_url,
+            adoption_url,
+            shelters ( name )
+          `,
+          limit: 4000,
+        });
         if (!isMounted) return;
 
         setShelterCount(distinctShelterCount(filterPublicDogs(data)));
@@ -293,10 +346,13 @@ export default function Home() {
       }
     }
 
-    loadShelterCount();
+    // The count is useful context but is not needed for the first paint.
+    // Let the hero, navigation, fonts, and primary dog query finish first.
+    timeoutId = window.setTimeout(loadShelterCount, 3000);
 
     return () => {
       isMounted = false;
+      window.clearTimeout(timeoutId);
     };
   }, []);
 
@@ -312,7 +368,7 @@ export default function Home() {
     () =>
       featuredDogs
         .filter((dog) => dog?.id && !/adopt(ed|ion pending)|pending/i.test(dog?.name || ""))
-        .slice(0, 6),
+        .slice(0, 3),
     [featuredDogs]
   );
 
@@ -331,8 +387,11 @@ export default function Home() {
           <Link to="/" aria-label="Go to Hooman Finder homepage" className="flex items-center">
             <span className="flex h-14 w-[76px] shrink-0 items-center justify-center sm:h-16 sm:w-[82px]">
               <img
-                src="/logo.png"
+                src="/logo-180.png"
                 alt="Hooman Finder"
+                width="180"
+                height="163"
+                decoding="async"
                 className="h-full w-full object-contain"
                 onError={(e) => {
                   e.currentTarget.style.visibility = "hidden";
@@ -363,14 +422,26 @@ export default function Home() {
           <div className="mx-auto max-w-6xl">
             <div className="relative min-h-[380px] overflow-hidden rounded-[2rem] rounded-tr-[4.5rem] border border-[#183D35]/10 bg-[#183D35] shadow-[0_22px_60px_rgba(24,61,53,0.16)] sm:min-h-[560px] sm:rounded-[2.5rem] sm:rounded-tr-[6rem] lg:min-h-[500px]">
               <div className="absolute inset-x-0 top-0 lg:inset-0">
-                <img
-                  src="/home-hero-adopter-dog-hd.jpg"
-                  alt="A woman gently holding paws with a rescue dog"
-                  className="h-auto w-full [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] lg:h-full lg:object-cover lg:object-[45%_48%] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
-                  onError={(e) => {
-                    e.currentTarget.style.visibility = "hidden";
-                  }}
-                />
+                <picture>
+                  <source
+                    media="(max-width: 767px)"
+                    srcSet="/home-hero-adopter-dog-768.jpg"
+                    type="image/jpeg"
+                  />
+                  <source srcSet="/home-hero-adopter-dog.avif" type="image/avif" />
+                  <img
+                    src="/home-hero-adopter-dog-hd.jpg"
+                    alt="A woman gently holding paws with a rescue dog"
+                    width="1537"
+                    height="1023"
+                    fetchPriority="high"
+                    decoding="async"
+                    className="h-auto w-full [-webkit-mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] [mask-image:linear-gradient(to_bottom,#000_0%,#000_62%,rgba(0,0,0,0.92)_70%,rgba(0,0,0,0.52)_84%,transparent_100%)] lg:h-full lg:object-cover lg:object-[45%_48%] lg:[-webkit-mask-image:none] lg:[mask-image:none]"
+                    onError={(e) => {
+                      e.currentTarget.style.visibility = "hidden";
+                    }}
+                  />
+                </picture>
               </div>
               <div className="absolute inset-0 bg-[#183D35]/5 lg:bg-transparent" />
               <div className="absolute inset-x-0 bottom-0 h-[82%] bg-gradient-to-t from-[#183D35] via-[#183D35]/72 to-transparent lg:hidden" />
@@ -481,8 +552,7 @@ export default function Home() {
                 <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
                   {previewDogs.map((dog) => {
                     const image =
-                      normalizeImageUrl(dog?.photo_url, { allowRelative: false }) ||
-                      fallbackDogImages[0];
+                      previewDogImage(dog?.photo_url) || fallbackDogImages[0];
                     const age = previewDogAge(dog);
                     const location = previewDogLocation(dog);
                     const tagline = previewDogTagline(dog);
@@ -492,7 +562,6 @@ export default function Home() {
                       <Link
                         key={dog.id}
                         to={dogProfilePath(dog)}
-                        aria-label={`View ${dog.name}'s profile`}
                         className="w-48 shrink-0 overflow-hidden rounded-2xl border border-[#C7D4BB] bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg sm:w-auto"
                       >
                         <div className="h-28 w-full bg-[#EFE8DC] sm:h-48">
@@ -501,6 +570,8 @@ export default function Home() {
                             alt={`${dog.name}, an adoptable dog`}
                             className="h-full w-full object-cover"
                             loading="lazy"
+                            fetchPriority="low"
+                            decoding="async"
                             onError={(event) => {
                               event.currentTarget.onerror = null;
                               event.currentTarget.src = fallbackDogImages[0];
@@ -563,13 +634,13 @@ export default function Home() {
 
         <section className="bg-[#EFE8DC] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
           <div className="mx-auto max-w-6xl">
-            <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#5F5A56]">
               Why matching matters
             </p>
             <h2 className="mt-2 max-w-lg font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
               Better fit starts with better questions.
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#6F6A66] sm:text-base">
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#5F5A56] sm:text-base">
               Choosing a dog is about more than a photo. A thoughtful starting point can help you focus your search and prepare better questions for the shelter or rescue.
             </p>
 
@@ -579,7 +650,7 @@ export default function Home() {
                   key={item.label}
                   className="rounded-2xl border border-[#C7D4BB] bg-white/85 p-5 shadow-[0_10px_30px_rgba(15,39,66,0.06)] sm:p-6"
                 >
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#D5AB70]">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7A5428]">
                     {item.label}
                   </p>
                   <h3 className="mt-4 font-['Fraunces',serif] text-xl font-semibold leading-tight text-[#183D35]">
@@ -669,7 +740,15 @@ export default function Home() {
           <div className="grid gap-6 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
             <div>
               <Link to="/" aria-label="Hooman Finder home" className="inline-flex">
-                <img src="/logo.png" alt="Hooman Finder" className="h-9 w-auto" />
+                <img
+                  src="/logo-180.png"
+                  alt="Hooman Finder"
+                  width="180"
+                  height="163"
+                  loading="lazy"
+                  decoding="async"
+                  className="h-9 w-auto"
+                />
               </Link>
               <p className="mt-4 max-w-md text-sm leading-6 text-[#6F6A66]">
                 A free tool helping people discover adoptable dogs through lifestyle fit, then continue directly with the shelter or rescue.

@@ -29,8 +29,11 @@ export default function SiteHeader({ back = null, ctas = [] }) {
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-[#C7D4BB] bg-white p-1.5"
           >
             <img
-              src="/logo.png"
+              src="/logo-180.png"
               alt="Hooman Finder"
+              width="180"
+              height="163"
+              decoding="async"
               className="h-full w-full object-contain"
               onError={(e) => {
                 e.currentTarget.style.visibility = "hidden";

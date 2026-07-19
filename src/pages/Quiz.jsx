@@ -105,6 +105,7 @@ export default function Quiz() {
   const [answersById, setAnswersById] = useState({});
   const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState("");
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [openRefineSection, setOpenRefineSection] = useState(REFINE_SECTIONS[0]);
   const quizTopRef = useRef(null);
   const refineSectionRefs = useRef({});
@@ -203,6 +204,22 @@ export default function Quiz() {
     goResults();
   }
 
+  function resetAnswers() {
+    const nextSessionId = ensureSessionId("");
+    const next = new URLSearchParams();
+
+    next.set("session", nextSessionId);
+    next.set("mode", QUIZ_MODES.DEALBREAKERS);
+
+    setAnswersById({});
+    setSaveError("");
+    setResetConfirmOpen(false);
+    setOpenRefineSection(REFINE_SECTIONS[0]);
+    setActiveQuizSessionId(nextSessionId);
+    setSearchParams(next, { replace: true });
+    scrollToQuizTop();
+  }
+
   function toggleRefineSection(groupTitle, isOpen) {
     if (isOpen) {
       setOpenRefineSection("");
@@ -232,6 +249,7 @@ export default function Quiz() {
   }, [mode, questions]);
 
   const segments = Array.from({ length: Math.max(completion.total || 1, 1) });
+  const hasAnyAnswers = Object.values(answersById).some(hasAnswer);
 
   const pageTitle =
     mode === QUIZ_MODES.DEALBREAKERS ? "Start your match" : "Refine matches";
@@ -251,7 +269,7 @@ export default function Quiz() {
         ogImageAlt="Shelter and rescue dogs looking for a good lifestyle match"
         noindex={Boolean(sessionFromUrl)}
       />
-      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-32 pt-1.5 sm:px-5 sm:pb-32 sm:pt-3">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-36 pt-1.5 sm:px-5 sm:pb-36 sm:pt-3">
         <header className="sticky top-0 z-30 -mx-3 border-b border-[#183D35]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
           <div className="flex items-center justify-between gap-2.5">
             <button
@@ -262,10 +280,49 @@ export default function Quiz() {
               ← Back to dogs
             </button>
 
-            <div className="shrink-0 rounded-full bg-white/80 px-2.5 py-1 text-right text-[10px] font-black uppercase tracking-[0.12em] text-[#183D35] ring-1 ring-[#183D35]/8">
-              {completion.answered}/{completion.total} answered
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setResetConfirmOpen(true)}
+                disabled={loading || !hasAnyAnswers}
+                className="min-h-8 rounded-full px-2 text-[10px] font-black text-[#183D35] underline decoration-[#183D35]/35 underline-offset-4 hover:bg-white/70 disabled:cursor-not-allowed disabled:no-underline disabled:opacity-35 sm:px-3 sm:text-xs"
+              >
+                Reset answers
+              </button>
+
+              <div className="rounded-full bg-white/80 px-2.5 py-1 text-right text-[10px] font-black uppercase tracking-[0.12em] text-[#183D35] ring-1 ring-[#183D35]/8">
+                {completion.answered}/{completion.total} answered
+              </div>
             </div>
           </div>
+
+          {resetConfirmOpen ? (
+            <div
+              className="mt-2 flex items-center justify-between gap-3 rounded-2xl border border-[#183D35]/12 bg-white px-3 py-2 shadow-sm"
+              role="alertdialog"
+              aria-label="Confirm reset answers"
+            >
+              <p className="text-xs font-bold text-[#183D35]">
+                Clear every answer and start over?
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetConfirmOpen(false)}
+                  className="min-h-9 rounded-full px-3 text-xs font-black text-[#183D35] hover:bg-[#f5f1e9]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={resetAnswers}
+                  className="min-h-9 rounded-full bg-[#183D35] px-3 text-xs font-black text-[#F3C982] hover:bg-[#12332C]"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-2 flex gap-1 overflow-hidden">
             {segments.map((_, idx) => (
@@ -365,7 +422,11 @@ export default function Quiz() {
           )}
         </main>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#183D35]/10 bg-[#f5f1e9]/96 px-3 pb-2.5 pt-2 shadow-2xl backdrop-blur sm:px-5 sm:pb-3">
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-[#183D35]/10 bg-[#f5f1e9]/96 px-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_35px_rgba(24,61,53,0.14)] backdrop-blur sm:px-5 sm:pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
+          role="region"
+          aria-label="Quiz actions"
+        >
           <div className="mx-auto max-w-3xl">
             <div className="grid grid-cols-[1fr_1.1fr] gap-2">
               <button
@@ -373,7 +434,7 @@ export default function Quiz() {
                 onClick={saveAndSeeMatches}
                 className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35]/18 bg-white px-3 py-2 text-xs font-black text-[#183D35] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
               >
-                See Matches
+                See my matches
               </button>
 
               {mode === QUIZ_MODES.DEALBREAKERS ? (
@@ -387,31 +448,16 @@ export default function Quiz() {
               ) : (
                 <button
                   type="button"
-                  onClick={goResults}
+                  onClick={goDealbreakers}
                   className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 py-2 text-xs font-black text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:text-sm"
                 >
-                  See matches →
+                  ← Back to essentials
                 </button>
               )}
             </div>
 
-            <div
-              className={[
-                "mt-1 flex items-center gap-2 text-[10px] font-semibold text-[#183D35]/55",
-                mode === QUIZ_MODES.DEALBREAKERS ? "justify-center" : "justify-between",
-              ].join(" ")}
-            >
-              {mode === QUIZ_MODES.REFINE ? (
-                <button
-                  type="button"
-                  onClick={goDealbreakers}
-                  className="underline underline-offset-4 hover:text-[#183D35]"
-                >
-                  Back to essentials
-                </button>
-              ) : null}
-
-              <span>You can update these later.</span>
+            <div className="mt-1 flex justify-center text-[10px] font-semibold text-[#183D35]/55">
+              <span>Your answers save automatically.</span>
             </div>
           </div>
         </div>

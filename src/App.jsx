@@ -1,19 +1,20 @@
 // src/App.jsx
-import React, { useLayoutEffect } from "react";
+import React, { lazy, Suspense, useLayoutEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
-import Quiz from "./pages/Quiz.jsx";
-import Results from "./pages/Results.jsx";
-import Dogs from "./pages/Dogs.jsx";
-import DogDetail from "./pages/DogDetail.jsx";
-import Shelter from "./pages/Shelter.jsx";
-import JoinShelters from "./pages/JoinShelters.jsx";
-import Saved from "./pages/Saved.jsx";
-import About from "./pages/About.jsx";
-import Contact from "./pages/Contact.jsx";
-import Privacy from "./pages/Privacy.jsx";
-import Terms from "./pages/Terms.jsx";
+
+const Quiz = lazy(() => import("./pages/Quiz.jsx"));
+const Results = lazy(() => import("./pages/Results.jsx"));
+const Dogs = lazy(() => import("./pages/Dogs.jsx"));
+const DogDetail = lazy(() => import("./pages/DogDetail.jsx"));
+const Shelter = lazy(() => import("./pages/Shelter.jsx"));
+const JoinShelters = lazy(() => import("./pages/JoinShelters.jsx"));
+const Saved = lazy(() => import("./pages/Saved.jsx"));
+const About = lazy(() => import("./pages/About.jsx"));
+const Contact = lazy(() => import("./pages/Contact.jsx"));
+const Privacy = lazy(() => import("./pages/Privacy.jsx"));
+const Terms = lazy(() => import("./pages/Terms.jsx"));
 
 function ScrollToTop() {
   const location = useLocation();
@@ -43,33 +44,43 @@ export default function App() {
           ScrollToTop, and it's a no-op under prefers-reduced-motion via the
           global media query in index.css. */}
       <div key={location.pathname} className="hf-page-enter">
-        <Routes>
-          <Route path="/" element={<Home />} />
+        <Suspense
+          fallback={
+            <div
+              className="min-h-screen bg-[#F5F1E9]"
+              role="status"
+              aria-label="Loading page"
+            />
+          }
+        >
+          <Routes>
+            <Route path="/" element={<Home />} />
 
-          <Route path="/quiz" element={<Quiz />} />
-          <Route path="/results" element={<Results />} />
+            <Route path="/quiz" element={<Quiz />} />
+            <Route path="/results" element={<Results />} />
 
-          <Route path="/dogs" element={<Dogs />} />
-          <Route path="/saved" element={<Saved />} />
+            <Route path="/dogs" element={<Dogs />} />
+            <Route path="/saved" element={<Saved />} />
 
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/terms" element={<Terms />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/terms" element={<Terms />} />
 
-          {/* Dog profile page (support BOTH /dog/:id and /dogs/:id so nothing breaks) */}
-          <Route path="/dog/:id" element={<DogDetail />} />
-          <Route path="/dogs/:id" element={<DogDetail />} />
+            {/* Dog profile page (support BOTH /dog/:id and /dogs/:id so nothing breaks) */}
+            <Route path="/dog/:id" element={<DogDetail />} />
+            <Route path="/dogs/:id" element={<DogDetail />} />
 
-          {/* Shelter profile page */}
-          <Route path="/shelter/:id" element={<Shelter />} />
+            {/* Shelter profile page */}
+            <Route path="/shelter/:id" element={<Shelter />} />
 
-          {/* Shelter onboarding / join page */}
-          <Route path="/shelters/join" element={<JoinShelters />} />
+            {/* Shelter onboarding / join page */}
+            <Route path="/shelters/join" element={<JoinShelters />} />
 
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </div>
     </>
   );

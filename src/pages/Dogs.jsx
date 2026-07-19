@@ -314,7 +314,7 @@ export default function Dogs() {
             aria-label="Go home"
           >
             <img
-              src="/logo.png"
+              src="/logo-180.png"
               alt="Hooman Finder"
               className="h-full w-full object-contain"
               onError={(e) => {
