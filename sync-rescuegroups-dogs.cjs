@@ -12,6 +12,9 @@ const {
   DACC_WEBSITE,
   attachShelterIdsToDogs,
 } = require("./scripts/rescuegroups-shelter-utils.cjs");
+const {
+  resolveDogAvailability,
+} = require("./scripts/dog-availability.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -132,27 +135,6 @@ function normalizeBarkingLevel(value) {
   return allowedValues[text] || null;
 }
 
-function inferAdoptionPending(name) {
-  const text = String(name || "").toLowerCase();
-  return text.includes("pending");
-}
-
-function inferAdoptableFromName(name) {
-  const text = String(name || "").toLowerCase();
-
-  if (text.includes("adopted")) return false;
-
-  return true;
-}
-
-function inferUrgencyFromName(name) {
-  const text = String(name || "").toLowerCase();
-
-  if (text.includes("adopted")) return "Adopted";
-
-  return "Standard";
-}
-
 function getRelationshipData(animal, relationshipName) {
   return animal?.relationships?.[relationshipName]?.data || null;
 }
@@ -194,6 +176,20 @@ function getOrgForAnimal(animal, included) {
   return (
     findIncludedResource(included, "orgs", orgId) ||
     findIncludedResource(included, "organizations", orgId) ||
+    null
+  );
+}
+
+function getStatusForAnimal(animal, included) {
+  const statusId =
+    getRelationshipId(animal, "statuses") ||
+    getRelationshipId(animal, "status");
+
+  if (!statusId) return null;
+
+  return (
+    findIncludedResource(included, "statuses", statusId) ||
+    findIncludedResource(included, "status", statusId) ||
     null
   );
 }
@@ -416,6 +412,10 @@ function mapAnimalToDogRow(animal, included, rescue) {
       : null;
 
   const name = attrs.name || "Unnamed Dog";
+  const description =
+    cleanText(attrs.descriptionText) ||
+    cleanText(attrs.descriptionHtml) ||
+    cleanText(attrs.description);
   const adoptionUrl = getPublicListingUrl(animal, orgId);
   const photoUrls = getPhotoUrls(animal, included);
   const photoUrl = photoUrls[0] || null;
@@ -424,10 +424,16 @@ function mapAnimalToDogRow(animal, included, rescue) {
   const city = attrs.locationCity || orgAttrs.city || rescue.city || null;
   const state = attrs.locationState || orgAttrs.state || rescue.state || "MI";
 
-  const adoptableFromName = inferAdoptableFromName(name);
-  const adoptionPending = hasSourceValue(attrs, "isAdoptionPending")
-    ? attrs.isAdoptionPending === true
-    : inferAdoptionPending(name);
+  const status = getStatusForAnimal(animal, included);
+  const statusText = [status?.attributes?.name, status?.attributes?.description]
+    .filter(Boolean)
+    .join(" ");
+  const availability = resolveDogAvailability({
+    dog: { name, description },
+    isAdoptionPending: attrs.isAdoptionPending,
+    isCourtesyListing: attrs.isCourtesyListing,
+    sourceStatus: statusText,
+  });
 
   const row = {
     source: "rescuegroups",
@@ -443,17 +449,14 @@ function mapAnimalToDogRow(animal, included, rescue) {
     gender: attrs.sex || attrs.gender || null,
 
     size: normalizeSize(attrs.sizeGroup || attrs.sizeCurrent || attrs.size),
-    description:
-      cleanText(attrs.descriptionText) ||
-      cleanText(attrs.descriptionHtml) ||
-      cleanText(attrs.description),
+    description,
 
     photo_url: photoUrl,
     photo_urls: photoUrls,
 
-    adoptable: adoptableFromName,
-    adoption_pending: adoptionPending,
-    urgency_level: inferUrgencyFromName(name),
+    adoptable: availability.adoptable,
+    adoption_pending: availability.adoptionPending,
+    urgency_level: availability.urgencyLevel,
 
     source_url: adoptionUrl,
     adoption_url: adoptionUrl,
@@ -470,8 +473,8 @@ function mapAnimalToDogRow(animal, included, rescue) {
     placement_state: state,
     placement_location: city && state ? `${city}, ${state}` : state,
 
-    availability_status: adoptableFromName ? "available" : "unavailable",
-    unavailable_reason: adoptableFromName ? null : "Name indicates adopted",
+    availability_status: availability.availabilityStatus,
+    unavailable_reason: availability.unavailableReason,
 
     imported_status: "visible",
 
@@ -588,6 +591,7 @@ function buildRequestBody(rescue, pageNumber) {
           "qualities",
           "pictureCount",
           "isAdoptionPending",
+          "isCourtesyListing",
           "pictureUrl",
           "imageUrl",
           "photoUrl",
@@ -606,8 +610,9 @@ function buildRequestBody(rescue, pageNumber) {
           "url",
         ],
         orgs: ["name", "city", "state", "url", "website"],
+        statuses: ["name", "description"],
       },
-      include: ["pictures", "orgs"],
+      include: ["pictures", "orgs", "statuses"],
       page: {
         limit: PAGE_LIMIT,
         offset: (pageNumber - 1) * PAGE_LIMIT,

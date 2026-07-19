@@ -77,6 +77,8 @@ export default function Saved() {
           .from("dogs")
           .select(DOG_SELECT)
           .in("id", savedIds)
+          .eq("adoptable", true)
+          .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"]);
 
         if (fetchError) throw fetchError;

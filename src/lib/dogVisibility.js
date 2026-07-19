@@ -1,3 +1,5 @@
+import { getDogAvailabilitySignal } from "./dogAvailability.js";
+
 const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
 const VERIFIED_CONFIDENCE = new Set(["current", "trusted", "verified"]);
 const TRUSTED_EXTERNAL_ID_SOURCES = new Set(["rescuegroups"]);
@@ -59,6 +61,7 @@ export function isPubliclyVisibleDog(dog) {
   if (dog.adoption_pending === true) return false;
   if (lower(dog.urgency_level) === "adopted") return false;
   if (!ACTIVE_STATUSES.has(lower(dog.availability_status))) return false;
+  if (getDogAvailabilitySignal(dog)) return false;
 
   return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
 }

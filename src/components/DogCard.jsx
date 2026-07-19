@@ -10,6 +10,7 @@ import {
 import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge, resolveAgeYears } from "../utils/formatAge";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
+import { truncateAtWord } from "../utils/truncateAtWord";
 import { getTraitDisplay } from "../lib/traitDisplay";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
@@ -377,6 +378,10 @@ export default function DogCard({
   const lifestyleTags = useMemo(() => buildLifestyleTags(dog, ageLabel), [dog, ageLabel]);
   const descriptionPreview = useMemo(() => buildDescription(dog), [dog]);
   const fitChips = useMemo(() => buildFitChips(dog), [dog]);
+  const fullName = dog?.name || "Unnamed";
+  const compactName = truncateAtWord(fullName, 16);
+  const cardName = truncateAtWord(fullName, 18);
+  const savedName = truncateAtWord(fullName, 18);
 
   const dogLink = useMemo(() => {
     const base = `/dog/${dog?.id}`;
@@ -581,8 +586,8 @@ export default function DogCard({
           </div>
 
           <div className="min-w-0 py-1">
-            <h3 className="truncate font-['Fraunces',serif] text-xl font-semibold leading-none text-[#183D35]">
-              {dog?.name || "Unnamed"}
+            <h3 className="overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-xl font-semibold leading-none text-[#183D35]">
+              {savedName}
             </h3>
 
             <p className="mt-1 truncate text-[11px] font-semibold text-[#6F6A66]">
@@ -684,8 +689,8 @@ export default function DogCard({
                 {shelterName(dog)}
               </p>
 
-              <h2 className="mt-0.5 truncate font-['Fraunces',serif] text-lg font-semibold leading-tight">
-                {dog?.name || "Unnamed"}
+              <h2 className="mt-0.5 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-lg font-semibold leading-tight">
+                {compactName}
               </h2>
 
               {[ageLabel, dog?.size].filter(Boolean).length ? (
@@ -703,8 +708,8 @@ export default function DogCard({
                   {shelterName(dog)}
                 </p>
 
-                <h2 className="mt-1 truncate font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
-                  {dog?.name || "Unnamed"}
+                <h2 className="mt-1 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
+                  {cardName}
                 </h2>
               </div>
             </div>
@@ -786,8 +791,8 @@ export default function DogCard({
               {shelterName(dog)}
             </p>
 
-            <h2 className="mt-0.5 truncate font-['Fraunces',serif] text-lg font-semibold leading-tight">
-              {dog?.name || "Unnamed"}
+            <h2 className="mt-0.5 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-lg font-semibold leading-tight">
+              {compactName}
             </h2>
 
             {mobileMetaLine ? (
@@ -804,8 +809,8 @@ export default function DogCard({
             {shelterName(dog)}
           </p>
 
-          <h2 className="mt-1 truncate font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
-            {dog?.name || "Unnamed"}
+          <h2 className="mt-1 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
+            {cardName}
           </h2>
 
           {metaLine ? (

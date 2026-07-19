@@ -9,13 +9,26 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
+const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 
 const SITE_URL = "https://hoomanfinder.com";
-const OUTPUT_PATH = path.join(process.cwd(), "public", "dog-sitemap.xml");
+const SITEMAP_PATH = path.join(process.cwd(), "public", "sitemap.xml");
+const DOG_SITEMAP_PATH = path.join(process.cwd(), "public", "dog-sitemap.xml");
 const PAGE_SIZE = 1000;
+const STATIC_ROUTES = [
+  { path: "/", changefreq: "weekly", priority: "1.0" },
+  { path: "/dogs", changefreq: "daily", priority: "0.9" },
+  { path: "/quiz", changefreq: "monthly", priority: "0.8" },
+  { path: "/about", changefreq: "monthly", priority: "0.6" },
+  { path: "/contact", changefreq: "yearly", priority: "0.4" },
+  { path: "/privacy", changefreq: "yearly", priority: "0.2" },
+  { path: "/terms", changefreq: "yearly", priority: "0.2" },
+];
 
 const DOG_SELECT = [
   "id",
+  "name",
+  "description",
   "adoptable",
   "adoption_pending",
   "urgency_level",
@@ -27,6 +40,8 @@ const DOG_SELECT = [
   "source_url",
   "adoption_url",
   "created_at",
+  "last_seen_at",
+  "source_updated_at",
 ].join(", ");
 
 const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
@@ -90,6 +105,7 @@ function isPubliclyVisibleDog(dog) {
   if (dog.adoption_pending === true) return false;
   if (lower(dog.urgency_level) === "adopted") return false;
   if (!ACTIVE_STATUSES.has(lower(dog.availability_status))) return false;
+  if (getDogAvailabilitySignal(dog)) return false;
 
   return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
 }
@@ -114,18 +130,32 @@ function formatLastmod(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function buildXml(dogs) {
-  const urls = dogs
+function buildUrlXml({ loc, lastmod, changefreq, priority }) {
+  return [
+    "  <url>",
+    `    <loc>${escapeXml(loc)}</loc>`,
+    lastmod ? `    <lastmod>${escapeXml(lastmod)}</lastmod>` : "",
+    `    <changefreq>${escapeXml(changefreq)}</changefreq>`,
+    `    <priority>${escapeXml(priority)}</priority>`,
+    "  </url>",
+  ].filter(Boolean).join("\n");
+}
+
+function dogEntries(dogs) {
+  return dogs.map((dog) => ({
+    loc: dogUrl(dog),
+    lastmod: formatLastmod(
+      dog.source_updated_at || dog.last_seen_at || dog.created_at
+    ),
+    changefreq: "daily",
+    priority: "0.7",
+  }));
+}
+
+function buildXml(entries) {
+  const urls = entries
     .map((dog) => {
-      const lastmod = formatLastmod(dog.updated_at || dog.created_at);
-      return [
-        "  <url>",
-        `    <loc>${escapeXml(dogUrl(dog))}</loc>`,
-        lastmod ? `    <lastmod>${escapeXml(lastmod)}</lastmod>` : "",
-        "    <changefreq>daily</changefreq>",
-        "    <priority>0.7</priority>",
-        "  </url>",
-      ].filter(Boolean).join("\n");
+      return buildUrlXml(dog);
     })
     .join("\n");
 
@@ -194,10 +224,18 @@ async function main() {
   const dogs = rows
     .filter(isPubliclyVisibleDog)
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const staticEntries = STATIC_ROUTES.map((route) => ({
+    loc: `${SITE_URL}${route.path}`,
+    changefreq: route.changefreq,
+    priority: route.priority,
+  }));
+  const dogsOnly = dogEntries(dogs);
 
-  fs.writeFileSync(OUTPUT_PATH, buildXml(dogs), "utf8");
+  fs.writeFileSync(DOG_SITEMAP_PATH, buildXml(dogsOnly), "utf8");
+  fs.writeFileSync(SITEMAP_PATH, buildXml([...staticEntries, ...dogsOnly]), "utf8");
 
-  console.log(`Generated ${path.relative(process.cwd(), OUTPUT_PATH)}.`);
+  console.log(`Generated ${path.relative(process.cwd(), SITEMAP_PATH)}.`);
+  console.log(`Generated ${path.relative(process.cwd(), DOG_SITEMAP_PATH)}.`);
   console.log(`Supabase key used: ${keyType}.`);
   console.log(`Fetched ${rows.length} candidate dogs; included ${dogs.length} public dog URLs.`);
 }

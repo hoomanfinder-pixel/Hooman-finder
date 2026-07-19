@@ -160,6 +160,7 @@ export default function Results() {
           .from("dogs")
           .select(DOG_SELECT)
           .eq("adoptable", true)
+          .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"])
           .order("created_at", { ascending: false });
 

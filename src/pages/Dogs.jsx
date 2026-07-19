@@ -168,6 +168,7 @@ export default function Dogs() {
           )
         `)
         .eq("adoptable", true)
+        .or("adoption_pending.is.null,adoption_pending.eq.false")
         .in("availability_status", ["available", "active", "unknown"])
         .order("created_at", { ascending: false });
 

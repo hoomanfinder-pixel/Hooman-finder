@@ -501,16 +501,22 @@ export default function DogDetail() {
   const seoBreed = dog ? displayBreed(dog) : "Dog";
   const seoShelter = dog ? displayShelterName(dog) : "a rescue or shelter";
   const seoTitle = seoDogName
-    ? `${seoDogName} - Adoptable ${seoBreed} | Hooman Finder`
+    ? dogIsPublic
+      ? `${seoDogName} - Adoptable ${seoBreed} | Hooman Finder`
+      : `${seoDogName} - Adoption Status Unavailable | Hooman Finder`
     : !loading && (loadError || !dog)
       ? "Dog Not Found | Hooman Finder"
       : "Adoptable Dog | Hooman Finder";
   const seoDescription = seoDogName
-    ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View photos, rescue details, and lifestyle fit information on Hooman Finder.`
+    ? dogIsPublic
+      ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View photos, rescue details, and lifestyle fit information on Hooman Finder.`
+      : `${seoDogName} may no longer be available. Browse currently adoptable dogs on Hooman Finder.`
     : "View adoptable dog details, photos, and adoption fit information on Hooman Finder.";
   const seoImage = resolvedImage?.startsWith("https://") ? resolvedImage : "/home-hero-dogs.jpg";
   const seoImageAlt = seoDogName
-    ? `${seoDogName}, adoptable ${seoBreed}`
+    ? dogIsPublic
+      ? `${seoDogName}, adoptable ${seoBreed}`
+      : `${seoDogName}, dog with unavailable adoption status`
     : "Adoptable dog on Hooman Finder";
   const seoNoindex = Boolean(sessionFromUrl) || (!loading && (loadError || !dog || !dogIsPublic));
   const seo = (

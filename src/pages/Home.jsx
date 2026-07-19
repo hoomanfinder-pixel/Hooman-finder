@@ -8,6 +8,7 @@ import { filterPublicDogs } from "../lib/dogVisibility";
 import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge, resolveAgeYears } from "../utils/formatAge";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
+import { truncateAtWord } from "../utils/truncateAtWord";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -359,15 +360,10 @@ export default function Home() {
   // Up to 6 real, currently available dogs for the "Meet some dogs" preview.
   // featuredDogs is already filtered to public/adoptable dogs with photos and
   // daily-rotated, so this just caps the count without touching that logic.
-  // Extra display-time guard for this homepage feature specifically: some
-  // shelter feeds put status text directly in the dog's name field (e.g.
-  // "Bette - Adoption Pending") rather than the structured adoption_pending
-  // column the shared visibility filter checks. Never surface that on the
-  // homepage, even if it technically passed the structured-field filter.
   const previewDogs = useMemo(
     () =>
       featuredDogs
-        .filter((dog) => dog?.id && !/adopt(ed|ion pending)|pending/i.test(dog?.name || ""))
+        .filter((dog) => dog?.id)
         .slice(0, 3),
     [featuredDogs]
   );
@@ -579,8 +575,9 @@ export default function Home() {
                           />
                         </div>
                         <div className="p-3 sm:p-4">
-                          <p className="line-clamp-2 font-['Fraunces',serif] text-base font-semibold leading-tight text-[#183D35] sm:line-clamp-1 sm:text-xl">
-                            {dog.name}
+                          <p className="overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-base font-semibold leading-tight text-[#183D35] sm:text-xl">
+                            <span className="sm:hidden">{truncateAtWord(dog.name, 16)}</span>
+                            <span className="hidden sm:inline">{truncateAtWord(dog.name, 30)}</span>
                           </p>
                           {metaLine ? (
                             <p className="mt-0.5 truncate text-[11px] text-[#6F6A66] sm:text-xs">

@@ -51,6 +51,7 @@ export default function Shelter() {
           .select("*, shelters ( id, name, city, state, apply_url, website, logo_url )")
           .eq("shelter_id", id)
           .eq("adoptable", true)
+          .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"])
           .order("name", { ascending: true });
 

@@ -16,6 +16,7 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
+const { resolveDogAvailability } = require("./dog-availability.cjs");
 const {
   DACC_ADOPT_URL,
   DACC_WEBSITE,
@@ -334,19 +335,6 @@ function isPending(animal) {
   return values.some((value) => String(value || "").toLowerCase().includes("pending"));
 }
 
-function isAvailable(animal) {
-  const pending = isPending(animal);
-  const statuses = [
-    attr(animal, "status"),
-    attr(animal, "statusName"),
-    attr(animal, "statusesName"),
-  ]
-    .map((value) => String(value || "").toLowerCase())
-    .filter(Boolean);
-
-  return !pending && statuses.every((status) => status.includes("available"));
-}
-
 function toIsoDate(value) {
   const text = clean(value);
   if (!text) return null;
@@ -367,6 +355,23 @@ function mapAnimalToDogRow(animal, included) {
     normalizeState(orgAttrs.state) ||
     DACC_STATE;
   const photoUrls = getPhotoUrls(animal, included);
+  const description =
+    cleanText(attr(animal, "descriptionText")) ||
+    cleanText(attr(animal, "descriptionHtml")) ||
+    cleanText(attr(animal, "description"));
+  const sourceStatus = [
+    attr(animal, "status"),
+    attr(animal, "statusName"),
+    attr(animal, "statusesName"),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const availability = resolveDogAvailability({
+    dog: { name, description },
+    isAdoptionPending: isPending(animal),
+    isCourtesyListing: attr(animal, "isCourtesyListing"),
+    sourceStatus,
+  });
 
   const row = {
     source: "rescuegroups",
@@ -381,15 +386,13 @@ function mapAnimalToDogRow(animal, included) {
     size: normalizeSize(
       attr(animal, "sizeGroup") || attr(animal, "sizeCurrent") || attr(animal, "size")
     ),
-    description:
-      cleanText(attr(animal, "descriptionText")) ||
-      cleanText(attr(animal, "descriptionHtml")) ||
-      cleanText(attr(animal, "description")),
+    description,
     photo_url: photoUrls[0] || null,
     photo_urls: photoUrls,
-    adoptable: true,
-    adoption_pending: isPending(animal),
-    availability_status: "available",
+    adoptable: availability.adoptable,
+    adoption_pending: availability.adoptionPending,
+    availability_status: availability.availabilityStatus,
+    unavailable_reason: availability.unavailableReason,
     source_url: DACC_ADOPT_URL,
     adoption_url: DACC_ADOPT_URL,
     shelter_name: clean(orgAttrs.name) || DACC_ORG_NAME,
@@ -401,7 +404,7 @@ function mapAnimalToDogRow(animal, included) {
     source_updated_at: toIsoDate(attr(animal, "updatedDate")),
     last_checked_at: now,
     last_seen_at: now,
-    urgency_level: "Standard",
+    urgency_level: availability.urgencyLevel,
   };
 
   addSourceField(row, animal, "isDogsOk", "good_with_dogs");
@@ -491,6 +494,7 @@ function buildRequestBody(pageNumber) {
           "qualities",
           "pictureCount",
           "isAdoptionPending",
+          "isCourtesyListing",
           "status",
           "statusName",
           "statusesName",

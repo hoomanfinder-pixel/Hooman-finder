@@ -23,6 +23,7 @@
 require("dotenv").config({ path: ".env.local" });
 
 const { createClient } = require("@supabase/supabase-js");
+const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -2085,6 +2086,8 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_traits_updated_at,
       needs_human_review,
       adoptable,
+      adoption_pending,
+      availability_status,
       urgency_level,
       shelters (
         name
@@ -2092,6 +2095,8 @@ async function fetchDogs({ limit, force, dogId }) {
     `
     )
     .eq("adoptable", true)
+    .or("adoption_pending.is.null,adoption_pending.eq.false")
+    .in("availability_status", ["available", "active", "unknown"])
     .neq("urgency_level", "Adopted")
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -2110,7 +2115,9 @@ async function fetchDogs({ limit, force, dogId }) {
 
   if (error) throw error;
 
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data)
+    ? data.filter((dog) => !getDogAvailabilitySignal(dog))
+    : [];
 }
 
 async function main() {

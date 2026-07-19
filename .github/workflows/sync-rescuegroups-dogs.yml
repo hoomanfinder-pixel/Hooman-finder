@@ -42,10 +42,10 @@ jobs:
 
       - name: Commit updated sitemap if changed
         run: |
-          if ! git diff --quiet -- public/dog-sitemap.xml; then
+          if ! git diff --quiet -- public/sitemap.xml public/dog-sitemap.xml; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add public/dog-sitemap.xml
+            git add public/sitemap.xml public/dog-sitemap.xml
             git commit -m "Auto-update dog sitemap [skip ci]"
             git push
           else
