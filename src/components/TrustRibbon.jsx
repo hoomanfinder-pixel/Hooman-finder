@@ -227,7 +227,7 @@ export default function TrustRibbon({ stat = null }) {
     >
       <div className="mx-auto max-w-6xl">
         <div
-          className="relative rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-4 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-5"
+          className="relative rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-2 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-3"
         >
           {stat ? <StatRow value={stat.value} label={stat.label} /> : null}
 
@@ -266,13 +266,13 @@ export default function TrustRibbon({ stat = null }) {
           </div>
 
           <img
-            src="/assets/resting-dog-silhouette.webp"
+            src="/assets/peeking-dog-silhouette.webp"
             alt=""
             aria-hidden="true"
-            width="256"
-            height="90"
+            width="280"
+            height="322"
             decoding="async"
-            className="pointer-events-none absolute -bottom-3 left-5 z-20 w-20 select-none opacity-80 sm:-bottom-4 sm:left-7 sm:w-28"
+            className={`pointer-events-none absolute z-30 select-none opacity-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)] ${stat ? "top-[11px] right-[10px] w-[18px] sm:top-[15px] sm:right-[24px] sm:w-[27px]" : "top-[36px] right-[14px] w-[25px] sm:top-[52px] sm:right-[30px] sm:w-[40px]"}`}
           />
         </div>
 
