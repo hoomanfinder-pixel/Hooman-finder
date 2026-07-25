@@ -167,51 +167,66 @@ function RibbonItem({ item, interactive }) {
   );
 }
 
-function RibbonStat({ stat, interactive }) {
+function PlatformStat({ stat }) {
   const { ref, value: displayValue } = useCountUp(stat.value);
   const digits = String(stat.value).length;
   const StatIcon = stat.icon || PawIcon;
 
   return (
-    <div
-      className="ribbon-item flex shrink-0 items-center gap-2.5"
-      role={interactive ? "listitem" : undefined}
-    >
+    <div className="flex shrink-0 items-center gap-2 sm:gap-2.5" role="listitem">
       <span
         aria-hidden="true"
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982]"
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982] sm:h-7 sm:w-7"
       >
-        <StatIcon className="h-3 w-3" />
+        <StatIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
       </span>
-      <span className="ribbon-item-text whitespace-nowrap text-[13px] font-semibold text-[#183D35]">
+      <p className="whitespace-nowrap text-[12px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
         <span
           ref={ref}
           aria-hidden="true"
-          className="inline-block min-w-[1ch] tabular-nums font-['Fraunces',serif] text-[17px] font-bold"
+          className="inline-block tabular-nums font-['Fraunces',serif] text-[17px] font-bold sm:text-xl"
           style={{ minWidth: `${digits}ch` }}
         >
           {displayValue}
         </span>{" "}
         <span aria-hidden="true">{stat.label}</span>
         <span className="sr-only">{`${stat.value} ${stat.label}`}</span>
-      </span>
+      </p>
     </div>
   );
 }
 
-function RibbonGroup({ interactive, stats }) {
+function StatsRow({ stats }) {
+  return (
+    <div
+      className="relative flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-[#183D35]/10 px-4 py-2 pr-14 sm:gap-x-8 sm:px-6 sm:py-2.5 sm:pr-24"
+      role="list"
+      aria-label="Live platform stats"
+    >
+      {stats.map((stat, index) => (
+        <PlatformStat key={index} stat={stat} />
+      ))}
+
+      <img
+        src="/assets/peeking-dog-silhouette.webp"
+        alt=""
+        aria-hidden="true"
+        width="280"
+        height="322"
+        decoding="async"
+        className="pointer-events-none absolute right-2 -bottom-[3px] z-30 w-6 select-none opacity-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)] sm:right-4 sm:top-1/2 sm:bottom-auto sm:w-10 sm:-translate-y-1/2"
+      />
+    </div>
+  );
+}
+
+function RibbonGroup({ interactive }) {
   return (
     <div
       className="ribbon-group flex shrink-0 items-center"
       aria-hidden={interactive ? undefined : "true"}
       role={interactive ? "list" : undefined}
     >
-      {stats.map((stat, index) => (
-        <Fragment key={`${interactive ? "stat" : "stat-dup"}-${index}`}>
-          <RibbonStat stat={stat} interactive={interactive} />
-          <Divider />
-        </Fragment>
-      ))}
       {RIBBON_ITEMS.map((item, index) => (
         <Fragment key={`${interactive ? "real" : "dup"}-${index}`}>
           {index > 0 && <Divider />}
@@ -240,6 +255,8 @@ export default function TrustRibbon({ stats = [] }) {
         <div
           className="relative rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-2 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-3"
         >
+          {visibleStats.length > 0 ? <StatsRow stats={visibleStats} /> : null}
+
           <div
             className="ribbon-viewport relative overflow-hidden py-2 pl-4 pr-14 sm:py-3 sm:pl-6 sm:pr-20"
             style={{
@@ -259,8 +276,8 @@ export default function TrustRibbon({ stats = [] }) {
               className="ribbon-track flex w-max min-w-max flex-nowrap items-center"
               style={{ animationPlayState: paused ? "paused" : "running" }}
             >
-              <RibbonGroup interactive stats={visibleStats} />
-              <RibbonGroup stats={visibleStats} />
+              <RibbonGroup interactive />
+              <RibbonGroup />
             </div>
 
             <button
@@ -273,16 +290,6 @@ export default function TrustRibbon({ stats = [] }) {
               {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
             </button>
           </div>
-
-          <img
-            src="/assets/peeking-dog-silhouette.webp"
-            alt=""
-            aria-hidden="true"
-            width="280"
-            height="322"
-            decoding="async"
-            className="pointer-events-none absolute right-[14px] top-[36px] z-30 w-[25px] select-none opacity-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)] sm:right-[30px] sm:top-[52px] sm:w-[40px]"
-          />
         </div>
 
         <a
