@@ -247,12 +247,29 @@ function aiTraitCredit(dog, field, baseCredit) {
   return Math.min(MAX_ESTIMATED_TRAIT_CREDIT, baseCredit * trust);
 }
 
+// A bio-derived "no" is an estimate, not a shelter/foster-confirmed fact.
+// Under an absolute user requirement (hardRequirement) it should still be
+// allowed to weigh against a dog, but scaled by how confident the estimate
+// actually is — a low-confidence guess must not land as harshly as a
+// confirmed incompatibility (which returns a flat 0 above, before this is
+// ever reached). At full confidence this still reaches 0, matching prior
+// behavior; at low confidence it lands close to neutral instead.
+function aiTraitNegativeCredit(dog, field) {
+  const confidence = aiConfidenceForField(dog, field);
+  const reliability = FIELD_RELIABILITY[field] ?? 0.7;
+  const trust = Math.min(1, confidence * reliability);
+  return Math.max(0, 1 - trust);
+}
+
 function compatibilityCredit(dog, field, confirmedValue, bioValue, { hardRequirement = false } = {}) {
   if (confirmedValue === true || truthy(confirmedValue)) return 1;
   if (confirmedValue === false) return hardRequirement ? 0 : null;
 
   const base = bioBaseTraitCredit(bioValue);
-  if (base === 0 && !hardRequirement) return null;
+  if (base === 0) {
+    if (!hardRequirement) return null;
+    return aiTraitNegativeCredit(dog, field);
+  }
   return aiTraitCredit(dog, field, base);
 }
 

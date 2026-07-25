@@ -393,6 +393,10 @@ export default function Results() {
                 Ranked using your quiz answers and available listing details.
               </p>
 
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-[#6f6a66] sm:text-[13px]">
+                Matches reflect currently available shelter or foster information and responsible estimates. A dog’s behavior may change as they decompress and adjust to a new home, so confirm important traits directly with the shelter or foster.
+              </p>
+
             </div>
           </div>
 

@@ -149,7 +149,7 @@ export default function OptionSelect({
         <div
           className={
             optionLayout?.useTwoColumns
-              ? "grid grid-cols-2 gap-1.5"
+              ? "grid grid-cols-1 gap-1.5 sm:grid-cols-2"
               : "grid gap-1.5"
           }
         >
@@ -171,7 +171,7 @@ export default function OptionSelect({
                 className={[
                   "w-full rounded-2xl border px-2 py-1.5 text-left transition sm:px-3 sm:py-2",
                   "min-h-10 sm:min-h-11",
-                  shouldSpan ? "col-span-2" : "",
+                  shouldSpan ? "sm:col-span-2" : "",
                   selected
                     ? "border-[#183D35]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#183D35]/10"
                     : "border-[#183D35]/10 bg-white hover:border-[#183D35]/25 hover:bg-[#EFE8DC]",
@@ -190,12 +190,12 @@ export default function OptionSelect({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="text-xs font-extrabold leading-tight text-[#183D35] sm:text-sm">
+                      <div className="whitespace-normal break-words text-xs font-extrabold leading-tight text-[#183D35] sm:text-sm">
                         {opt.label}
                       </div>
 
                       {opt.help ? (
-                        <div className="mt-0.5 text-xs font-medium leading-4 text-[#6f6a66]">
+                        <div className="mt-0.5 whitespace-normal break-words text-xs font-medium leading-4 text-[#6f6a66]">
                           {opt.help}
                         </div>
                       ) : null}

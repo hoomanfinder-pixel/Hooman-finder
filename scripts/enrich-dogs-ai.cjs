@@ -158,8 +158,11 @@ function isClearlyPuppy({ ageYears, ageText }) {
     return Number(monthMatch[1]) < 18;
   }
 
+  // Number(null) coerces to 0, which is finite — without the explicit
+  // null/undefined check, every dog with a missing age_years would read
+  // as "0 years old" and incorrectly test as a puppy here.
   const n = Number(ageYears);
-  if (Number.isFinite(n)) return n < 1.5;
+  if (ageYears !== null && ageYears !== undefined && Number.isFinite(n)) return n < 1.5;
 
   return false;
 }
@@ -794,12 +797,47 @@ function normalizeAiTraits(parsed, dogInput) {
     );
   }
 
+  // age_years is frequently null for listings that only give a free-text
+  // age like "12 Years 1 Month" (common on DACC/rescue listings). Parse
+  // that into a numeric age before falling back to literal word checks,
+  // otherwise ageStage() below silently returns "unknown" for an
+  // unambiguously senior dog, which then blocks every stage-gated
+  // estimate (alone time, energy, first-time-friendly, etc.) from ever
+  // firing for that dog.
+  function ageYearsFromText(ageText) {
+    const text = String(ageText || "").toLowerCase().trim();
+    if (!text) return null;
+
+    const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*years?/);
+    const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*months?/);
+    const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*weeks?/);
+    const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*days?/);
+    if (!yearMatch && !monthMatch && !weekMatch && !dayMatch) return null;
+
+    const years = Number(yearMatch?.[1] || 0);
+    const months = Number(monthMatch?.[1] || 0);
+    const weeks = Number(weekMatch?.[1] || 0);
+    const days = Number(dayMatch?.[1] || 0);
+    return years + months / 12 + weeks / 52 + days / 365;
+  }
+
   function ageStage() {
+    // Number(null) coerces to 0, which is finite — without the explicit
+    // null/undefined check below, every dog with a missing age_years
+    // would read as "0 years old" and be miscategorized as a puppy.
     const n = Number(dogInput.age_years);
-    if (Number.isFinite(n)) {
+    if (dogInput.age_years !== null && dogInput.age_years !== undefined && Number.isFinite(n)) {
       if (n < 1.5) return "puppy";
       if (n < 3) return "young";
       if (n >= 7) return "senior";
+      return "adult";
+    }
+
+    const parsedYears = ageYearsFromText(dogInput.age_text);
+    if (parsedYears !== null) {
+      if (parsedYears < 1.5) return "puppy";
+      if (parsedYears < 3) return "young";
+      if (parsedYears >= 7) return "senior";
       return "adult";
     }
 
@@ -1330,7 +1368,14 @@ function normalizeAiTraits(parsed, dogInput) {
     // Coat length is only used to set grooming (see setGrooming calls further down),
     // never to independently decide a shedding value.
     normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["hairless", "chinese crested", "xoloitzcuintli", "xolo"])
+    breedIncludesAny(dogInput.breed, [
+      "hairless",
+      "chinese crested",
+      "xoloitzcuintli",
+      "xolo",
+      "peruvian inca orchid",
+      "peruvian hairless",
+    ])
   ) {
     setShedding("low", 0.78, "Hairless or very low-coat breed type indicates low shedding.");
   } else if (
@@ -1350,19 +1395,45 @@ function normalizeAiTraits(parsed, dogInput) {
       "samoyed",
       "bernese",
       "newfoundland",
+      "rottweiler",
+      "shiba inu",
+      "anatolian shepherd",
     ])
   ) {
     setShedding("high", 0.68, "Breed/coat type commonly indicates higher shedding.");
   } else if (
     normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["pit bull", "boxer", "chihuahua", "doberman", "greyhound"])
+    breedIncludesAny(dogInput.breed, [
+      "pit bull",
+      "boxer",
+      "chihuahua",
+      "doberman",
+      "greyhound",
+      "american staffordshire terrier",
+      "staffordshire bull terrier",
+      "amstaff",
+      "basenji",
+      "pointer",
+      "vizsla",
+      "weimaraner",
+    ])
   ) {
     setShedding("low", 0.58, "Short-coated breed type gives a cautious low shedding estimate.");
   } else if (
     normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["beagle", "dachshund"])
+    breedIncludesAny(dogInput.breed, ["beagle", "dachshund", "cocker spaniel", "catahoula", "plott hound"])
   ) {
     setShedding("medium", 0.56, "Short-coated breed type gives a cautious medium shedding estimate.");
+  } else if (
+    // Shelters (esp. DACC) commonly label mixes as just "Shepherd / Mixed" with
+    // no further qualifier. That's a real signal (shepherd-type/double coats
+    // typically shed moderately-to-heavily) but weaker than a named breed like
+    // "German Shepherd" above, so it gets a lower confidence and a cautious
+    // "medium" rather than "high".
+    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["shepherd"])
+  ) {
+    setShedding("medium", 0.5, "Generic shepherd-type breed label gives a cautious medium shedding estimate.");
   }
 
   if (dogInput.current_barking_level) {
@@ -1545,6 +1616,23 @@ function normalizeAiTraits(parsed, dogInput) {
     "working on alone time",
     "adjusting to alone time",
     "moderate anxiety",
+    // Clinginess is a real alone-time signal, distinct from (and stronger
+    // than) plain affectionate language — see the "general affectionate
+    // language" note further down. It is not as severe as panic/destructive
+    // behavior, so it lives here rather than in hasSevereAloneConcern.
+    "velcro dog",
+    "follows you everywhere",
+    "follows her everywhere",
+    "follows him everywhere",
+    "follows her person everywhere",
+    "follows his person everywhere",
+    "your shadow",
+    "distress when left alone",
+    "distress when you leave",
+    "distress when her owner leaves",
+    "distress when his owner leaves",
+    "cries when left alone",
+    "whines when left alone",
   ]);
 
   const hasSevereAloneConcern =
@@ -1576,6 +1664,30 @@ function normalizeAiTraits(parsed, dogInput) {
         "doesn't like to be left alone",
       ]));
 
+  // A foster or shelter's own day-to-day observation is more trustworthy
+  // than generic bio-writer prose, so alone-time evidence attributed to one
+  // gets a confidence bump below rather than being scored differently.
+  const hasFosterObservation = includesAny([
+    "foster reports",
+    "foster says",
+    "her foster says",
+    "his foster says",
+    "their foster says",
+    "according to her foster",
+    "according to his foster",
+    "according to their foster",
+    "foster family reports",
+    "foster family says",
+    "foster mom says",
+    "foster dad says",
+    "in her foster home",
+    "in his foster home",
+    "in their foster home",
+    "shelter staff report",
+    "according to shelter staff",
+    "according to staff",
+  ]);
+
   const hasStrongWorkdayEvidence =
     ["adult", "senior"].includes(stage) &&
     !hasSevereAloneConcern &&
@@ -1604,6 +1716,7 @@ function normalizeAiTraits(parsed, dogInput) {
         "crate trained",
         "crate-trained",
         "house trained",
+        "house-trained",
         "housebroken",
         "calm",
         "low energy",
@@ -1638,6 +1751,74 @@ function normalizeAiTraits(parsed, dogInput) {
     );
   }
 
+  // ---- Max alone-time estimate ----
+  // Scored from several weighted factors rather than asking for a single
+  // number directly, in roughly this priority order (each tier is only
+  // consulted once nothing higher-priority already produced an estimate):
+  //   1. Explicit statements — separation anxiety, crate tolerance,
+  //      destructive behavior, explicit can/cannot-be-left-alone wording,
+  //      clinginess (velcro dog, follows you everywhere, distress when
+  //      the owner leaves) — see hasSevereAloneConcern/hasMildAloneConcern.
+  //   2. The same evidence attributed to a foster/shelter observation
+  //      (hasFosterObservation) gets a confidence bump, not a different
+  //      number — a foster's lived-in observation is more trustworthy
+  //      than generic bio-writer prose, not a stronger claim.
+  //   3. Age / life stage — a prior baseline, not an automatic rule.
+  //   4. Energy level.
+  //   5. Exercise needs.
+  //   6. Breed independence tendency.
+  //   7. General affectionate language ("loves cuddles", "affectionate",
+  //      "wants attention", "loves people") — deliberately NOT scored here
+  //      on its own. It only counts once it rises to an actual clinginess
+  //      phrase (folded into hasMildAloneConcern above), matching the rule
+  //      that affection must not be read as low alone-time tolerance.
+  // Tiers 3-6 only apply as a fallback prior when the bio gives no explicit
+  // alone-time wording at all (see the final else branch below) — they
+  // never override real textual evidence.
+  function aloneTimeAgeEnergyBreedPrior() {
+    let score = 0;
+    const notes = [];
+
+    if (stage === "puppy") {
+      score -= 2;
+      notes.push("puppy/young-dog age prior");
+    } else if (stage === "young") {
+      score -= 1;
+      notes.push("adolescent age prior");
+    } else if (stage === "senior") {
+      score += 1;
+      notes.push("senior age prior (often lower activity, sleeps more)");
+    }
+
+    const energyValue = normalizeEnergyLikeValue(normalized.energy_level?.value);
+    if (energyValue === "low") {
+      score += 1;
+      notes.push("low energy level");
+    } else if (energyValue === "medium_low") {
+      score += 0.5;
+      notes.push("below-average energy level");
+    } else if (energyValue === "high") {
+      score -= 1;
+      notes.push("high energy level");
+    }
+
+    const exerciseValue = normalizeEnergyLikeValue(normalized.exercise_needs?.value);
+    if (exerciseValue === "high" || exerciseValue === "medium_high") {
+      score -= 0.5;
+      notes.push("above-average exercise needs");
+    }
+
+    if (breedIncludesAny(dogInput.breed, ["basenji", "afghan hound", "greyhound", "chow chow", "akita", "shiba inu"])) {
+      score += 0.5;
+      notes.push("breed commonly described as independent");
+    } else if (breedIncludesAny(dogInput.breed, ["vizsla", "cavalier king charles", "italian greyhound"])) {
+      score -= 0.5;
+      notes.push("breed commonly described as wanting close companionship");
+    }
+
+    return { score, notes };
+  }
+
   // Recompute alone time from supported evidence instead of preserving a model guess.
   normalized.max_alone_hours_estimate = {
     value: null,
@@ -1653,19 +1834,37 @@ function normalizeAiTraits(parsed, dogInput) {
       `Existing structured max alone hours is ${dogInput.current_max_alone_hours}.`
     );
   } else if (includesAny(["6-8 hours", "6 to 8 hours", "six to eight hours", "7-8 hours", "7 to 8 hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.82, "Bio explicitly gives an alone-time range up to a normal workday.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 8, hasFosterObservation ? 0.88 : 0.82, "Bio explicitly gives an alone-time range up to a normal workday.");
   } else if (includesAny(["4-6 hours", "4 to 6 hours", "four to six hours", "5-6 hours", "5 to 6 hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.8, "Bio explicitly gives an alone-time range around four to six hours.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 6, hasFosterObservation ? 0.86 : 0.8, "Bio explicitly gives an alone-time range around four to six hours.");
   } else if (includesAny(["less than 4 hours", "under 4 hours", "no more than 4 hours", "3-4 hours", "3 to 4 hours"])) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.78, "Bio explicitly gives a shorter alone-time limit around three to four hours.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 4, hasFosterObservation ? 0.84 : 0.78, "Bio explicitly gives a shorter alone-time limit around three to four hours.");
   } else if (hasSevereAloneConcern) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 2, 0.74, "Clear distress, very young puppy, support, or monitoring needs indicate a short alone-time tolerance.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 2, hasFosterObservation ? 0.8 : 0.74, "Clear distress, clinginess, very young puppy, support, or monitoring needs indicate a short alone-time tolerance.");
   } else if (hasMildAloneConcern || (stage === "young" && includesAny(["still learning", "needs patience", "adjusting"]))) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 4, 0.58, "Mild alone-time, anxiety, or adjustment needs support a three-to-four-hour estimate.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 4, hasFosterObservation ? 0.64 : 0.58, "Mild alone-time, anxiety, clinginess, or adjustment needs support a three-to-four-hour estimate.");
   } else if (hasStrongWorkdayEvidence) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 8, 0.72, "Strong adult/senior independence evidence supports a seven-to-eight-hour estimate.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 8, hasFosterObservation ? 0.78 : 0.72, "Strong adult/senior independence evidence supports a seven-to-eight-hour estimate.");
   } else if (hasModerateAloneEvidence) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 6, 0.58, "Calm, trained, or low-energy adult/senior evidence supports a five-to-six-hour estimate.");
+    setNumericTraitFromBio("max_alone_hours_estimate", 6, hasFosterObservation ? 0.64 : 0.58, "Calm, trained, or low-energy adult/senior evidence supports a five-to-six-hour estimate.");
+  } else {
+    // No explicit alone-time wording either way. Rather than leaving this
+    // unknown — which, via the merge step, can silently carry forward a
+    // stale guess from an older enrichment pass instead of a genuine
+    // recompute — fall back to the weaker age/energy/exercise/breed prior.
+    // Only produced when at least one of those factors actually says
+    // something; a dog with no age, energy, or breed signal at all stays
+    // unknown rather than guessing from nothing.
+    const { score, notes } = aloneTimeAgeEnergyBreedPrior();
+    if (notes.length > 0) {
+      const hours = score <= -1.5 ? 3 : score < 0.5 ? 4 : score < 1.5 ? 5 : 6;
+      setNumericTraitFromBio(
+        "max_alone_hours_estimate",
+        hours,
+        0.42,
+        `No explicit alone-time wording in the bio; estimated from ${notes.join(", ")}.`
+      );
+    }
   }
 
   if (
