@@ -18,7 +18,7 @@ function BoltIcon(props) {
   );
 }
 
-function HomeIcon(props) {
+export function HomeIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" {...props}>
       <path d="M4 10.5 12 4l8 6.5" />
@@ -167,13 +167,51 @@ function RibbonItem({ item, interactive }) {
   );
 }
 
-function RibbonGroup({ interactive }) {
+function RibbonStat({ stat, interactive }) {
+  const { ref, value: displayValue } = useCountUp(stat.value);
+  const digits = String(stat.value).length;
+  const StatIcon = stat.icon || PawIcon;
+
+  return (
+    <div
+      className="ribbon-item flex shrink-0 items-center gap-2.5"
+      role={interactive ? "listitem" : undefined}
+    >
+      <span
+        aria-hidden="true"
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982]"
+      >
+        <StatIcon className="h-3 w-3" />
+      </span>
+      <span className="ribbon-item-text whitespace-nowrap text-[13px] font-semibold text-[#183D35]">
+        <span
+          ref={ref}
+          aria-hidden="true"
+          className="inline-block min-w-[1ch] tabular-nums font-['Fraunces',serif] text-[17px] font-bold"
+          style={{ minWidth: `${digits}ch` }}
+        >
+          {displayValue}
+        </span>{" "}
+        <span aria-hidden="true">{stat.label}</span>
+        <span className="sr-only">{`${stat.value} ${stat.label}`}</span>
+      </span>
+    </div>
+  );
+}
+
+function RibbonGroup({ interactive, stats }) {
   return (
     <div
       className="ribbon-group flex shrink-0 items-center"
       aria-hidden={interactive ? undefined : "true"}
       role={interactive ? "list" : undefined}
     >
+      {stats.map((stat, index) => (
+        <Fragment key={`${interactive ? "stat" : "stat-dup"}-${index}`}>
+          <RibbonStat stat={stat} interactive={interactive} />
+          <Divider />
+        </Fragment>
+      ))}
       {RIBBON_ITEMS.map((item, index) => (
         <Fragment key={`${interactive ? "real" : "dup"}-${index}`}>
           {index > 0 && <Divider />}
@@ -185,40 +223,13 @@ function RibbonGroup({ interactive }) {
   );
 }
 
-function StatRow({ value, label }) {
-  const { ref, value: displayValue } = useCountUp(value);
-  const digits = String(value).length;
-
-  if (!Number.isFinite(value) || value <= 0) return null;
-
-  return (
-    <div className="flex items-center gap-2 border-b border-[#183D35]/10 px-4 py-1 sm:gap-2.5 sm:px-6 sm:py-2">
-      <span
-        aria-hidden="true"
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#183D35] text-[#F3C982] sm:h-7 sm:w-7"
-      >
-        <PawIcon className="h-3 w-3" />
-      </span>
-      <p className="text-[12px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
-        <span
-          ref={ref}
-          aria-hidden="true"
-          className="tabular-nums font-['Fraunces',serif] text-[17px] font-bold text-[#183D35] sm:text-xl"
-          style={{ minWidth: `${digits}ch`, display: "inline-block" }}
-        >
-          {displayValue}
-        </span>{" "}
-        <span aria-hidden="true">{label}</span>
-        <span className="sr-only">{`${value} ${label}`}</span>
-      </p>
-    </div>
-  );
-}
-
-export default function TrustRibbon({ stat = null }) {
+export default function TrustRibbon({ stats = [] }) {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isFocusWithin, setIsFocusWithin] = useState(false);
   const paused = !isPlaying || isFocusWithin;
+  const visibleStats = (Array.isArray(stats) ? stats : []).filter(
+    (stat) => Number.isFinite(stat?.value) && stat.value > 0
+  );
 
   return (
     <section
@@ -229,8 +240,6 @@ export default function TrustRibbon({ stat = null }) {
         <div
           className="relative rounded-[1.35rem] border border-[#C7D4BB] bg-white/70 pb-2 shadow-[0_12px_32px_rgba(24,61,53,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-sm sm:pb-3"
         >
-          {stat ? <StatRow value={stat.value} label={stat.label} /> : null}
-
           <div
             className="ribbon-viewport relative overflow-hidden py-2 pl-4 pr-14 sm:py-3 sm:pl-6 sm:pr-20"
             style={{
@@ -250,8 +259,8 @@ export default function TrustRibbon({ stat = null }) {
               className="ribbon-track flex w-max min-w-max flex-nowrap items-center"
               style={{ animationPlayState: paused ? "paused" : "running" }}
             >
-              <RibbonGroup interactive />
-              <RibbonGroup />
+              <RibbonGroup interactive stats={visibleStats} />
+              <RibbonGroup stats={visibleStats} />
             </div>
 
             <button
@@ -272,7 +281,7 @@ export default function TrustRibbon({ stat = null }) {
             width="280"
             height="322"
             decoding="async"
-            className={`pointer-events-none absolute z-30 select-none opacity-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)] ${stat ? "top-[11px] right-[10px] w-[18px] sm:top-[15px] sm:right-[24px] sm:w-[27px]" : "top-[36px] right-[14px] w-[25px] sm:top-[52px] sm:right-[30px] sm:w-[40px]"}`}
+            className="pointer-events-none absolute right-[14px] top-[36px] z-30 w-[25px] select-none opacity-90 drop-shadow-[0_2px_2px_rgba(0,0,0,0.15)] sm:right-[30px] sm:top-[52px] sm:w-[40px]"
           />
         </div>
 

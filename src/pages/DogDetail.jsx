@@ -710,7 +710,7 @@ export default function DogDetail() {
                 ) : null}
 
                 <p className="mt-5 rounded-2xl bg-white/62 px-4 py-3 text-xs font-semibold leading-5 text-[#6F6A66] ring-1 ring-[#183D35]/5">
-                  Some details are estimated from the dog’s rescue bio, so always confirm with the shelter or rescue.
+                  Some lifestyle information is estimated using shelter-provided information, breed characteristics, and listing descriptions when specific details aren’t available. Always confirm with the shelter or rescue.
                 </p>
 
                 <button
@@ -787,7 +787,7 @@ export default function DogDetail() {
             </div>
 
             <p className="mt-4 text-sm leading-6 text-[#6F6A66]">
-              Some details are estimated from the dog’s rescue bio, so always confirm with the shelter or rescue.
+              Some lifestyle information is estimated using shelter-provided information, breed characteristics, and listing descriptions when specific details aren’t available. Always confirm with the shelter or rescue.
             </p>
 
             <p className="mt-3 text-sm leading-6 text-[#6F6A66]">
@@ -976,7 +976,7 @@ export default function DogDetail() {
               ) : null}
 
               <p className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-xs font-semibold leading-5 text-[#6F6A66] ring-1 ring-[#183D35]/5">
-                Some details are estimated from the dog’s rescue bio, so always confirm with the shelter or rescue.
+                Some lifestyle information is estimated using shelter-provided information, breed characteristics, and listing descriptions when specific details aren’t available. Always confirm with the shelter or rescue.
               </p>
             </section>
           ) : null}
@@ -1074,7 +1074,7 @@ export default function DogDetail() {
 
             {hasBioTraitData ? (
               <p className="mt-4 text-xs leading-5 text-[#6F6A66]">
-                Some details are estimated from the dog’s rescue bio, so always confirm with the shelter or rescue.
+                Some lifestyle information is estimated using shelter-provided information, breed characteristics, and listing descriptions when specific details aren’t available. Always confirm with the shelter or rescue.
               </p>
             ) : null}
           </section>

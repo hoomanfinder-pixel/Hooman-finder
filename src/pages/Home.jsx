@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
-import TrustRibbon from "../components/TrustRibbon";
+import TrustRibbon, { HomeIcon } from "../components/TrustRibbon";
 import { getDogSourceLocation, getDogSourceName } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { normalizeImageUrl } from "../lib/urlSafety";
@@ -297,6 +297,7 @@ export default function Home() {
   const [featuredDogs, setFeaturedDogs] = useState([]);
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
   const [shelterCount, setShelterCount] = useState(0);
+  const [publicDogCount, setPublicDogCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -361,13 +362,13 @@ export default function Home() {
   }, []);
 
   // Separate, deferred query (few columns, no image or biography data)
-  // so the trust-bar stat reflects every currently public listing rather
+  // so the trust-bar stats reflect every currently public listing rather
   // than just the 48 dogs sampled above for the homepage preview cards.
   useEffect(() => {
     let isMounted = true;
     let timeoutId;
 
-    async function loadShelterCount() {
+    async function loadStats() {
       try {
         const data = await fetchHomepageDogs({
           select: `
@@ -389,15 +390,17 @@ export default function Home() {
         });
         if (!isMounted) return;
 
-        setShelterCount(distinctShelterCount(filterPublicDogs(data)));
+        const publicDogs = filterPublicDogs(data);
+        setPublicDogCount(publicDogs.length);
+        setShelterCount(distinctShelterCount(publicDogs));
       } catch (error) {
-        console.error("Could not load shelter count:", error);
+        console.error("Could not load homepage stats:", error);
       }
     }
 
-    // The count is useful context but is not needed for the first paint.
+    // The stats are useful context but are not needed for the first paint.
     // Let the hero, navigation, fonts, and primary dog query finish first.
-    timeoutId = window.setTimeout(loadShelterCount, 3000);
+    timeoutId = window.setTimeout(loadStats, 3000);
 
     return () => {
       isMounted = false;
@@ -532,17 +535,20 @@ export default function Home() {
         </section>
 
         <TrustRibbon
-          stat={
-            shelterCount > 0
-              ? {
-                  value: shelterCount,
-                  label:
-                    shelterCount === 1
-                      ? "shelter or rescue in current listings"
-                      : "shelters and rescues in current listings",
-                }
-              : null
-          }
+          stats={[
+            {
+              value: publicDogCount,
+              label: publicDogCount === 1 ? "adoptable dog" : "adoptable dogs",
+            },
+            {
+              value: shelterCount,
+              label:
+                shelterCount === 1
+                  ? "shelter or rescue in current listings"
+                  : "shelters and rescues in current listings",
+              icon: HomeIcon,
+            },
+          ]}
         />
 
         <section className="py-5 sm:py-8">

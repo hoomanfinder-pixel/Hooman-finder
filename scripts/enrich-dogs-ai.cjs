@@ -14,22 +14,91 @@
 // - dogs.bio_max_alone_hours_label = 1-2 / 3-4 / 5-6 / 7-8 / unknown
 // - dogs.bio_exercise_needs = low / medium_low / medium / medium_high / high / unknown
 // - dogs.bio_training_needs = low / medium_low / medium / medium_high / high / unknown
+// - dogs.bio_barking_level = quiet / some / unknown (mirrors structured barking_level vocab)
+// - dogs.bio_grooming_level = low / moderate / high / unknown (mirrors structured grooming_level vocab)
+//
+// IMPORTANT: bio_barking_level and bio_grooming_level are NEW columns that do not
+// exist in the dogs table yet. Add them before running without --dry-run:
+//   ALTER TABLE dogs ADD COLUMN IF NOT EXISTS bio_barking_level text;
+//   ALTER TABLE dogs ADD COLUMN IF NOT EXISTS bio_grooming_level text;
 //
 // Run:
 //   node scripts/enrich-dogs-ai.cjs --limit=1 --force
 //   node scripts/enrich-dogs-ai.cjs --limit=25
 //   node scripts/enrich-dogs-ai.cjs --limit=25 --force
+//   node scripts/enrich-dogs-ai.cjs --limit=5 --dry-run   (calls OpenAI, prints results, writes nothing)
 
 require("dotenv").config({ path: ".env.local" });
 
 const { createClient } = require("@supabase/supabase-js");
 const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 
+// Mirrors src/lib/dogVisibility.js isPubliclyVisibleDog (same logic already
+// shipped in scripts/generate-dog-sitemap.cjs) — enrichment must only ever
+// touch dogs that are actually public on the site, not just "adoptable".
+const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
+const VERIFIED_CONFIDENCE = new Set(["current", "trusted", "verified"]);
+const TRUSTED_EXTERNAL_ID_SOURCES = new Set(["rescuegroups"]);
+const TRUSTED_LISTING_HOSTS = [
+  "rescuegroups.org",
+  "petfinder.com",
+  "adoptapet.com",
+  "shelterluv.com",
+  "petango.com",
+];
+
+function cleanVisibilityValue(value) {
+  return value === null || value === undefined ? "" : String(value).trim();
+}
+
+function lowerVisibilityValue(value) {
+  return cleanVisibilityValue(value).toLowerCase();
+}
+
+function hasReliableListingUrl(value) {
+  const url = cleanVisibilityValue(value);
+  if (!url.startsWith("https://")) return false;
+  try {
+    const { hostname } = new URL(url);
+    return TRUSTED_LISTING_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
+  } catch {
+    return false;
+  }
+}
+
+function hasRescueGroupsIdentity(dog) {
+  return Boolean(cleanVisibilityValue(dog?.rescuegroups_id) || cleanVisibilityValue(dog?.rescuegroups_org_id));
+}
+
+function hasTrustedSyncedSource(dog) {
+  return (
+    hasRescueGroupsIdentity(dog) ||
+    (TRUSTED_EXTERNAL_ID_SOURCES.has(lowerVisibilityValue(dog?.source)) && Boolean(cleanVisibilityValue(dog?.external_id)))
+  );
+}
+
+function hasVerifiedListingSource(dog) {
+  const confidence = lowerVisibilityValue(dog?.source_confidence);
+  const verified =
+    dog?.verified === true || dog?.availability_verified === true || VERIFIED_CONFIDENCE.has(confidence);
+  return verified && (hasReliableListingUrl(dog?.source_url) || hasReliableListingUrl(dog?.adoption_url));
+}
+
+function isPubliclyVisibleDog(dog) {
+  if (!dog) return false;
+  if (dog.adoptable !== true) return false;
+  if (dog.adoption_pending === true) return false;
+  if (lowerVisibilityValue(dog.urgency_level) === "adopted") return false;
+  if (!ACTIVE_STATUSES.has(lowerVisibilityValue(dog.availability_status))) return false;
+  if (getDogAvailabilitySignal(dog)) return false;
+  return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
+}
+
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v8";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v9";
 const DEFAULT_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
@@ -37,6 +106,8 @@ const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 const BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "no", "unknown"]);
 const ENERGY_VALUES = new Set(["low", "medium_low", "medium", "medium_high", "high", "unknown"]);
 const SHEDDING_VALUES = new Set(["low", "medium", "high", "unknown"]);
+const BARKING_VALUES = new Set(["quiet", "some", "unknown"]);
+const GROOMING_VALUES = new Set(["low", "moderate", "high", "unknown"]);
 const ALONE_HOURS_LABELS = new Set(["1-2", "3-4", "5-6", "7-8", "unknown"]);
 
 if (!SUPABASE_URL) throw new Error("Missing VITE_SUPABASE_URL in .env.local");
@@ -97,6 +168,16 @@ function breedIncludesAny(breed, phrases) {
   const text = String(breed || "").toLowerCase();
   if (!text) return false;
   return phrases.some((phrase) => text.includes(phrase));
+}
+
+// Some imports (observed on DACC listings) append an explicit coat-length
+// annotation directly onto the breed string, e.g. "Pit Bull Terrier / Mixed
+// (medium coat)". That's dog-specific source data and should outrank a
+// generic breed-name-family guess (a "pit bull" is usually short-coated, but
+// this specific dog's own listing says otherwise).
+function explicitCoatLength(breed) {
+  const match = String(breed || "").toLowerCase().match(/\((short|medium|long)\s*coat\)/);
+  return match ? match[1] : null;
 }
 
 function descriptionContradictsBreedSize(description) {
@@ -272,6 +353,17 @@ Allowed values for shedding_level:
 - "high"
 - "unknown"
 
+Allowed values for barking_level:
+- "quiet" (rarely barks, described as quiet or a light barker)
+- "some" (normal/alert barking, vocal, talks a lot, barks at the door or other dogs)
+- "unknown"
+
+Allowed values for grooming_level:
+- "low" (short/wash-and-go coat, minimal grooming mentioned)
+- "moderate" (regular brushing, double coat, seasonal blowout)
+- "high" (needs regular professional grooming, high-maintenance coat, mats easily)
+- "unknown"
+
 Max alone hours:
 - Use max_alone_hours_estimate.value as an integer from 1 through 8 when there is usable evidence.
 - Use null when there is not enough evidence.
@@ -333,6 +425,8 @@ Other rules:
 - Estimate energy_level from activity_level/energy_level first when present, then from bio language. Do not leave energy unknown when there is clear activity or temperament evidence.
 - Puppies and young dogs should usually be at least medium unless the bio says calm. Working, herding, sporting, hound, shepherd, lab, husky, and active breeds should usually be medium_high or high unless the bio says otherwise. Seniors should usually be low or medium_low unless the bio says energetic.
 - Estimate shedding cautiously from breed/coat. Poodle/Bichon-type coats may be low unless mixed/unclear. Husky, German Shepherd, Golden Retriever, Labrador, Akita, and similar breeds are likely higher shedding. Short-coated breeds like Pit Bull Terrier, Boxer, Chihuahua, and Beagle are often low to medium. Unknown mixed breed should stay unknown unless breed or coat gives enough signal.
+- Estimate barking_level cautiously and mostly from direct bio language (vocal, talkative, alert barker, watchdog, quiet, rarely barks). Do not guess barking_level from breed alone; leave unknown when the bio gives no vocalization evidence.
+- Estimate grooming_level from breed/coat type in the same cautious way as shedding. Poodle/Bichon/Maltese/Shih Tzu/Yorkie-type coats usually need high grooming despite low shedding. Double-coated breeds (Husky, German Shepherd, Golden Retriever, Akita, Great Pyrenees, Samoyed, Newfoundland, Bernese) usually need moderate grooming. Short-coated breeds (Pit Bull Terrier, Boxer, Chihuahua, Doberman, Greyhound) usually need low grooming. Leave unknown for unclear mixed breeds with no coat description.
 - Estimate exercise_needs from energy, age, breed, and bio language.
 - Estimate training_needs from training progress, manners, leash reactivity, anxiety/fear, puppy age, experienced-adopter language, and bio behavior needs. Avoid unknown unless there is no meaningful information.
 - "research the breed before applying" should lower confidence and suggest review, but it should not erase specific compatibility evidence about kids, dogs, or cats.
@@ -344,6 +438,8 @@ Return exactly this JSON shape:
 {
   "energy_level": { "value": "unknown", "confidence": 0, "evidence": "" },
   "shedding_level": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "barking_level": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "grooming_level": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_kids": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_dogs": { "value": "unknown", "confidence": 0, "evidence": "" },
   "good_with_cats": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -465,6 +561,50 @@ function normalizeSheddingTraitObject(obj, fallbackValue = "unknown") {
   };
 }
 
+function normalizeBarkingValue(value, fallbackValue = "unknown") {
+  const raw = String(value ?? fallbackValue).trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (!raw || raw === "unknown") return "unknown";
+  if (["quiet", "some"].includes(raw)) return raw;
+  if (["low"].includes(raw)) return "quiet";
+  if (["moderate", "medium", "high", "vocal", "frequent"].includes(raw)) return "some";
+  return fallbackValue;
+}
+
+function normalizeBarkingTraitObject(obj, fallbackValue = "unknown") {
+  if (!obj || typeof obj !== "object") {
+    return { value: fallbackValue, confidence: 0, evidence: "" };
+  }
+
+  return {
+    ...obj,
+    value: normalizeBarkingValue(obj.value, fallbackValue),
+    confidence: normalizeConfidence(obj.confidence),
+    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+  };
+}
+
+function normalizeGroomingValue(value, fallbackValue = "unknown") {
+  const raw = String(value ?? fallbackValue).trim().toLowerCase().replace(/\s+/g, "_").replace(/-/g, "_");
+  if (!raw || raw === "unknown") return "unknown";
+  if (["low", "moderate", "high"].includes(raw)) return raw;
+  if (raw === "none" || raw === "minimal" || raw === "not_required") return "low";
+  if (raw === "medium" || raw === "average") return "moderate";
+  return fallbackValue;
+}
+
+function normalizeGroomingTraitObject(obj, fallbackValue = "unknown") {
+  if (!obj || typeof obj !== "object") {
+    return { value: fallbackValue, confidence: 0, evidence: "" };
+  }
+
+  return {
+    ...obj,
+    value: normalizeGroomingValue(obj.value, fallbackValue),
+    confidence: normalizeConfidence(obj.confidence),
+    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+  };
+}
+
 function normalizeNumericTraitObject(obj) {
   if (!obj || typeof obj !== "object") {
     return { value: null, confidence: 0, evidence: "" };
@@ -532,6 +672,8 @@ function normalizeAiTraits(parsed, dogInput) {
   const normalized = {
     energy_level: normalizeEnergyLikeTraitObject(parsed.energy_level),
     shedding_level: normalizeSheddingTraitObject(parsed.shedding_level),
+    barking_level: normalizeBarkingTraitObject(parsed.barking_level),
+    grooming_level: normalizeGroomingTraitObject(parsed.grooming_level),
     good_with_kids: normalizeTraitObject(parsed.good_with_kids),
     good_with_dogs: normalizeTraitObject(parsed.good_with_dogs),
     good_with_cats: normalizeTraitObject(parsed.good_with_cats),
@@ -615,6 +757,40 @@ function normalizeAiTraits(parsed, dogInput) {
         "young ones",
         "little ones",
       ])
+    );
+  }
+
+  function hasCatSpecificEvidence() {
+    return /\b(cat|cats|kitten|kittens|kitty|kitties|feline)\b/.test(bio);
+  }
+
+  // A bare "dog"/"dogs" keyword check would fire on nearly every listing
+  // (the profile itself is about a dog), so this specifically requires
+  // language about OTHER dogs / multi-dog context rather than the word alone.
+  function hasOtherDogSpecificEvidence() {
+    return (
+      includesAny([
+        "other dog",
+        "other dogs",
+        "another dog",
+        "dog friend",
+        "dog companion",
+        "dog park",
+        "canine companion",
+        "foster sibling",
+        "foster siblings",
+        "doggie friend",
+        "housemate",
+        "playmate",
+        "well with dogs",
+        "with other dogs",
+        "around dogs",
+        "around other dogs",
+        "gets along with dogs",
+        "good with dogs",
+        "dog savvy",
+        "dog-savvy",
+      ]) || /\bsiblings?\b/.test(bio)
     );
   }
 
@@ -943,6 +1119,40 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
+  function setBarking(value, confidence, evidence, force = false) {
+    const normalizedValue = normalizeBarkingValue(value);
+    if (!BARKING_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
+
+    const currentConfidence = Number(normalized.barking_level?.confidence || 0);
+    const currentValue = normalizeBarkingValue(normalized.barking_level?.value);
+
+    if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
+    if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
+
+    normalized.barking_level = {
+      value: normalizedValue,
+      confidence: force ? confidence : Math.max(currentConfidence, confidence),
+      evidence,
+    };
+  }
+
+  function setGrooming(value, confidence, evidence, force = false) {
+    const normalizedValue = normalizeGroomingValue(value);
+    if (!GROOMING_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
+
+    const currentConfidence = Number(normalized.grooming_level?.confidence || 0);
+    const currentValue = normalizeGroomingValue(normalized.grooming_level?.value);
+
+    if (!force && currentValue === normalizedValue && currentConfidence >= confidence) return;
+    if (!force && currentValue !== "unknown" && currentValue !== normalizedValue && currentConfidence > confidence) return;
+
+    normalized.grooming_level = {
+      value: normalizedValue,
+      confidence: force ? confidence : Math.max(currentConfidence, confidence),
+      evidence,
+    };
+  }
+
   function setTraitFromBio(key, value, confidence, evidence) {
     normalized[key] = {
       value,
@@ -1112,6 +1322,13 @@ function normalizeAiTraits(parsed, dogInput) {
   ) {
     setShedding("high", 0.86, "Bio directly describes high shedding or a double coat.", true);
   } else if (
+    // Deliberately NOT using explicitCoatLength() here: coat length alone does not
+    // reliably predict shedding amount (e.g. Labrador Retrievers, German Shepherds,
+    // and other double-coated breeds shed heavily despite a short coat; Poodle-type
+    // curly coats shed very little despite being long). Breed/breed-group tendency
+    // below is a stronger shedding signal than coat length, so it's checked first.
+    // Coat length is only used to set grooming (see setGrooming calls further down),
+    // never to independently decide a shedding value.
     normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
     breedIncludesAny(dogInput.breed, ["hairless", "chinese crested", "xoloitzcuintli", "xolo"])
   ) {
@@ -1146,6 +1363,82 @@ function normalizeAiTraits(parsed, dogInput) {
     breedIncludesAny(dogInput.breed, ["beagle", "dachshund"])
   ) {
     setShedding("medium", 0.56, "Short-coated breed type gives a cautious medium shedding estimate.");
+  }
+
+  if (dogInput.current_barking_level) {
+    setBarking(dogInput.current_barking_level, 0.84, `Existing structured barking level is ${dogInput.current_barking_level}.`);
+  }
+
+  if (
+    includesAny([
+      "rarely barks",
+      "doesn't bark much",
+      "does not bark much",
+      "quiet dog",
+      "not a barker",
+      "minimal barking",
+      "not much of a barker",
+    ])
+  ) {
+    setBarking("quiet", 0.8, "Bio directly describes quiet or minimal barking.", true);
+  } else if (
+    includesAny([
+      "very vocal",
+      "talks a lot",
+      "loves to bark",
+      "alert barker",
+      "good watchdog",
+      "barks at",
+      "barky",
+    ])
+  ) {
+    setBarking("some", 0.78, "Bio directly describes vocal or alert-barking behavior.", true);
+  }
+  // No breed-based fallback for barking: vocalization varies too much within
+  // breeds to estimate responsibly without direct bio evidence.
+
+  if (dogInput.current_grooming_level) {
+    setGrooming(dogInput.current_grooming_level, 0.84, `Existing structured grooming level is ${dogInput.current_grooming_level}.`);
+  }
+
+  if (
+    includesAny(["low maintenance coat", "low-maintenance coat", "wash and go", "minimal grooming"])
+  ) {
+    setGrooming("low", 0.8, "Bio directly describes a low-maintenance coat.", true);
+  } else if (
+    includesAny(["needs regular grooming", "requires professional grooming", "high maintenance coat", "high-maintenance coat", "mats easily", "needs regular brushing"])
+  ) {
+    setGrooming("high", 0.8, "Bio directly describes a high-maintenance coat or grooming need.", true);
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    explicitCoatLength(dogInput.breed) === "short"
+  ) {
+    setGrooming("low", 0.68, "Listing explicitly states a short coat.");
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    explicitCoatLength(dogInput.breed) === "medium"
+  ) {
+    setGrooming("moderate", 0.66, "Listing explicitly states a medium coat.");
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    explicitCoatLength(dogInput.breed) === "long"
+  ) {
+    setGrooming("high", 0.66, "Listing explicitly states a long coat.");
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["poodle", "bichon", "maltese", "shih tzu", "yorkshire terrier", "yorkie"])
+  ) {
+    setGrooming("high", mixedOrUnclearBreed ? 0.5 : 0.64, "Poodle/Bichon-type coat commonly needs frequent professional grooming despite low shedding.");
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["husky", "german shepherd", "golden retriever", "akita", "great pyrenees", "samoyed", "bernese", "newfoundland"])
+  ) {
+    setGrooming("moderate", 0.6, "Double-coated breed type commonly needs regular brushing.");
+  } else if (
+    normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
+    breedIncludesAny(dogInput.breed, ["pit bull", "boxer", "chihuahua", "doberman", "greyhound"])
+  ) {
+    setGrooming("low", 0.58, "Short-coated breed type gives a cautious low grooming estimate.");
   }
 
   if (
@@ -1232,7 +1525,11 @@ function normalizeAiTraits(parsed, dogInput) {
   const ageMonthsMatch = ageTextLower.match(/(\d+)\s*months?/);
   const isVeryYoungPuppy =
     (Number.isFinite(ageYearsNumber) && ageYearsNumber > 0 && ageYearsNumber <= 0.5) ||
-    (ageMonthsMatch && Number(ageMonthsMatch[1]) <= 6) ||
+    // Guard against "X Years Y Months" text (e.g. "9 Years 2 Months"), which
+    // would otherwise match the months-only puppy pattern below and flag a
+    // senior dog as a very young puppy. Mirrors the same guard already used
+    // in isClearlyPuppy() above.
+    (ageMonthsMatch && !ageTextLower.includes("year") && Number(ageMonthsMatch[1]) <= 6) ||
     includesAny(["very young puppy", "young puppy", "tiny puppy"]);
 
   const hasMildAloneConcern = includesAny([
@@ -1765,6 +2062,38 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
+  const catsValue = String(normalized.good_with_cats?.value || "").toLowerCase();
+
+  const catEvidenceAvailable =
+    dogInput.current_good_with_cats === true || hasCatSpecificEvidence();
+
+  if (
+    ["true", "likely", "maybe"].includes(catsValue) &&
+    !catEvidenceAvailable
+  ) {
+    normalized.good_with_cats = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "Generic sociability language was not treated as cat-specific compatibility evidence.",
+    };
+  }
+
+  const dogsValue = String(normalized.good_with_dogs?.value || "").toLowerCase();
+
+  const dogEvidenceAvailable =
+    dogInput.current_good_with_dogs === true || hasOtherDogSpecificEvidence();
+
+  if (
+    ["true", "likely", "maybe"].includes(dogsValue) &&
+    !dogEvidenceAvailable
+  ) {
+    normalized.good_with_dogs = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "Generic sociability language was not treated as other-dog-specific compatibility evidence.",
+    };
+  }
+
   const isThinListing = description.length < 70;
   const looksGeneric =
     descriptionLower.includes("great addition to any family") &&
@@ -1876,6 +2205,34 @@ function safeSheddingValue(value) {
   return SHEDDING_VALUES.has(normalized) ? normalized : "unknown";
 }
 
+const BIO_FIELD_LABELS = {
+  bio_good_with_kids: "good with kids",
+  bio_good_with_dogs: "good with dogs",
+  bio_good_with_cats: "good with cats",
+  bio_potty_trained: "potty trained",
+  bio_energy_level: "energy",
+  bio_exercise_needs: "exercise needs",
+  bio_training_needs: "trainability",
+  bio_shedding_level: "shedding",
+  bio_barking_level: "barking",
+  bio_grooming_level: "grooming",
+  bio_max_alone_hours: "alone time",
+};
+
+function bioFieldLabel(key) {
+  return BIO_FIELD_LABELS[key] || key;
+}
+
+function safeBarkingValue(value) {
+  const normalized = normalizeBarkingValue(value);
+  return BARKING_VALUES.has(normalized) ? normalized : "unknown";
+}
+
+function safeGroomingValue(value) {
+  const normalized = normalizeGroomingValue(value);
+  return GROOMING_VALUES.has(normalized) ? normalized : "unknown";
+}
+
 function normalizeAloneHours(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return null;
@@ -1907,6 +2264,8 @@ function buildBioColumns(aiTraits, inferredAdultSize) {
     bio_max_alone_hours_label: ALONE_HOURS_LABELS.has(aloneLabel) ? aloneLabel : "unknown",
     bio_exercise_needs: safeEnergyValue(aiTraits.exercise_needs?.value),
     bio_training_needs: safeEnergyValue(aiTraits.training_needs?.value),
+    bio_barking_level: safeBarkingValue(aiTraits.barking_level?.value),
+    bio_grooming_level: safeGroomingValue(aiTraits.grooming_level?.value),
     // Breed/age-based estimate for puppies with no confirmed source size.
     // Never set when a source size exists (see inferExpectedAdultSizeForPuppy).
     bio_size: inferredAdultSize || null,
@@ -1915,8 +2274,18 @@ function buildBioColumns(aiTraits, inferredAdultSize) {
   };
 }
 
+// Carries forward an existing bio_* value only when the fresh run found
+// nothing (never overrides evidence-backed fresh values). Every carry-forward
+// is also reported back to the caller: a value that survives purely because
+// today's run couldn't re-derive it is not the same as a value this run
+// actually verified, so it should be surfaced for human review rather than
+// presented as freshly authoritative. This intentionally does not attempt to
+// "expire" a carried-forward value after N runs (no DB column exists to track
+// that, and adding one is a schema decision outside this pass) — the mitigation
+// here is visibility (needs_human_review + a caution note), not automatic removal.
 function mergeExistingBioColumns(nextColumns, dog) {
   const merged = { ...nextColumns };
+  const carriedForwardFields = [];
 
   for (const key of [
     "bio_good_with_kids",
@@ -1926,6 +2295,7 @@ function mergeExistingBioColumns(nextColumns, dog) {
   ]) {
     if (merged[key] === "unknown" && BIO_VALUES.has(dog?.[key]) && dog[key] !== "unknown") {
       merged[key] = dog[key];
+      carriedForwardFields.push(key);
     }
   }
 
@@ -1933,15 +2303,43 @@ function mergeExistingBioColumns(nextColumns, dog) {
     const existing = normalizeEnergyLikeValue(dog?.[key]);
     if (merged[key] === "unknown" && existing !== "unknown") {
       merged[key] = existing;
+      carriedForwardFields.push(key);
     }
   }
 
   const existingShedding = normalizeSheddingValue(dog?.bio_shedding_level);
   if (merged.bio_shedding_level === "unknown" && existingShedding !== "unknown") {
     merged.bio_shedding_level = existingShedding;
+    carriedForwardFields.push("bio_shedding_level");
   }
 
-  return merged;
+  const existingBarking = normalizeBarkingValue(dog?.bio_barking_level);
+  if (merged.bio_barking_level === "unknown" && existingBarking !== "unknown") {
+    merged.bio_barking_level = existingBarking;
+    carriedForwardFields.push("bio_barking_level");
+  }
+
+  const existingGrooming = normalizeGroomingValue(dog?.bio_grooming_level);
+  if (merged.bio_grooming_level === "unknown" && existingGrooming !== "unknown") {
+    merged.bio_grooming_level = existingGrooming;
+    carriedForwardFields.push("bio_grooming_level");
+  }
+
+  // A new run with no qualifying evidence returns null here, not a weaker
+  // guess to compare against — so "the new run found nothing" is the only
+  // case this needs to guard, same as every other field above. A new run
+  // that DOES find evidence always produces a real value, which is used as-is
+  // (evidence-backed values are never suppressed in favor of an older guess).
+  const existingAloneHours = normalizeAloneHours(dog?.bio_max_alone_hours);
+  if ((merged.bio_max_alone_hours === null || merged.bio_max_alone_hours === undefined) && existingAloneHours) {
+    merged.bio_max_alone_hours = existingAloneHours;
+    merged.bio_max_alone_hours_label = ALONE_HOURS_LABELS.has(dog?.bio_max_alone_hours_label) && dog.bio_max_alone_hours_label !== "unknown"
+      ? dog.bio_max_alone_hours_label
+      : aloneHoursLabel(existingAloneHours);
+    carriedForwardFields.push("bio_max_alone_hours");
+  }
+
+  return { merged, carriedForwardFields };
 }
 
 async function callOpenAI(prompt) {
@@ -1988,7 +2386,40 @@ async function callOpenAI(prompt) {
   }
 }
 
-async function enrichOneDog(dog) {
+// Fields that actually affect the site (matching, trait display, review
+// queue) — used to decide whether a run produced anything worth writing.
+// Excludes bio_traits_source (static) and bio_traits_updated_at/ai_traits/
+// ai_confidence_score/ai_enriched_at, which either never change or almost
+// always differ slightly on LLM phrasing alone even when the real values
+// didn't move, and would make this check meaningless if included.
+const MEANINGFUL_BIO_FIELDS = [
+  "bio_good_with_kids",
+  "bio_good_with_dogs",
+  "bio_good_with_cats",
+  "bio_first_time_friendly",
+  "bio_potty_trained",
+  "bio_energy_level",
+  "bio_shedding_level",
+  "bio_max_alone_hours",
+  "bio_max_alone_hours_label",
+  "bio_exercise_needs",
+  "bio_training_needs",
+  "bio_barking_level",
+  "bio_grooming_level",
+  "bio_size",
+];
+
+function hasMeaningfulChange(bioColumns, needsHumanReview, dog) {
+  if (Boolean(dog?.needs_human_review) !== Boolean(needsHumanReview)) return true;
+
+  return MEANINGFUL_BIO_FIELDS.some((key) => {
+    const next = bioColumns[key] ?? null;
+    const current = dog?.[key] ?? null;
+    return String(next) !== String(current);
+  });
+}
+
+async function enrichOneDog(dog, { dryRun = false } = {}) {
   const dogInput = asDogInput(dog);
 
   if (
@@ -2017,7 +2448,28 @@ async function enrichOneDog(dog) {
       ...aiTraits.caution_notes,
     ].slice(0, 8);
   }
-  const bioColumns = mergeExistingBioColumns(buildBioColumns(aiTraits, inferredAdultSize), dog);
+  const { merged: bioColumns, carriedForwardFields } = mergeExistingBioColumns(
+    buildBioColumns(aiTraits, inferredAdultSize),
+    dog
+  );
+
+  if (carriedForwardFields.length) {
+    aiTraits.needs_human_review = true;
+    aiTraits.caution_notes = [
+      `Carried forward from a previous run without fresh supporting evidence, so this needs a human check rather than being treated as verified: ${carriedForwardFields.map(bioFieldLabel).join(", ")}.`,
+      ...aiTraits.caution_notes,
+    ].slice(0, 8);
+  }
+
+  const meaningfulChange = hasMeaningfulChange(bioColumns, aiTraits.needs_human_review, dog);
+
+  if (dryRun) {
+    return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed, meaningfulChange, dryRun: true };
+  }
+
+  if (!meaningfulChange) {
+    return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed, meaningfulChange, skipped: true };
+  }
 
   const updatePayload = {
     ai_traits: aiTraits,
@@ -2035,7 +2487,7 @@ async function enrichOneDog(dog) {
 
   if (error) throw error;
 
-  return { aiTraits, bioColumns, inferredAdultSize, elapsed };
+  return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed };
 }
 
 async function fetchDogs({ limit, force, dogId }) {
@@ -2082,6 +2534,8 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_max_alone_hours_label,
       bio_exercise_needs,
       bio_training_needs,
+      bio_barking_level,
+      bio_grooming_level,
       bio_size,
       bio_traits_updated_at,
       needs_human_review,
@@ -2089,6 +2543,12 @@ async function fetchDogs({ limit, force, dogId }) {
       adoption_pending,
       availability_status,
       urgency_level,
+      rescuegroups_id,
+      rescuegroups_org_id,
+      source,
+      external_id,
+      source_url,
+      adoption_url,
       shelters (
         name
       )
@@ -2115,14 +2575,17 @@ async function fetchDogs({ limit, force, dogId }) {
 
   if (error) throw error;
 
-  return Array.isArray(data)
-    ? data.filter((dog) => !getDogAvailabilitySignal(dog))
-    : [];
+  // The SQL filters above are a coarse pre-filter (adoptable/pending/status/
+  // urgency); isPubliclyVisibleDog is the authoritative check that also
+  // requires a trusted synced source or a verified listing, matching what
+  // actually renders on the live site.
+  return Array.isArray(data) ? data.filter(isPubliclyVisibleDog) : [];
 }
 
 async function main() {
   const limit = Number(getArg("limit", DEFAULT_LIMIT));
   const force = hasFlag("force");
+  const dryRun = hasFlag("dry-run");
   const dogId = getArg("dog-id", null);
 
   console.log("========================================");
@@ -2131,6 +2594,7 @@ async function main() {
   console.log(`Version: ${AI_ENRICHMENT_VERSION}`);
   console.log(`Limit: ${Number.isFinite(limit) ? limit : DEFAULT_LIMIT}`);
   console.log(`Force: ${force ? "yes" : "no"}`);
+  console.log(`Dry run: ${dryRun ? "yes (calls OpenAI, writes nothing to Supabase)" : "no"}`);
   console.log(`Dog ID: ${dogId || "all eligible"}`);
   console.log("========================================");
 
@@ -2148,25 +2612,40 @@ async function main() {
   console.log(`Found ${dogs.length} dog(s) to enrich.`);
 
   let updated = 0;
+  let skippedNoChange = 0;
+  let skippedNoData = 0;
   let failed = 0;
 
   for (const dog of dogs) {
     try {
       console.log(`\nEnriching: ${dog.name || dog.id}`);
 
-      const result = await enrichOneDog(dog);
-      if (!result) continue;
+      const result = await enrichOneDog(dog, { dryRun });
+      if (!result) {
+        skippedNoData += 1;
+        continue;
+      }
 
-      const { aiTraits, bioColumns, elapsed } = result;
+      const { aiTraits, bioColumns, carriedForwardFields, elapsed, skipped } = result;
+
+      if (skipped) {
+        skippedNoChange += 1;
+        console.log(`⏭️  No meaningful change for ${dog.name || dog.id} in ${elapsed}s — not writing (row left as-is).`);
+        continue;
+      }
+
       updated += 1;
 
       const tags = Array.isArray(aiTraits.match_tags)
         ? aiTraits.match_tags.join(", ")
         : "";
 
-      console.log(`✅ Updated ${dog.name || dog.id} in ${elapsed}s`);
+      console.log(`${dryRun ? "🔍 Would update" : "✅ Updated"} ${dog.name || dog.id} in ${elapsed}s`);
       console.log(`   Confidence: ${aiTraits.overall_confidence}`);
       console.log(`   Review: ${aiTraits.needs_human_review ? "yes" : "no"}`);
+      if (carriedForwardFields?.length) {
+        console.log(`   Carried forward (unsupported, flagged for review): ${carriedForwardFields.map(bioFieldLabel).join(", ")}`);
+      }
       console.log(`   bio_good_with_kids: ${bioColumns.bio_good_with_kids}`);
       console.log(`   bio_good_with_dogs: ${bioColumns.bio_good_with_dogs}`);
       console.log(`   bio_good_with_cats: ${bioColumns.bio_good_with_cats}`);
@@ -2174,6 +2653,8 @@ async function main() {
       console.log(`   bio_potty_trained: ${bioColumns.bio_potty_trained}`);
       console.log(`   bio_energy_level: ${bioColumns.bio_energy_level}`);
       console.log(`   bio_shedding_level: ${bioColumns.bio_shedding_level}`);
+      console.log(`   bio_barking_level: ${bioColumns.bio_barking_level}`);
+      console.log(`   bio_grooming_level: ${bioColumns.bio_grooming_level}`);
       console.log(`   bio_max_alone_hours: ${bioColumns.bio_max_alone_hours ?? "unknown"}`);
       console.log(`   bio_exercise_needs: ${bioColumns.bio_exercise_needs}`);
       console.log(`   bio_training_needs: ${bioColumns.bio_training_needs}`);
@@ -2186,13 +2667,34 @@ async function main() {
   }
 
   console.log("\n========================================");
-  console.log("AI enrichment complete");
-  console.log(`Updated: ${updated}`);
+  console.log(dryRun ? "AI enrichment dry run complete (nothing written)" : "AI enrichment complete");
+  console.log(`Attempted: ${dogs.length}`);
+  console.log(`${dryRun ? "Would update" : "Updated"}: ${updated}`);
+  console.log(`Skipped (no meaningful change): ${skippedNoChange}`);
+  console.log(`Skipped (not enough source data): ${skippedNoData}`);
   console.log(`Failed: ${failed}`);
   console.log("========================================");
 }
 
-main().catch((error) => {
-  console.error("Fatal error:", error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Fatal error:", error);
+    process.exit(1);
+  });
+}
+
+// Exported so one-off review/reporting scripts can reuse the exact same
+// extraction and normalization logic instead of duplicating it (and risking
+// drift from what a real run would actually write).
+module.exports = {
+  asDogInput,
+  buildPrompt,
+  callOpenAI,
+  safeParseJson,
+  normalizeAiTraits,
+  inferExpectedAdultSizeForPuppy,
+  buildBioColumns,
+  mergeExistingBioColumns,
+  bioFieldLabel,
+  AI_ENRICHMENT_VERSION,
+};
