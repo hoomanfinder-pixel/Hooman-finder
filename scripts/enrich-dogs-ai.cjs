@@ -173,6 +173,300 @@ function breedIncludesAny(breed, phrases) {
   return phrases.some((phrase) => text.includes(phrase));
 }
 
+// ---------------------------------------------------------------------------
+// Breed-based shedding estimation
+// ---------------------------------------------------------------------------
+// Breed text is split into components (see splitBreedComponents) and EVERY
+// matching breed across every component is collected, not just the first one
+// found in list order. That means a mixed-breed dog whose breed text names
+// two breeds that disagree on shedding level gets a real weighted average
+// instead of silently deferring to whichever breed happens to appear earlier
+// in this file. Generic breed-GROUP labels (Retriever, Spaniel, Bulldog,
+// Mountain Dog, Terrier, Hound, Shepherd) are only consulted for a component
+// that does NOT itself name a specific breed (see matchBreedTiers) — so a
+// generic alias embedded inside a specific breed's own name (e.g. "Retriever"
+// inside "Golden Retriever") never counts as a second signal, but a generic
+// label that appears as its own separate listed component (e.g. "Shepherd" in
+// "Poodle / Shepherd / Mixed") still contributes. Generic signals always carry
+// both lower confidence and lower signal weight than any specific named breed
+// (see signalWeight below and combineShedding's weighted rank).
+const SPECIFIC_BREED_SHEDDING_TIERS = [
+  {
+    level: "low",
+    confidence: 0.78,
+    label: "hairless/very-low-coat breed",
+    breeds: ["hairless", "chinese crested", "xoloitzcuintli", "xolo", "peruvian inca orchid", "peruvian hairless"],
+  },
+  {
+    level: "low",
+    confidence: 0.66,
+    label: "low-shedding curly/continuously-growing-coat breed",
+    breeds: ["poodle", "bichon", "maltese", "shih tzu", "yorkshire terrier", "yorkie"],
+  },
+  {
+    level: "high",
+    confidence: 0.68,
+    label: "double-coated breed commonly high-shedding",
+    breeds: [
+      "husky",
+      "german shepherd",
+      "golden retriever",
+      "labrador",
+      "akita",
+      "great pyrenees",
+      "samoyed",
+      "bernese",
+      "newfoundland",
+      "shiba inu",
+      "anatolian shepherd",
+    ],
+  },
+  {
+    // AKC rates Rottweiler shedding 3/5 ("moderate"), explicitly noted as
+    // shedding significantly less than Golden Retriever/German Shepherd/
+    // Husky, despite a similar general body type. Moved out of the "high"
+    // bucket above after a breed-mapping audit found the two were not
+    // equivalent.
+    level: "medium",
+    confidence: 0.62,
+    label: "double-coated but AKC-documented as moderate (3/5), below German Shepherd/Husky/Golden Retriever",
+    breeds: ["rottweiler"],
+  },
+  {
+    level: "low",
+    confidence: 0.58,
+    label: "short single-coat breed commonly low-shedding",
+    breeds: [
+      "pit bull",
+      "boxer",
+      "chihuahua",
+      "doberman",
+      "greyhound",
+      "american staffordshire terrier",
+      "staffordshire bull terrier",
+      "amstaff",
+      "basenji",
+      "pointer",
+    ],
+  },
+  {
+    // Breed sources describe Vizsla shedding as real and moderate
+    // year-round despite the short coat — not minimal like the other
+    // short-coated breeds above. Moved out of the "low" bucket after the
+    // same audit.
+    level: "medium",
+    confidence: 0.5,
+    label: "short-coated but breed sources document real, regular moderate shedding",
+    breeds: ["vizsla"],
+  },
+  {
+    // Breed sources describe regular, moderate-to-significant shedding for
+    // Weimaraners (one source rates it 4/5) despite the short coat — not
+    // minimal like the other short-coated breeds above. Moved out of the
+    // "low" bucket after the same audit.
+    level: "medium",
+    confidence: 0.55,
+    label: "short-coated but breed sources document real, regular moderate-to-significant shedding",
+    breeds: ["weimaraner"],
+  },
+  {
+    level: "medium",
+    confidence: 0.56,
+    label: "short/single-coated breed commonly moderate-shedding",
+    breeds: ["beagle", "dachshund", "cocker spaniel", "catahoula", "plott hound"],
+  },
+].map((tier) => ({ ...tier, signalWeight: 1.0 }));
+
+// Generic breed-GROUP labels. These genuinely vary shedding-wise from one
+// specific breed to another within the group (e.g. wiry low-shed terriers
+// vs. smooth moderate-shedding ones), so confidence is kept noticeably lower
+// than any specific named breed above — Terrier and Hound in particular are
+// given very low confidence rather than omitted entirely, since an honest
+// low-confidence estimate is preferable to "unknown" for a trait this
+// low-stakes (shedding is not a safety-sensitive compatibility claim).
+const GENERIC_BREED_GROUP_SHEDDING_TIERS = [
+  {
+    level: "medium",
+    confidence: 0.5,
+    label: "generic shepherd-type breed label",
+    breeds: ["shepherd"],
+  },
+  {
+    level: "high",
+    confidence: 0.5,
+    label: "generic retriever-type breed label (most retriever breeds are double-coated, moderate-to-heavy shedders)",
+    breeds: ["retriever"],
+  },
+  {
+    level: "medium",
+    confidence: 0.45,
+    label: "generic spaniel-type breed label",
+    breeds: ["spaniel"],
+  },
+  {
+    level: "medium",
+    confidence: 0.42,
+    label: "generic bulldog-type breed label (sources disagree between low and moderate)",
+    breeds: ["bulldog"],
+  },
+  {
+    level: "high",
+    confidence: 0.5,
+    label: "generic mountain-dog-type breed label (most Mountain Dog breeds are heavy double-coated shedders)",
+    breeds: ["mountain dog"],
+  },
+  {
+    level: "medium",
+    confidence: 0.35,
+    label: "generic terrier-type breed label (shedding varies widely by terrier sub-type)",
+    breeds: ["terrier"],
+  },
+  {
+    level: "medium",
+    confidence: 0.38,
+    label: "generic hound-type breed label (shedding varies widely by hound sub-type)",
+    breeds: ["hound"],
+  },
+].map((tier) => ({ ...tier, signalWeight: 0.5 }));
+
+const SHEDDING_LEVEL_RANK = { low: 1, medium: 2, high: 3 };
+const SHEDDING_RANK_LEVEL = { 1: "low", 2: "medium", 3: "high" };
+const SHEDDING_CONFLICT_PENALTY = 0.75;
+const MIN_COMBINED_SHEDDING_CONFIDENCE = 0.3;
+
+// Breed strings from shelters/RescueGroups list parent breeds as separate
+// "/"-delimited components, e.g. "Poodle (Standard) / Shepherd / Mixed" or
+// "Golden Retriever Mix". Splitting into components (rather than substring-
+// matching the whole string at once) is what lets a generic group like
+// "Shepherd" be recognized as a genuinely separate named parent breed, while
+// still never firing on a generic alias that's merely embedded inside a
+// specific breed's own name (e.g. "Retriever" inside "Golden Retriever" is
+// the SAME component, not a second one).
+function splitBreedComponents(breedText) {
+  const text = String(breedText || "").toLowerCase();
+  if (!text) return [];
+
+  return text
+    .split("/")
+    .map((part) =>
+      part
+        .replace(/\([^)]*\)/g, " ") // strip "(short coat)", "(standard)", etc.
+        .replace(/\bmixed\b|\bmix\b|\bunknown\b/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+function matchComponentTiers(component, tiers) {
+  const matches = [];
+  for (const tier of tiers) {
+    const matchedBreed = tier.breeds.find((phrase) => component.includes(phrase));
+    if (matchedBreed) matches.push({ ...tier, matchedBreed });
+  }
+  return matches;
+}
+
+// Walks each listed breed component independently. A component that matches
+// any specific named breed is recorded as a specific signal and is NEVER
+// also checked against the generic groups (this is what stops "Golden
+// Retriever" from being double-counted as generic "Retriever"). A component
+// that matches no specific breed falls back to the generic groups, so a
+// genuinely separate parent like "Shepherd" still contributes — just at its
+// own lower confidence, not overriding any specific match. Every signal is
+// deduped by (tier + matched breed phrase), so the same alias appearing
+// twice in a breed string only ever counts once.
+function matchBreedTiers(breedText) {
+  const components = splitBreedComponents(breedText);
+  if (components.length === 0) return [];
+
+  const matches = [];
+  const seenKeys = new Set();
+
+  for (const component of components) {
+    const specificForComponent = matchComponentTiers(component, SPECIFIC_BREED_SHEDDING_TIERS);
+    const componentMatches =
+      specificForComponent.length > 0
+        ? specificForComponent
+        : matchComponentTiers(component, GENERIC_BREED_GROUP_SHEDDING_TIERS);
+
+    for (const match of componentMatches) {
+      const key = `${match.level}:${match.confidence}:${match.matchedBreed}`;
+      if (seenKeys.has(key)) continue;
+      seenKeys.add(key);
+      matches.push(match);
+    }
+  }
+
+  return matches;
+}
+
+// Combines every matched breed tier into a single shedding estimate. When
+// every matched breed agrees on the same level, behavior is unchanged from
+// the old first-match-wins logic (same level, confidence = the best
+// evidence found). When matched breeds disagree, the level is a rank
+// average (rounded) across every match — weighted by how many named breeds
+// landed on each level, not just the two extremes — and confidence is
+// reduced (averaged, then discounted) to reflect genuine uncertainty about
+// which parent's coat genes actually dominate.
+function combineShedding(matches) {
+  if (matches.length === 0) return null;
+
+  const distinctLevels = new Set(matches.map((m) => m.level));
+
+  if (distinctLevels.size === 1) {
+    const [level] = distinctLevels;
+    const confidence = Math.max(...matches.map((m) => m.confidence));
+    const names = [...new Set(matches.map((m) => m.matchedBreed))].join(", ");
+    return {
+      value: level,
+      confidence,
+      evidence:
+        matches.length > 1
+          ? `Breed text names multiple breeds (${names}) that agree on ${level} shedding.`
+          : `Breed/coat type (${names}) — ${matches[0].label}.`,
+    };
+  }
+
+  // Rank is weighted by each signal's fixed SIGNAL WEIGHT (specific breed =
+  // 1.0, generic breed group = 0.5) — a structural statement about how much
+  // a named breed vs. a broad breed-group label should count toward the
+  // level decision, completely independent of confidence. Confidence is a
+  // separate, flat (unweighted) average below: it represents how certain the
+  // estimate is, not how much say a signal gets over the level itself.
+  const signalWeightSum = matches.reduce((sum, m) => sum + m.signalWeight, 0);
+  const weightedRank =
+    signalWeightSum > 0
+      ? matches.reduce((sum, m) => sum + SHEDDING_LEVEL_RANK[m.level] * m.signalWeight, 0) / signalWeightSum
+      : matches.reduce((sum, m) => sum + SHEDDING_LEVEL_RANK[m.level], 0) / matches.length;
+  const combinedLevel = SHEDDING_RANK_LEVEL[Math.round(weightedRank)] || "medium";
+  const avgConfidence = matches.reduce((sum, m) => sum + m.confidence, 0) / matches.length;
+  const combinedConfidence = Math.max(
+    MIN_COMBINED_SHEDDING_CONFIDENCE,
+    Math.round(avgConfidence * SHEDDING_CONFLICT_PENALTY * 100) / 100
+  );
+  const names = matches.map((m) => `${m.matchedBreed} (${m.level})`).join(", ");
+
+  return {
+    value: combinedLevel,
+    confidence: combinedConfidence,
+    evidence: `Breed text names multiple breeds with conflicting shedding tendencies (${names}); estimate is averaged across all named breeds and confidence is reduced accordingly.`,
+  };
+}
+
+// Priority between specific breeds and generic groups is resolved per listed
+// breed component inside matchBreedTiers() above (a component either names a
+// specific breed, or — only if it doesn't — falls back to a generic group).
+// A generic group can still end up alongside a specific breed here when they
+// come from two DIFFERENT components (e.g. "Poodle / Shepherd Mix"), which is
+// intentional: Shepherd there is a genuinely separate stated parent, not an
+// alias of Poodle, so it should contribute its own (lower) signal rather
+// than being silently dropped just because some other component was a
+// specific breed.
+function resolveBreedShedding(breed) {
+  const matches = matchBreedTiers(breed);
+  return combineShedding(matches);
+}
+
 // Some imports (observed on DACC listings) append an explicit coat-length
 // annotation directly onto the breed string, e.g. "Pit Bull Terrier / Mixed
 // (medium coat)". That's dog-specific source data and should outrank a
@@ -1359,81 +1653,19 @@ function normalizeAiTraits(parsed, dogInput) {
     includesAny(["high shedding", "heavy shedding", "sheds a lot", "double coat", "blowing coat"])
   ) {
     setShedding("high", 0.86, "Bio directly describes high shedding or a double coat.", true);
-  } else if (
+  } else if (normalizeSheddingValue(normalized.shedding_level?.value) === "unknown") {
     // Deliberately NOT using explicitCoatLength() here: coat length alone does not
     // reliably predict shedding amount (e.g. Labrador Retrievers, German Shepherds,
     // and other double-coated breeds shed heavily despite a short coat; Poodle-type
     // curly coats shed very little despite being long). Breed/breed-group tendency
-    // below is a stronger shedding signal than coat length, so it's checked first.
-    // Coat length is only used to set grooming (see setGrooming calls further down),
-    // never to independently decide a shedding value.
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, [
-      "hairless",
-      "chinese crested",
-      "xoloitzcuintli",
-      "xolo",
-      "peruvian inca orchid",
-      "peruvian hairless",
-    ])
-  ) {
-    setShedding("low", 0.78, "Hairless or very low-coat breed type indicates low shedding.");
-  } else if (
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["poodle", "bichon", "maltese", "shih tzu", "yorkshire terrier", "yorkie"])
-  ) {
-    setShedding(mixedOrUnclearBreed ? "medium" : "low", mixedOrUnclearBreed ? 0.52 : 0.66, "Breed/coat type gives a cautious shedding estimate.");
-  } else if (
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, [
-      "husky",
-      "german shepherd",
-      "golden retriever",
-      "labrador",
-      "akita",
-      "great pyrenees",
-      "samoyed",
-      "bernese",
-      "newfoundland",
-      "rottweiler",
-      "shiba inu",
-      "anatolian shepherd",
-    ])
-  ) {
-    setShedding("high", 0.68, "Breed/coat type commonly indicates higher shedding.");
-  } else if (
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, [
-      "pit bull",
-      "boxer",
-      "chihuahua",
-      "doberman",
-      "greyhound",
-      "american staffordshire terrier",
-      "staffordshire bull terrier",
-      "amstaff",
-      "basenji",
-      "pointer",
-      "vizsla",
-      "weimaraner",
-    ])
-  ) {
-    setShedding("low", 0.58, "Short-coated breed type gives a cautious low shedding estimate.");
-  } else if (
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["beagle", "dachshund", "cocker spaniel", "catahoula", "plott hound"])
-  ) {
-    setShedding("medium", 0.56, "Short-coated breed type gives a cautious medium shedding estimate.");
-  } else if (
-    // Shelters (esp. DACC) commonly label mixes as just "Shepherd / Mixed" with
-    // no further qualifier. That's a real signal (shepherd-type/double coats
-    // typically shed moderately-to-heavily) but weaker than a named breed like
-    // "German Shepherd" above, so it gets a lower confidence and a cautious
-    // "medium" rather than "high".
-    normalizeSheddingValue(normalized.shedding_level?.value) === "unknown" &&
-    breedIncludesAny(dogInput.breed, ["shepherd"])
-  ) {
-    setShedding("medium", 0.5, "Generic shepherd-type breed label gives a cautious medium shedding estimate.");
+    // is a stronger shedding signal than coat length, so it's checked first. Coat
+    // length is only used to set grooming (see setGrooming calls further down),
+    // never to independently decide a shedding value. See resolveBreedShedding()
+    // above for how multiple named breeds / breed groups are combined.
+    const breedShedding = resolveBreedShedding(dogInput.breed);
+    if (breedShedding) {
+      setShedding(breedShedding.value, breedShedding.confidence, breedShedding.evidence);
+    }
   }
 
   if (dogInput.current_barking_level) {
