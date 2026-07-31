@@ -78,6 +78,24 @@ function clean(value) {
   return text || null;
 }
 
+function cleanOfficialUrl(value) {
+  const text = clean(value);
+  if (!text) return null;
+
+  const normalized = text.startsWith("http://")
+    ? `https://${text.slice(7)}`
+    : text.startsWith("//")
+      ? `https:${text}`
+      : text;
+
+  try {
+    const parsed = new URL(normalized);
+    return parsed.protocol === "https:" && parsed.hostname ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeState(value) {
   const text = clean(value);
   return text ? text.toUpperCase() : null;
@@ -288,13 +306,13 @@ function getApplyUrl(animal, rescue, orgWebsite) {
   const animalId = clean(animal?.id);
 
   return (
-    clean(attr(animal, "url")) ||
-    clean(attr(animal, "animalUrl")) ||
-    clean(attr(animal, "adoptionUrl")) ||
-    clean(attr(animal, "link")) ||
+    cleanOfficialUrl(attr(animal, "url")) ||
+    cleanOfficialUrl(attr(animal, "animalUrl")) ||
+    cleanOfficialUrl(attr(animal, "adoptionUrl")) ||
+    cleanOfficialUrl(attr(animal, "link")) ||
     orgWebsite ||
-    rescue.applyUrl ||
-    rescue.website ||
+    cleanOfficialUrl(rescue.applyUrl) ||
+    cleanOfficialUrl(rescue.website) ||
     (animalId
       ? `https://www.rescuegroups.org/animals/detail?AnimalID=${animalId}`
       : null)
@@ -324,10 +342,10 @@ function normalizeDogRow(animal, org, included, rescue) {
     rescue.name;
 
   const orgWebsite =
-    clean(attr(org, "url")) ||
-    clean(attr(org, "website")) ||
-    clean(attr(org, "adoptionUrl")) ||
-    rescue.website;
+    cleanOfficialUrl(attr(org, "url")) ||
+    cleanOfficialUrl(attr(org, "website")) ||
+    cleanOfficialUrl(attr(org, "adoptionUrl")) ||
+    cleanOfficialUrl(rescue.website);
 
   const city =
     clean(attr(animal, "locationCity")) ||

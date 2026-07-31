@@ -22,11 +22,21 @@ export function normalizeHttpsUrl(raw) {
   const trimmed = clean(raw);
   if (!trimmed || hasUnsafeCharacters(trimmed)) return "";
 
-  if (trimmed.startsWith("//")) return `https:${trimmed}`;
-  if (trimmed.startsWith("http://")) return `https://${trimmed.slice(7)}`;
-  if (trimmed.startsWith("https://")) return trimmed;
+  let normalized = "";
+  if (trimmed.startsWith("//")) normalized = `https:${trimmed}`;
+  if (trimmed.startsWith("http://")) normalized = `https://${trimmed.slice(7)}`;
+  if (trimmed.startsWith("https://")) normalized = trimmed;
 
-  return "";
+  if (!normalized) return "";
+
+  try {
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "https:" || !parsed.hostname) return "";
+  } catch {
+    return "";
+  }
+
+  return normalized;
 }
 
 export function normalizeExternalUrl(raw) {

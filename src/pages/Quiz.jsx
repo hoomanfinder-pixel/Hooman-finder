@@ -89,6 +89,11 @@ function sectionStatus(answered, total) {
   return "partial";
 }
 
+function reportQuizError(context, error) {
+  console.error(`Quiz ${context} failed`, error);
+  return "We couldn’t save your quiz right now. Your answers are still saved on this device. Please try again.";
+}
+
 export default function Quiz() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -162,7 +167,7 @@ export default function Quiz() {
         setAnswersById(loaded || {});
       } catch (e) {
         if (!mounted) return;
-        setSaveError(e?.message || String(e));
+        setSaveError(reportQuizError("load", e));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -184,7 +189,7 @@ export default function Quiz() {
       setSaveError("");
       await saveQuizResponses(sessionId, nextAnswers);
     } catch (e) {
-      setSaveError(e?.message || String(e));
+      setSaveError(reportQuizError("save", e));
     }
   }
 

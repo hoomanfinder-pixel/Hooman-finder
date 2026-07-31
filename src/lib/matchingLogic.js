@@ -12,6 +12,7 @@
 // - rankDogs(dogs, answersById) for backward compatibility.
 
 const MIN_ANSWERED_FOR_REAL_MATCH = 2;
+const CONFIRMED_COMPATIBILITY_CONFLICT_CAP = 49;
 
 const WEIGHTS = {
   // Only fields with real dog-side comparison logic belong here.
@@ -685,6 +686,40 @@ function countAnsweredQuestions(answersById) {
   return Object.keys(WEIGHTS).filter((questionId) => !isEmptyAnswer(answersById[questionId])).length;
 }
 
+function confirmedCompatibilityCautions(dog, answersById) {
+  const cautions = [];
+  const kids = normalizeAnswerList(answersById?.kids_in_home);
+  const hasKidsNeed = kids.some((pick) =>
+    ["yes", "kids", "children", "sometimes", "visiting", "children_visit", "under_3", "3_5", "6_9", "10_12", "13_plus"].includes(pick)
+  );
+  const dogKids =
+    dog?.good_with_kids ?? dog?.kids_ok ?? dog?.kid_friendly ?? dog?.goodWithKids;
+
+  if (hasKidsNeed && falsy(dogKids)) {
+    cautions.push(
+      "This dog is listed as not compatible with children, but your household includes children."
+    );
+  }
+
+  const pets = normalizeAnswerList(answersById?.pets_in_home);
+  const dogDogs = dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs;
+  const dogCats = dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats;
+
+  if (pets.includes("dogs") && falsy(dogDogs)) {
+    cautions.push(
+      "This dog is listed as not compatible with other dogs, but your home includes a dog."
+    );
+  }
+
+  if (pets.includes("cats") && falsy(dogCats)) {
+    cautions.push(
+      "This dog is listed as not compatible with cats, but your home includes a cat."
+    );
+  }
+
+  return cautions;
+}
+
 export function matchTierFromActivePct(scorePct) {
   const p = Number(scorePct);
 
@@ -755,7 +790,12 @@ export function computeRankedMatches(dogs, answersById) {
     }
 
     const meaningfulScoreAvailable = hasEnoughQuizInfo && possible > 0;
-    const scorePct = meaningfulScoreAvailable ? Math.round((earned / possible) * 100) : null;
+    const compatibilityCautions = confirmedCompatibilityCautions(dog, answersById);
+    const rawScorePct = meaningfulScoreAvailable ? Math.round((earned / possible) * 100) : null;
+    const scorePct =
+      rawScorePct !== null && compatibilityCautions.length
+        ? Math.min(rawScorePct, CONFIRMED_COMPATIBILITY_CONFLICT_CAP)
+        : rawScorePct;
 
     const top = meaningfulScoreAvailable
       ? reasons
@@ -777,6 +817,7 @@ export function computeRankedMatches(dogs, answersById) {
         tierLabel: tier.label,
         topReasons: top,
         matchReasons: meaningfulScoreAvailable ? buildSupportedMatchReasons(dog, answersById, 4) : [],
+        compatibilityCautions,
         answeredCount,
         possible,
         enoughQuizInfo: meaningfulScoreAvailable,

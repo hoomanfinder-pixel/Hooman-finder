@@ -631,6 +631,9 @@ export default function DogDetail() {
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);
   const matchReasons = getMatchReasons(quizMatch, dog);
+  const matchCautions = Array.isArray(quizMatch?.breakdown?.compatibilityCautions)
+    ? quizMatch.breakdown.compatibilityCautions.filter(Boolean)
+    : [];
   let backLink = "/dogs";
   let backLabel = "← Back to dogs";
 
@@ -687,6 +690,19 @@ export default function DogDetail() {
                 <p className="mt-4 text-sm font-semibold leading-6 text-[#6F6A66]">
                   This score is based on your quiz answers and the dog details currently available from the shelter or rescue.
                 </p>
+
+                {matchCautions.length ? (
+                  <div className="mt-5 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
+                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-800">
+                      Important compatibility caution
+                    </div>
+                    <ul className="mt-2 space-y-1.5">
+                      {matchCautions.map((caution) => (
+                        <li key={caution}>{caution}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
 
                 {matchReasons.length ? (
                   <div className="mt-5">
@@ -958,6 +974,19 @@ export default function DogDetail() {
                 </div>
 
               </div>
+
+              {matchCautions.length ? (
+                <div className="mt-4 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-800">
+                    Important compatibility caution
+                  </div>
+                  <ul className="mt-2 space-y-1.5">
+                    {matchCautions.map((caution) => (
+                      <li key={caution}>{caution}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               {matchReasons.length ? (
                 <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">

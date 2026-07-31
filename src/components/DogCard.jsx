@@ -123,6 +123,19 @@ function getCleanTopReasons(breakdown) {
     .slice(0, 4);
 }
 
+function getCompatibilityCautions(breakdown) {
+  return Array.isArray(breakdown?.compatibilityCautions)
+    ? breakdown.compatibilityCautions.filter(Boolean)
+    : [];
+}
+
+function compactCompatibilityCaution(caution) {
+  const raw = String(caution || "").trim();
+  const conflict = raw.match(/not compatible with ([^,.;]+)/i);
+
+  return conflict ? `Not compatible with ${conflict[1]}` : raw;
+}
+
 function hasStructuredDogInfo(dog) {
   return Boolean(
     dog?.size ||
@@ -155,6 +168,7 @@ function buildDogInfoBullets(dog) {
 function getMatchState({ dog, scorePct, breakdown }) {
   const hasScore = isRealMatchScore(scorePct, breakdown);
   const topReasons = getCleanTopReasons(breakdown);
+  const cautions = getCompatibilityCautions(breakdown);
   const answeredCount = Number(breakdown?.answeredCount || 0);
 
   if (hasScore) {
@@ -165,6 +179,7 @@ function getMatchState({ dog, scorePct, breakdown }) {
       subhead: `${Math.round(Number(scorePct))}% match`,
       reasonsTitle: "Why this dog may match you",
       reasons: topReasons,
+      cautions,
       note: topReasons.length
         ? "These reasons are based on your quiz answers and available rescue/shelter info."
         : "We found a possible fit, but there are not enough confirmed details for specific highlights yet.",
@@ -501,6 +516,19 @@ export default function DogCard({
                 </div>
 
                 <div className="mt-5 border-t border-[#183D35]/10 pt-5">
+                  {matchState.cautions?.length ? (
+                    <div className="mb-5 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
+                      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-800">
+                        Important compatibility caution
+                      </div>
+                      <ul className="mt-2 space-y-1.5">
+                        {matchState.cautions.map((caution) => (
+                          <li key={caution}>{caution}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+
                   <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#6F6A66]">
                     {matchState.reasonsTitle}
                   </div>
@@ -685,6 +713,29 @@ export default function DogCard({
             </div>
 
             <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:hidden">
+              {matchState.cautions?.length ? (
+                <div
+                  className="mb-1.5 rounded-lg border border-amber-300/80 bg-amber-50/95 px-2 py-1 text-[8px] font-bold leading-[1.25] text-amber-950 shadow-sm"
+                  role="alert"
+                >
+                  <div className="font-black uppercase tracking-[0.1em] text-amber-800">
+                    Compatibility caution
+                  </div>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {matchState.cautions.map((caution) => (
+                      <li
+                        key={caution}
+                        className="truncate"
+                        title={caution}
+                        aria-label={caution}
+                      >
+                        {compactCompatibilityCaution(caution)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-white/75">
                 {shelterName(dog)}
               </p>
@@ -728,6 +779,24 @@ export default function DogCard({
                 </span>
               ))}
             </div>
+
+            {matchState.cautions?.length ? (
+              <div
+                className="mt-3 rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-950"
+                role="alert"
+              >
+                <div className="font-black uppercase tracking-[0.12em] text-amber-800">
+                  Compatibility caution
+                </div>
+                <ul className="mt-1 space-y-1">
+                  {matchState.cautions.map((caution) => (
+                    <li key={caution} title={caution} aria-label={caution}>
+                      {compactCompatibilityCaution(caution)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             <div className="mt-auto pt-4">
               <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-[#183D35] px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[#F3C982] transition group-hover:bg-[#12332C]">

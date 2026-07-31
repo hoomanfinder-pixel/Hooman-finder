@@ -1,5 +1,6 @@
 // src/lib/quizStorage.js
 import { createClient } from "@supabase/supabase-js";
+import { canonicalizeAllergySensitivity } from "./quizQuestions";
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -166,6 +167,12 @@ function normalizeQuizPatch(patch) {
   const safePatch = { ...(patch || {}) };
   delete safePatch.kids_age_band;
 
+  if ("allergy_sensitivity" in safePatch) {
+    safePatch.allergy_sensitivity = canonicalizeAllergySensitivity(
+      safePatch.allergy_sensitivity
+    );
+  }
+
   // Ensure array columns stay arrays (text[])
   if ("size_preference" in safePatch) safePatch.size_preference = cleanArray(safePatch.size_preference);
   if ("age_preference" in safePatch) safePatch.age_preference = cleanArray(safePatch.age_preference);
@@ -242,7 +249,7 @@ export async function loadQuizResponses(sessionId) {
 
   const sessionAnswers = readSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), null);
   const localAnswers = readLocalJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), null);
-  const answersById = sessionAnswers || localAnswers || {};
+  const answersById = normalizeQuizPatch(sessionAnswers || localAnswers || {});
 
   if (!sessionAnswers && localAnswers) {
     writeSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), localAnswers);

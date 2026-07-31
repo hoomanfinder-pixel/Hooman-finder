@@ -11,6 +11,16 @@ export const QUESTION_TYPES = {
   TEXT: "text",
 };
 
+export function canonicalizeAllergySensitivity(value) {
+  const legacyValues = {
+    needs_low_shedding: "have_allergies",
+    mild: "mild_allergies",
+    none: "no_allergies",
+  };
+
+  return legacyValues[value] || value;
+}
+
 // These MUST match Supabase column names.
 export const ALL_QUESTIONS = [
   // ============================================================
@@ -404,11 +414,11 @@ export const ALL_QUESTIONS = [
     title: "Allergy sensitivity",
     options: [
       {
-        value: "needs_low_shedding",
+        value: "have_allergies",
         label: "I have allergies (need hypoallergenic / low-shedding)",
       },
-      { value: "mild", label: "Mild allergies (some shedding is okay)" },
-      { value: "none", label: "No allergies / doesn’t matter" },
+      { value: "mild_allergies", label: "Mild allergies (some shedding is okay)" },
+      { value: "no_allergies", label: "No allergies / doesn’t matter" },
     ],
   },
 
