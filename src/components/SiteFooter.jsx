@@ -43,6 +43,49 @@ export default function SiteFooter() {
             >
               Terms
             </Link>
+            <a
+              href="https://www.instagram.com/hoomanfinder/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Follow Hooman Finder on Instagram (opens in a new tab)"
+              className="inline-flex items-center gap-1.5 text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="5" />
+                <circle cx="12" cy="12" r="4" />
+                <circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none" />
+              </svg>
+              Instagram
+            </a>
+            <a
+              href="https://www.tiktok.com/@hoomanfinder"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Follow Hooman Finder on TikTok (opens in a new tab)"
+              className="inline-flex items-center gap-1.5 text-[#183D35]/75 underline-offset-4 hover:text-[#183D35] hover:underline"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="h-4 w-4 shrink-0"
+              >
+                <path d="M14 4v10.5a4.5 4.5 0 1 1-3.5-4.39" />
+                <path d="M14 4c.7 2.1 2.3 3.7 4.5 4.3" />
+              </svg>
+              TikTok
+            </a>
           </div>
         </div>
 
