@@ -1,0 +1,86 @@
+const fixtureImage = (label, color, { width = 800, height = 600 } = {}) =>
+  `data:image/svg+xml,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <rect width="100%" height="100%" fill="${color}" />
+      <text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle"
+        font-family="Arial" font-size="54" fill="#183D35">${label}</text>
+    </svg>
+  `)}`;
+
+export const shelterFixture = {
+  id: "e2e-shelter-1",
+  name: "Great Lakes Dog Rescue",
+  website: "https://greatlakesdogrescue.example.org",
+  apply_url: "https://greatlakesdogrescue.example.org/adopt",
+  logo_url: fixtureImage("GLDR", "#DFE7D7", { width: 400, height: 200 }),
+  city: "Detroit",
+  state: "MI",
+  rescuegroups_org_id: "e2e-org-1",
+};
+
+export const dogFixtures = [
+  {
+    id: "e2e-dog-maple",
+    name: "Maple",
+    breed: "Labrador Retriever Mix",
+    age_years: 3,
+    age_text: "3 years",
+    size: "Medium",
+    energy_level: "Moderate",
+    description: "Maple is a friendly, adaptable dog who enjoys walks and quiet evenings.",
+    photo_url: fixtureImage("Maple", "#F3C982"),
+    photo_urls: [],
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "available",
+    urgency_level: "Standard",
+    source: "rescuegroups",
+    external_id: "e2e-maple",
+    rescuegroups_id: "e2e-maple",
+    rescuegroups_org_id: "e2e-org-1",
+    source_url: "https://greatlakesdogrescue.example.org/dogs/maple",
+    adoption_url: "https://greatlakesdogrescue.example.org/dogs/maple/apply",
+    shelter_name: shelterFixture.name,
+    placement_city: "Detroit",
+    placement_state: "MI",
+    good_with_kids: true,
+    good_with_dogs: true,
+    good_with_cats: true,
+    potty_trained: true,
+    hypoallergenic: false,
+    created_at: "2026-08-01T12:00:00.000Z",
+    shelters: shelterFixture,
+  },
+  {
+    id: "e2e-dog-river",
+    name: "River",
+    breed: "Shepherd Mix",
+    age_years: 7,
+    age_text: "7 years",
+    size: "Large",
+    energy_level: "Low",
+    description: "River is a calm senior who prefers a relaxed daily routine.",
+    photo_url: fixtureImage("River", "#C7D4BB"),
+    photo_urls: [],
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "active",
+    urgency_level: "Standard",
+    source: "rescuegroups",
+    external_id: "e2e-river",
+    rescuegroups_id: "e2e-river",
+    rescuegroups_org_id: "e2e-org-1",
+    source_url: "https://greatlakesdogrescue.example.org/dogs/river",
+    adoption_url: "https://greatlakesdogrescue.example.org/dogs/river/apply",
+    shelter_name: shelterFixture.name,
+    placement_city: "Detroit",
+    placement_state: "MI",
+    good_with_kids: false,
+    good_with_dogs: true,
+    good_with_cats: false,
+    potty_trained: true,
+    hypoallergenic: false,
+    created_at: "2026-07-31T12:00:00.000Z",
+    shelters: shelterFixture,
+  },
+];

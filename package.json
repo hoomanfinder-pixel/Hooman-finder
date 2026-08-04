@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "vite build && vite build --ssr src/entry-server.jsx --outDir dist/server && node scripts/prerender-home.mjs",
     "test": "node --test src/lib/*.test.js",
+    "test:e2e": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test",
+    "test:e2e:headed": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --headed",
+    "test:e2e:ui": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "dry-run:dacc": "node scripts/dry-run-dacc-rescuegroups.cjs",
     "inspect:dacc-fields": "node scripts/inspect-dacc-rescuegroups-fields.cjs",
     "import:rescuegroups:dacc": "node scripts/import-dacc-rescuegroups.cjs",
@@ -26,6 +30,7 @@
     "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.5.0",
