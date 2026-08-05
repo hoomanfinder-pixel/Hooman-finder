@@ -19,6 +19,12 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      testIgnore: /mobile-flow\.spec\.js/,
+    },
+    {
+      name: "mobile-chromium",
+      use: { ...devices["Pixel 5"] },
+      testMatch: /mobile-flow\.spec\.js/,
     },
   ],
   webServer: {

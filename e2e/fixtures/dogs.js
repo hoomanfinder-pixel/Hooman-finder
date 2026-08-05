@@ -84,3 +84,108 @@ export const dogFixtures = [
     shelters: shelterFixture,
   },
 ];
+
+const scenarioDog = ({ id, name, color, ...overrides }) => ({
+  id,
+  name,
+  breed: "Mixed Breed",
+  age_years: 4,
+  age_text: "4 years",
+  size: "Medium",
+  energy_level: "Moderate",
+  description: `${name} has deterministic compatibility details for local end-to-end testing.`,
+  photo_url: fixtureImage(name, color),
+  photo_urls: [],
+  adoptable: true,
+  adoption_pending: false,
+  availability_status: "available",
+  urgency_level: "Standard",
+  source: "rescuegroups",
+  external_id: id,
+  rescuegroups_id: id,
+  rescuegroups_org_id: shelterFixture.rescuegroups_org_id,
+  source_url: `https://greatlakesdogrescue.example.org/dogs/${id}`,
+  adoption_url: `https://greatlakesdogrescue.example.org/dogs/${id}/apply`,
+  shelter_name: shelterFixture.name,
+  placement_city: "Detroit",
+  placement_state: "MI",
+  good_with_kids: true,
+  good_with_dogs: true,
+  good_with_cats: true,
+  potty_trained: true,
+  hypoallergenic: false,
+  max_alone_hours: 8,
+  created_at: "2026-08-02T12:00:00.000Z",
+  shelters: shelterFixture,
+  ...overrides,
+});
+
+const malformedLinkShelter = {
+  ...shelterFixture,
+  website: "https://",
+  apply_url: "http://",
+};
+
+export const childCompatibilityDogs = [
+  scenarioDog({
+    id: "e2e-child-incompatible",
+    name: "Juniper",
+    color: "#E8B4A2",
+    good_with_kids: false,
+  }),
+  scenarioDog({
+    id: "e2e-child-unknown",
+    name: "Scout",
+    color: "#B9D7EA",
+    good_with_kids: null,
+    source_url: "http://",
+    adoption_url: "https://",
+    shelter_website: "http://",
+    shelters: malformedLinkShelter,
+  }),
+];
+
+export const catCompatibilityDogs = [
+  scenarioDog({
+    id: "e2e-cat-incompatible",
+    name: "Clover",
+    color: "#D7C2E8",
+    good_with_cats: false,
+  }),
+  scenarioDog({
+    id: "e2e-cat-unknown",
+    name: "Wren",
+    color: "#BFD8BD",
+    good_with_cats: null,
+  }),
+];
+
+export const dogCompatibilityDogs = [
+  scenarioDog({
+    id: "e2e-dog-incompatible",
+    name: "Piper",
+    color: "#F0C7A5",
+    good_with_dogs: false,
+  }),
+  scenarioDog({
+    id: "e2e-dog-unknown",
+    name: "Marlow",
+    color: "#ABC8D8",
+    good_with_dogs: null,
+  }),
+];
+
+export const aloneTimeDogs = [
+  scenarioDog({
+    id: "e2e-alone-fit",
+    name: "Harbor",
+    color: "#C7D4BB",
+    max_alone_hours: 8,
+  }),
+  scenarioDog({
+    id: "e2e-alone-mismatch",
+    name: "Dash",
+    color: "#F3C982",
+    max_alone_hours: 2,
+  }),
+];
