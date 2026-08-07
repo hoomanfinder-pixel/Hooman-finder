@@ -32,6 +32,7 @@ require("dotenv").config({ path: ".env.local" });
 
 const { createClient } = require("@supabase/supabase-js");
 const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
+const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 
 // Mirrors src/lib/dogVisibility.js isPubliclyVisibleDog (same logic already
 // shipped in scripts/generate-dog-sitemap.cjs) — enrichment must only ever
@@ -2899,6 +2900,22 @@ async function enrichOneDog(dog, { dryRun = false } = {}) {
   }
 
   if (!meaningfulChange) {
+    // Even though there's nothing worth writing to bio_*/ai_traits, the
+    // source data WAS just re-checked against today's source_content_hash.
+    // Without acknowledging that here, a dog whose structured fields changed
+    // but whose derived bio traits happened to net out the same would stay
+    // permanently flagged as "changed" and get re-sent to OpenAI on every
+    // future run, forever, for no reason — the one thing --limit/eligibility
+    // filtering is meant to prevent.
+    const nextSourceHash = dog?.source_content_hash ?? null;
+    if (nextSourceHash !== null && nextSourceHash !== (dog?.ai_enriched_source_hash ?? null)) {
+      const { error: ackError } = await supabase
+        .from("dogs")
+        .update({ ai_enriched_source_hash: nextSourceHash })
+        .eq("id", dog.id);
+      if (ackError) throw ackError;
+    }
+
     return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed, meaningfulChange, skipped: true };
   }
 
@@ -2908,6 +2925,7 @@ async function enrichOneDog(dog, { dryRun = false } = {}) {
     ai_enrichment_version: AI_ENRICHMENT_VERSION,
     ai_confidence_score: aiTraits.overall_confidence,
     needs_human_review: aiTraits.needs_human_review,
+    ai_enriched_source_hash: dog?.source_content_hash ?? null,
     ...bioColumns,
   };
 
@@ -2970,6 +2988,8 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_size,
       bio_traits_updated_at,
       needs_human_review,
+      source_content_hash,
+      ai_enriched_source_hash,
       adoptable,
       adoption_pending,
       availability_status,
@@ -2990,16 +3010,17 @@ async function fetchDogs({ limit, force, dogId }) {
     .in("availability_status", ["available", "active", "unknown"])
     .neq("urgency_level", "Adopted")
     .order("created_at", { ascending: false })
-    .limit(limit);
+    // Explicit safety-net cap, decoupled from the CLI --limit (business
+    // parameter, e.g. 40/day) applied after eligibility filtering below.
+    // Without an explicit limit here, this query is subject to PostgREST's
+    // own default row cap (commonly 1000) and would silently truncate the
+    // eligibility scan before the JS filtering below ever sees the rest.
+    // 2000 is comfortably above current + realistic near-term dataset size;
+    // revisit with real pagination if the dogs table ever approaches it.
+    .limit(2000);
 
   if (dogId) {
     query = query.eq("id", dogId);
-  }
-
-  if (!force && !dogId) {
-    query = query.or(
-      `ai_enriched_at.is.null,ai_enrichment_version.neq.${AI_ENRICHMENT_VERSION}`
-    );
   }
 
   const { data, error } = await query;
@@ -3010,7 +3031,54 @@ async function fetchDogs({ limit, force, dogId }) {
   // urgency); isPubliclyVisibleDog is the authoritative check that also
   // requires a trusted synced source or a verified listing, matching what
   // actually renders on the live site.
-  return Array.isArray(data) ? data.filter(isPubliclyVisibleDog) : [];
+  const visible = Array.isArray(data) ? data.filter(isPubliclyVisibleDog) : [];
+
+  if (force || dogId) {
+    return visible.slice(0, limit);
+  }
+
+  // Column-to-column comparisons (source_content_hash vs
+  // ai_enriched_source_hash) aren't expressible in a single PostgREST filter,
+  // so eligibility is resolved here instead of in the query. Dataset size
+  // (a handful of Michigan rescues) makes fetching the full visible set
+  // before filtering/limiting a non-issue.
+  const eligible = [];
+  const reasonCounts = { new: 0, version_outdated: 0, content_changed: 0 };
+
+  for (const dog of visible) {
+    const reason = getEnrichmentEligibilityReason(dog);
+    if (!reason) continue;
+    reasonCounts[reason] += 1;
+    eligible.push(dog);
+  }
+
+  console.log(
+    `Eligible for enrichment: ${eligible.length} (new: ${reasonCounts.new}, version outdated: ${reasonCounts.version_outdated}, content changed: ${reasonCounts.content_changed})`
+  );
+
+  return eligible.slice(0, limit);
+}
+
+// "new" — never enriched at all.
+// "version_outdated" — enriched under an older AI_ENRICHMENT_VERSION (e.g.
+//   after a prompt/logic change), independent of whether source data moved.
+// "content_changed" — already enriched under the current version, but the
+//   bio/structured fields it was enriched against have since changed
+//   (source_content_hash no longer matches what was last enriched).
+// A dog with no source_content_hash yet (e.g. never touched by
+// sync-rescuegroups-dogs.cjs/enrich-dacc-bios.cjs since those started
+// stamping it) is never treated as "changed" purely from that absence —
+// only a genuine hash mismatch counts.
+function getEnrichmentEligibilityReason(dog) {
+  if (!dog?.ai_enriched_at) return "new";
+  if (dog?.ai_enrichment_version !== AI_ENRICHMENT_VERSION) return "version_outdated";
+
+  const currentHash = dog?.source_content_hash ?? null;
+  if (currentHash !== null && currentHash !== (dog?.ai_enriched_source_hash ?? null)) {
+    return "content_changed";
+  }
+
+  return null;
 }
 
 async function main() {

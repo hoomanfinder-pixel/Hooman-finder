@@ -15,6 +15,11 @@ const {
 const {
   resolveDogAvailability,
 } = require("./scripts/dog-availability.cjs");
+const {
+  HASHED_FIELDS,
+  computeSourceContentHash,
+  mergeHashedSnapshot,
+} = require("./scripts/dog-enrichment-hash.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -707,10 +712,15 @@ async function upsertDogs(dogs) {
 
   console.log(`Inserting/updating ${dogs.length} dogs in Supabase...`);
 
+  // Includes every HASHED_FIELDS column (not just the ones this script writes)
+  // so source_content_hash can be computed from the true final row state via
+  // mergeHashedSnapshot below, not a partial view of it.
+  const existingDogSelect = `id, rescuegroups_id, external_id, ${HASHED_FIELDS.join(", ")}`;
+
   const rescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
   const { data: existingDogs, error: findError } = await supabase
     .from("dogs")
-    .select("id, rescuegroups_id, external_id, description")
+    .select(existingDogSelect)
     .in("rescuegroups_id", rescueGroupsIds);
 
   if (findError) {
@@ -719,7 +729,7 @@ async function upsertDogs(dogs) {
 
   const { data: existingByExternalId, error: externalIdFindError } = await supabase
     .from("dogs")
-    .select("id, rescuegroups_id, external_id, description")
+    .select(existingDogSelect)
     .eq("source", "rescuegroups")
     .in("external_id", rescueGroupsIds);
 
@@ -763,6 +773,14 @@ async function upsertDogs(dogs) {
           delete updateRow.shelter_id;
         }
 
+        // Computed from the row as it will actually end up after the
+        // deletions above (not just the freshly-fetched API payload), so a
+        // change that gets silently dropped (e.g. description preservation)
+        // never causes a false "content changed" signal downstream.
+        updateRow.source_content_hash = computeSourceContentHash(
+          mergeHashedSnapshot(existingDog, updateRow)
+        );
+
         const { error } = await supabase
           .from("dogs")
           .update(updateRow)
@@ -774,7 +792,12 @@ async function upsertDogs(dogs) {
 
         updated += 1;
       } else {
-        const { error } = await supabase.from("dogs").insert(dog);
+        const dogWithHash = {
+          ...dog,
+          source_content_hash: computeSourceContentHash(dog),
+        };
+
+        const { error } = await supabase.from("dogs").insert(dogWithHash);
 
         if (error) {
           throw error;

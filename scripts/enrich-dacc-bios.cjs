@@ -11,6 +11,11 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
+const {
+  HASHED_FIELDS,
+  computeSourceContentHash,
+  mergeHashedSnapshot,
+} = require("./dog-enrichment-hash.cjs");
 
 const DACC_RESCUEGROUPS_ORG_ID = "8883";
 const SHELTERMANAGER_ACCOUNT = "pe3256";
@@ -362,22 +367,16 @@ async function fetchDaccDogs(supabase) {
     .select(
       `
         id,
-        name,
         rescuegroups_id,
         rescuegroups_org_id,
         adoptable,
-        description,
-        placement_note,
-        good_with_dogs,
-        good_with_cats,
-        good_with_kids,
-        potty_trained,
-        first_time_friendly,
+        source_content_hash,
         bio_good_with_dogs,
         bio_good_with_cats,
         bio_good_with_kids,
         bio_potty_trained,
-        bio_first_time_friendly
+        bio_first_time_friendly,
+        ${HASHED_FIELDS.join(",\n        ")}
       `
     )
     .eq("source", "rescuegroups")
@@ -408,6 +407,15 @@ function buildUpdate(dog, animal, bio, cautiousNote) {
 
   if (cautiousNote && !hasText(dog.placement_note)) {
     update.placement_note = cautiousNote;
+  }
+
+  // Only stamp a fresh hash when something enrichment-relevant is actually
+  // changing (mirrors the "nothing to write" skip below in main()) — this is
+  // what lets scripts/enrich-dogs-ai.cjs pick up a DACC bio backfill as a
+  // genuine content change without also flagging every untouched dog this
+  // script scans past.
+  if (Object.keys(update).length > 0) {
+    update.source_content_hash = computeSourceContentHash(mergeHashedSnapshot(dog, update));
   }
 
   return { update, logs: bioTraitResult.logs };

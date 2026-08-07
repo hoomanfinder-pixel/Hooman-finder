@@ -34,6 +34,20 @@ jobs:
           RESCUEGROUPS_API_KEY: ${{ secrets.RESCUEGROUPS_API_KEY }}
         run: node sync-rescuegroups-dogs.cjs
 
+      - name: Run AI dog trait enrichment
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        # Bounded per run so a big backlog can't spike OpenAI spend in one go —
+        # any dog left over (new, version-outdated, or content-changed) simply
+        # rolls forward and is picked up again tomorrow. continue-on-error
+        # keeps this failure-tolerant: an OpenAI outage or quota issue must
+        # never block the sitemap step below, which worked independently of
+        # enrichment before this step existed.
+        run: node scripts/enrich-dogs-ai.cjs --limit=40
+        continue-on-error: true
+
       - name: Regenerate dog sitemap
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
