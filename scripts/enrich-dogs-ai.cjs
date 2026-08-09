@@ -2974,29 +2974,23 @@ function buildBioColumns(aiTraits, inferredAdultSize) {
   };
 }
 
-// Carries forward an existing bio_* value only when the fresh run found
-// nothing (never overrides evidence-backed fresh values). Every carry-forward
-// is also reported back to the caller: a value that survives purely because
-// today's run couldn't re-derive it is not the same as a value this run
-// actually verified, so it should be surfaced for human review rather than
-// presented as freshly authoritative. This intentionally does not attempt to
-// "expire" a carried-forward value after N runs (no DB column exists to track
-// that, and adding one is a schema decision outside this pass) — the mitigation
-// here is visibility (needs_human_review + a caution note), not automatic removal.
+// Carries forward ordinary existing bio_* values only when the fresh run found
+// nothing (never overrides evidence-backed fresh values). Safety-sensitive
+// child/dog/cat compatibility is deliberately excluded: a fresh unknown must
+// clear unsupported legacy compatibility instead of keeping it matching-facing.
+// Confirmed structured compatibility and fresh bio_explicit evidence already
+// produce non-unknown nextColumns before this merge, so they remain intact.
 function mergeExistingBioColumns(nextColumns, dog) {
   const merged = { ...nextColumns };
   const carriedForwardFields = [];
 
-  for (const key of [
-    "bio_good_with_kids",
-    "bio_good_with_dogs",
-    "bio_good_with_cats",
-    "bio_potty_trained",
-  ]) {
-    if (merged[key] === "unknown" && BIO_VALUES.has(dog?.[key]) && dog[key] !== "unknown") {
-      merged[key] = dog[key];
-      carriedForwardFields.push(key);
-    }
+  if (
+    merged.bio_potty_trained === "unknown" &&
+    BIO_VALUES.has(dog?.bio_potty_trained) &&
+    dog.bio_potty_trained !== "unknown"
+  ) {
+    merged.bio_potty_trained = dog.bio_potty_trained;
+    carriedForwardFields.push("bio_potty_trained");
   }
 
   for (const key of ["bio_energy_level", "bio_exercise_needs", "bio_training_needs"]) {

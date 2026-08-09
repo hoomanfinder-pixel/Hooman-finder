@@ -9,6 +9,7 @@ const {
   asDogInput,
   buildBioColumns,
   hasMeaningfulChange,
+  mergeExistingBioColumns,
   normalizeAiTraits,
 } = require("../../scripts/enrich-dogs-ai.cjs");
 
@@ -232,4 +233,103 @@ test("unsupported safety-sensitive compatibility claims remain unknown", () => {
     dogInput({ description: "Friendly young mixed-breed dog." })
   );
   assert.equal(unsupportedNegative.good_with_cats.value, "unknown");
+});
+
+test("unsupported legacy cat compatibility is cleared when fresh v10 is unknown", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ description: "Friendly companion looking for a home." })
+  );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged, carriedForwardFields } = mergeExistingBioColumns(freshColumns, {
+    bio_good_with_cats: "no",
+  });
+
+  assert.equal(freshTraits.good_with_cats.value, "unknown");
+  assert.equal(merged.bio_good_with_cats, "unknown");
+  assert.doesNotMatch(carriedForwardFields.join(","), /bio_good_with_cats/);
+});
+
+test("unsupported legacy kid and dog compatibility is cleared with no small-animal bio alias carry-forward", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ description: "Friendly companion looking for a home." })
+  );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged, carriedForwardFields } = mergeExistingBioColumns(freshColumns, {
+    bio_good_with_kids: "no",
+    bio_good_with_dogs: "yes",
+    bio_good_with_small_animals: "no",
+    good_with_small_pets: false,
+  });
+
+  assert.equal(merged.bio_good_with_kids, "unknown");
+  assert.equal(merged.bio_good_with_dogs, "unknown");
+  assert.equal(Object.hasOwn(merged, "bio_good_with_small_animals"), false);
+  assert.equal(Object.hasOwn(merged, "good_with_small_pets"), false);
+  assert.deepEqual(carriedForwardFields, []);
+});
+
+test("confirmed structured compatibility remains matching-facing", () => {
+  const input = dogInput({
+    description: "Friendly companion looking for a home.",
+    good_with_kids: true,
+    good_with_dogs: false,
+    good_with_cats: true,
+  });
+  const freshTraits = normalizeAiTraits(baseParsedTraits(), input);
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged } = mergeExistingBioColumns(freshColumns, {
+    bio_good_with_kids: "no",
+    bio_good_with_dogs: "yes",
+    bio_good_with_cats: "no",
+  });
+
+  assert.equal(merged.bio_good_with_kids, "yes");
+  assert.equal(merged.bio_good_with_dogs, "no");
+  assert.equal(merged.bio_good_with_cats, "yes");
+});
+
+test("fresh bio-explicit compatibility remains matching-facing", () => {
+  const input = dogInput({
+    description: "This dog is good with kids, good with dogs, and good with cats.",
+  });
+  const freshTraits = normalizeAiTraits(baseParsedTraits(), input);
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged } = mergeExistingBioColumns(freshColumns, {
+    bio_good_with_kids: "no",
+    bio_good_with_dogs: "no",
+    bio_good_with_cats: "no",
+  });
+
+  for (const key of ["good_with_kids", "good_with_dogs", "good_with_cats"]) {
+    assert.equal(freshTraits[key].evidence_basis, "bio_explicit");
+    assert.equal(freshTraits[key].value, "true");
+  }
+  assert.equal(merged.bio_good_with_kids, "yes");
+  assert.equal(merged.bio_good_with_dogs, "yes");
+  assert.equal(merged.bio_good_with_cats, "yes");
+});
+
+test("ordinary lifestyle traits retain normal carry-forward behavior", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ breed: null, size: null, age_years: null, age_text: null, description: "" })
+  );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged, carriedForwardFields } = mergeExistingBioColumns(freshColumns, {
+    bio_energy_level: "high",
+    bio_shedding_level: "low",
+    bio_grooming_level: "moderate",
+    bio_training_needs: "medium_high",
+  });
+
+  assert.equal(merged.bio_energy_level, "high");
+  assert.equal(merged.bio_shedding_level, "low");
+  assert.equal(merged.bio_grooming_level, "moderate");
+  assert.equal(merged.bio_training_needs, "medium_high");
+  assert.deepEqual(
+    carriedForwardFields.sort(),
+    ["bio_energy_level", "bio_grooming_level", "bio_shedding_level", "bio_training_needs"].sort()
+  );
 });
