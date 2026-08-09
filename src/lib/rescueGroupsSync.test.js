@@ -4,7 +4,9 @@ import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const {
+  buildExistingDogUpdate,
   fetchOnePageForRescue,
+  mapAnimalToDogRow,
   syncConfiguredRescues,
 } = require("../../sync-rescuegroups-dogs.cjs");
 
@@ -17,6 +19,120 @@ const silentLogger = {
 function rescue(name, orgId) {
   return { name, rescueGroupsOrgId: orgId };
 }
+
+function existingDog(overrides = {}) {
+  return {
+    description: "Existing description",
+    breed: "Labrador Retriever",
+    age_text: "4 Years",
+    age_years: 4,
+    gender: "Male",
+    size: "Large",
+    ...overrides,
+  };
+}
+
+test("a sparse re-sync cannot erase a populated breed", () => {
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", breed: null },
+    existingDog()
+  );
+
+  assert.equal(Object.hasOwn(update, "breed"), false);
+});
+
+test("a sparse re-sync preserves age, gender, size, shelter website, city, and source timestamp", () => {
+  const update = buildExistingDogUpdate(
+    {
+      rescuegroups_id: "dog-1",
+      age_text: " ",
+      age_years: null,
+      gender: null,
+      size: "",
+      shelter_website: null,
+      placement_city: undefined,
+      source_updated_at: null,
+    },
+    existingDog()
+  );
+
+  for (const field of [
+    "age_text",
+    "age_years",
+    "gender",
+    "size",
+    "shelter_website",
+    "placement_city",
+    "source_updated_at",
+  ]) {
+    assert.equal(Object.hasOwn(update, field), false, `${field} must be omitted`);
+  }
+});
+
+test("real changed source values still update normally", () => {
+  const changedValues = {
+    breed: "German Shepherd Dog",
+    age_text: "5 Years",
+    age_years: 5,
+    gender: "Female",
+    size: "Medium",
+    shelter_website: "https://rescue.example.org",
+    placement_city: "Lansing",
+    source_updated_at: "2026-08-09T12:00:00.000Z",
+  };
+
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", ...changedValues },
+    existingDog()
+  );
+
+  for (const [field, value] of Object.entries(changedValues)) {
+    assert.deepEqual(update[field], value);
+  }
+});
+
+test("explicit false compatibility values survive mapping and existing-row updates", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-1",
+      attributes: {
+        name: "Scout",
+        isDogsOk: false,
+        isCatsOk: false,
+        isKidsOk: false,
+      },
+    },
+    [],
+    rescue("Source A", "1")
+  );
+  const update = buildExistingDogUpdate(mapped, existingDog());
+
+  assert.equal(update.good_with_dogs, false);
+  assert.equal(update.good_with_cats, false);
+  assert.equal(update.good_with_kids, false);
+});
+
+test("normal existing-row updates remain intact and populated descriptions stay frozen", () => {
+  const update = buildExistingDogUpdate(
+    {
+      rescuegroups_id: "dog-1",
+      name: "Scout Updated",
+      description: "Incoming changed description",
+      adoptable: true,
+      adoption_pending: false,
+      energy_level: "High",
+      shelter_id: "shelter-1",
+    },
+    existingDog()
+  );
+
+  assert.equal(update.name, "Scout Updated");
+  assert.equal(update.adoptable, true);
+  assert.equal(update.adoption_pending, false);
+  assert.equal(update.energy_level, "High");
+  assert.equal(update.shelter_id, "shelter-1");
+  assert.equal(Object.hasOwn(update, "description"), false);
+});
 
 test("all configured RescueGroups source failures reject the sync", async () => {
   const rescues = [rescue("Source A", "1"), rescue("Source B", "2")];

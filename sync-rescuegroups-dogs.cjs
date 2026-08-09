@@ -34,6 +34,17 @@ const API_RETRY_DELAY_MS = 1000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 
+const SPARSE_SOURCE_FIELDS = [
+  "breed",
+  "age_text",
+  "age_years",
+  "gender",
+  "size",
+  "shelter_website",
+  "placement_city",
+  "source_updated_at",
+];
+
 let supabase;
 
 function validateEnvironment() {
@@ -398,6 +409,13 @@ function hasText(value) {
   return String(value || "").trim().length > 0;
 }
 
+function hasMeaningfulSourceValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  if (Array.isArray(value) && value.length === 0) return false;
+  return true;
+}
+
 function rescueMatchesDog(dog, rescue) {
   if (rescue.rescueGroupsOrgId) {
     return String(dog.rescuegroups_org_id || "") === String(rescue.rescueGroupsOrgId);
@@ -512,6 +530,36 @@ function mapAnimalToDogRow(animal, included, rescue) {
   addSourceField(row, attrs, "newPeopleReaction", "new_people_reaction", clean);
 
   return row;
+}
+
+function buildExistingDogUpdate(dog, existingDog) {
+  const updateRow = { ...dog };
+
+  for (const field of SPARSE_SOURCE_FIELDS) {
+    if (!hasMeaningfulSourceValue(updateRow[field])) {
+      delete updateRow[field];
+    }
+  }
+
+  if (updateRow.energy_level === null || updateRow.energy_level === undefined) {
+    delete updateRow.energy_level;
+  }
+  delete updateRow.urgency_level;
+  delete updateRow.imported_status;
+
+  if (hasText(existingDog.description)) {
+    delete updateRow.description;
+  }
+
+  if (!updateRow.shelter_id) {
+    delete updateRow.shelter_id;
+  }
+
+  updateRow.source_content_hash = computeSourceContentHash(
+    mergeHashedSnapshot(existingDog, updateRow)
+  );
+
+  return updateRow;
 }
 
 async function fetchWithTimeout(url, options, timeoutMs, fetchImpl = fetch) {
@@ -808,28 +856,10 @@ async function upsertDogs(dogs) {
 
     try {
       if (existingDog) {
-        const updateRow = { ...dog };
-        if (updateRow.energy_level === null || updateRow.energy_level === undefined) {
-          delete updateRow.energy_level;
-        }
-        delete updateRow.urgency_level;
-        delete updateRow.imported_status;
-
-        if (hasText(existingDog.description)) {
-          delete updateRow.description;
-        }
-
-        if (!updateRow.shelter_id) {
-          delete updateRow.shelter_id;
-        }
-
-        // Computed from the row as it will actually end up after the
-        // deletions above (not just the freshly-fetched API payload), so a
-        // change that gets silently dropped (e.g. description preservation)
-        // never causes a false "content changed" signal downstream.
-        updateRow.source_content_hash = computeSourceContentHash(
-          mergeHashedSnapshot(existingDog, updateRow)
-        );
+        // Computed from the row as it will actually end up after sparse source
+        // values and preserved fields are omitted, so a dropped value never
+        // causes a false "content changed" signal downstream.
+        const updateRow = buildExistingDogUpdate(dog, existingDog);
 
         const { error } = await supabase
           .from("dogs")
@@ -982,8 +1012,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  buildExistingDogUpdate,
   describeError,
   fetchOnePageForRescue,
   isRetryableRescueGroupsError,
+  mapAnimalToDogRow,
   syncConfiguredRescues,
 };
