@@ -5,8 +5,10 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AccordionSection from "../components/AccordionSection";
 import SEO from "../components/SEO";
 import QuestionCard from "../components/QuestionCard";
+import usePrefersReducedMotion from "../hooks/usePrefersReducedMotion";
 import {
   QUIZ_MODES,
+  QUESTION_TYPES,
   getQuestionsForMode,
   getCompletionCounts,
 } from "../lib/quizQuestions";
@@ -112,7 +114,9 @@ export default function Quiz() {
   const [saveError, setSaveError] = useState("");
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [openRefineSection, setOpenRefineSection] = useState(REFINE_SECTIONS[0]);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const quizTopRef = useRef(null);
+  const questionRefs = useRef({});
   const refineSectionRefs = useRef({});
   const didMountModeRef = useRef(false);
 
@@ -133,9 +137,14 @@ export default function Quiz() {
 
   function scrollToElement(element) {
     if (!element || typeof element.scrollIntoView !== "function") return;
+    const activeElement = document.activeElement;
+    const userIsTyping =
+      activeElement?.matches?.("input, textarea, select, [contenteditable='true']");
+    if (userIsTyping) return;
+
     window.requestAnimationFrame(() => {
       element.scrollIntoView({
-        behavior: "smooth",
+        behavior: prefersReducedMotion ? "auto" : "smooth",
         block: "start",
       });
     });
@@ -190,6 +199,27 @@ export default function Quiz() {
       await saveQuizResponses(sessionId, nextAnswers);
     } catch (e) {
       setSaveError(reportQuizError("save", e));
+    }
+  }
+
+  function updateQuestionAnswer(question, nextQuestion, nextValue) {
+    updateAnswer(question.id, nextValue);
+
+    const completesSingleSelect =
+      question.type === QUESTION_TYPES.SINGLE && hasAnswer(nextValue);
+    const completesExclusiveMultiSelect =
+      question.type === QUESTION_TYPES.MULTI &&
+      Array.isArray(nextValue) &&
+      nextValue.length === 1 &&
+      (question.exclusiveValues || [])
+        .map(String)
+        .includes(String(nextValue[0]));
+
+    if (
+      (completesSingleSelect || completesExclusiveMultiSelect) &&
+      nextQuestion
+    ) {
+      scrollToElement(questionRefs.current[nextQuestion.id]);
     }
   }
 
@@ -394,14 +424,24 @@ export default function Quiz() {
           ) : mode === QUIZ_MODES.DEALBREAKERS ? (
             <section className="space-y-2">
               {questions.map((q, index) => (
-                <QuestionCard
+                <div
                   key={q.id}
-                  question={q}
-                  value={answersById[q.id]}
-                  onChange={(v) => updateAnswer(q.id, v)}
-                  number={index + 1}
-                  statusText={answerSummary(q, answersById[q.id])}
-                />
+                  ref={(element) => {
+                    if (element) questionRefs.current[q.id] = element;
+                  }}
+                  data-quiz-question={q.id}
+                  className="scroll-mt-20 sm:scroll-mt-24"
+                >
+                  <QuestionCard
+                    question={q}
+                    value={answersById[q.id]}
+                    onChange={(v) =>
+                      updateQuestionAnswer(q, questions[index + 1], v)
+                    }
+                    number={index + 1}
+                    statusText={answerSummary(q, answersById[q.id])}
+                  />
+                </div>
               ))}
             </section>
           ) : (
@@ -429,14 +469,24 @@ export default function Quiz() {
                     >
                       <div className="space-y-2">
                         {group.questions.map((q, index) => (
-                          <QuestionCard
+                          <div
                             key={q.id}
-                            question={q}
-                            value={answersById[q.id]}
-                            onChange={(v) => updateAnswer(q.id, v)}
-                            number={index + 1}
-                            statusText={answerSummary(q, answersById[q.id])}
-                          />
+                            ref={(element) => {
+                              if (element) questionRefs.current[q.id] = element;
+                            }}
+                            data-quiz-question={q.id}
+                            className="scroll-mt-20 sm:scroll-mt-24"
+                          >
+                            <QuestionCard
+                              question={q}
+                              value={answersById[q.id]}
+                              onChange={(v) =>
+                                updateQuestionAnswer(q, group.questions[index + 1], v)
+                              }
+                              number={index + 1}
+                              statusText={answerSummary(q, answersById[q.id])}
+                            />
+                          </div>
                         ))}
                       </div>
                     </AccordionSection>
