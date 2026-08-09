@@ -29,24 +29,26 @@ const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
 
 const API_TIMEOUT_MS = 30000;
+const API_MAX_ATTEMPTS = 3;
+const API_RETRY_DELAY_MS = 1000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
 
-if (!SUPABASE_URL) {
-  throw new Error("Missing VITE_SUPABASE_URL in .env.local");
+let supabase;
+
+function validateEnvironment() {
+  if (!SUPABASE_URL) {
+    throw new Error("Missing VITE_SUPABASE_URL in .env.local");
+  }
+
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
+  }
+
+  if (!RESCUEGROUPS_API_KEY) {
+    throw new Error("Missing RESCUEGROUPS_API_KEY in .env.local");
+  }
 }
-
-if (!SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
-}
-
-if (!RESCUEGROUPS_API_KEY) {
-  throw new Error("Missing RESCUEGROUPS_API_KEY in .env.local");
-}
-
-console.log("Environment variables loaded.");
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 function cleanText(value) {
   if (!value) return null;
@@ -512,7 +514,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
   return row;
 }
 
-async function fetchWithTimeout(url, options, timeoutMs) {
+async function fetchWithTimeout(url, options, timeoutMs, fetchImpl = fetch) {
   const controller = new AbortController();
 
   const timeout = setTimeout(() => {
@@ -520,13 +522,33 @@ async function fetchWithTimeout(url, options, timeoutMs) {
   }, timeoutMs);
 
   try {
-    return await fetch(url, {
+    return await fetchImpl(url, {
       ...options,
       signal: controller.signal,
     });
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function describeError(error) {
+  const details = [error?.message || String(error)];
+  const causeCode = error?.cause?.code;
+  const causeMessage = error?.cause?.message;
+
+  if (causeCode) details.push(causeCode);
+  if (causeMessage && causeMessage !== error?.message) details.push(causeMessage);
+
+  return [...new Set(details)].join("; ");
+}
+
+function isRetryableRescueGroupsError(error) {
+  if (error?.name === "AbortError" || error instanceof TypeError) return true;
+  return error?.status === 408 || error?.status === 429 || error?.status >= 500;
 }
 
 function buildRequestBody(rescue, pageNumber) {
@@ -626,37 +648,65 @@ function buildRequestBody(rescue, pageNumber) {
   };
 }
 
-async function fetchOnePageForRescue(rescue, pageNumber) {
-  console.log(`Calling RescueGroups API page ${pageNumber}...`);
+async function fetchOnePageForRescue(rescue, pageNumber, options = {}) {
+  const fetchImpl = options.fetchImpl || fetch;
+  const sleep = options.sleep || delay;
+  const logger = options.logger || console;
+  const maxAttempts = options.maxAttempts || API_MAX_ATTEMPTS;
+  const retryDelayMs = options.retryDelayMs ?? API_RETRY_DELAY_MS;
 
-  const response = await fetchWithTimeout(
-    RESCUEGROUPS_API_URL,
-    {
-      method: "POST",
-      headers: {
-        Authorization: RESCUEGROUPS_API_KEY,
-        "Content-Type": "application/vnd.api+json",
-      },
-      body: JSON.stringify(buildRequestBody(rescue, pageNumber)),
-    },
-    API_TIMEOUT_MS
-  );
-
-  console.log(`RescueGroups response status: ${response.status}`);
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(
-      `RescueGroups API error for ${rescue.name}: ${response.status} ${errorText}`
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    logger.log(
+      `Calling RescueGroups API page ${pageNumber} (attempt ${attempt}/${maxAttempts})...`
     );
+
+    try {
+      const response = await fetchWithTimeout(
+        RESCUEGROUPS_API_URL,
+        {
+          method: "POST",
+          headers: {
+            Authorization: RESCUEGROUPS_API_KEY,
+            "Content-Type": "application/vnd.api+json",
+          },
+          body: JSON.stringify(buildRequestBody(rescue, pageNumber)),
+        },
+        API_TIMEOUT_MS,
+        fetchImpl
+      );
+
+      logger.log(`RescueGroups response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        const apiError = new Error(
+          `RescueGroups API error for ${rescue.name}: ${response.status} ${errorText.slice(0, 500)}`
+        );
+        apiError.status = response.status;
+        throw apiError;
+      }
+
+      const json = await response.json();
+
+      const animals = Array.isArray(json.data) ? json.data : [];
+      const included = Array.isArray(json.included) ? json.included : [];
+
+      return { animals, included };
+    } catch (error) {
+      const canRetry =
+        attempt < maxAttempts && isRetryableRescueGroupsError(error);
+
+      if (!canRetry) throw error;
+
+      const waitMs = retryDelayMs * attempt;
+      logger.warn(
+        `RescueGroups request failed for ${rescue.name} on attempt ${attempt}/${maxAttempts}: ${describeError(error)}. Retrying in ${waitMs}ms.`
+      );
+      await sleep(waitMs);
+    }
   }
 
-  const json = await response.json();
-
-  const animals = Array.isArray(json.data) ? json.data : [];
-  const included = Array.isArray(json.included) ? json.included : [];
-
-  return { animals, included };
+  throw new Error(`RescueGroups request attempts exhausted for ${rescue.name}.`);
 }
 
 async function fetchDogsForRescue(rescue) {
@@ -862,43 +912,78 @@ async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) 
   console.log(`Availability check complete for ${rescue.name}.`);
 }
 
+async function syncConfiguredRescues({
+  rescues,
+  fetchDogs = fetchDogsForRescue,
+  attachShelters = (dogs) => attachShelterIdsToDogs(supabase, dogs),
+  upsert = upsertDogs,
+  markUnavailable = markMissingDogsUnavailableForRescue,
+  logger = console,
+}) {
+  let totalUpserted = 0;
+  const failures = [];
+
+  for (const rescue of rescues) {
+    try {
+      if (!rescue.supabaseShelterId && !rescue.rescueGroupsOrgId) {
+        logger.log(`Skipping ${rescue.name}: missing shelter and RescueGroups org IDs.`);
+        continue;
+      }
+
+      const dogs = await fetchDogs(rescue);
+
+      await attachShelters(dogs);
+
+      const syncResult = await upsert(dogs);
+
+      const seenRescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
+
+      await markUnavailable(rescue, seenRescueGroupsIds);
+
+      totalUpserted += syncResult.inserted + syncResult.updated;
+    } catch (error) {
+      failures.push({ rescue, error });
+      logger.error(`Error syncing ${rescue.name}: ${describeError(error)}`);
+    }
+  }
+
+  if (failures.length > 0) {
+    const failedNames = failures.map(({ rescue }) => rescue.name).join(", ");
+    throw new Error(
+      `RescueGroups refresh failed for ${failures.length}/${rescues.length} configured source(s): ${failedNames}. Later workflow steps must not run against an incomplete refresh.`
+    );
+  }
+
+  return { totalUpserted, failures: 0 };
+}
+
 async function main() {
+  validateEnvironment();
+  console.log("Environment variables loaded.");
+  supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
   console.log("Starting Hooman Finder RescueGroups sync...");
 
   const enabledRescues = RESCUES.filter((rescue) => rescue.enabled !== false);
 
   console.log(`Enabled rescues: ${enabledRescues.length}`);
 
-  let totalUpserted = 0;
-
-  for (const rescue of enabledRescues) {
-    try {
-      if (!rescue.supabaseShelterId && !rescue.rescueGroupsOrgId) {
-        console.log(`Skipping ${rescue.name}: missing shelter and RescueGroups org IDs.`);
-        continue;
-      }
-
-      const dogs = await fetchDogsForRescue(rescue);
-
-      await attachShelterIdsToDogs(supabase, dogs);
-
-      const syncResult = await upsertDogs(dogs);
-
-      const seenRescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
-
-      await markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds);
-
-      totalUpserted += syncResult.inserted + syncResult.updated;
-    } catch (error) {
-      console.error(`Error syncing ${rescue.name}: ${error.message}`);
-    }
-  }
+  const { totalUpserted } = await syncConfiguredRescues({ rescues: enabledRescues });
 
   console.log("");
   console.log(`Sync complete. Total dogs inserted/updated: ${totalUpserted}`);
 }
 
-main().catch((error) => {
-  console.error("Fatal sync error:", error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Fatal sync error:", error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  describeError,
+  fetchOnePageForRescue,
+  isRetryableRescueGroupsError,
+  syncConfiguredRescues,
+};
