@@ -3,6 +3,7 @@ import {
   catCompatibilityDogs,
   childCompatibilityDogs,
   dogCompatibilityDogs,
+  deeperQuizDogs,
   evidenceCoverageDogs,
 } from "./fixtures/dogs.js";
 import {
@@ -30,6 +31,23 @@ async function expectResultImagesDecoded(page, dogs) {
       page.getByRole("img", { name: new RegExp(`${dog.name}, adoptable`, "i") }).first()
     );
   }
+}
+
+async function openResultsWithAnswers(page, sessionId, answersById) {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.evaluate(
+    ({ id, answers }) => {
+      const sessionKey = `hoomanFinder.quizResponses.session.v1:${id}`;
+      const localKey = `hoomanFinder.quizResponses.local.v1:${id}`;
+      window.sessionStorage.setItem(sessionKey, JSON.stringify(answers));
+      window.localStorage.setItem(localKey, JSON.stringify(answers));
+      window.sessionStorage.setItem("hoomanFinderActiveQuizSession", id);
+      window.localStorage.setItem("hoomanFinderActiveQuizSession", id);
+    },
+    { id: sessionId, answers: answersById }
+  );
+  await page.goto(`/results?session=${sessionId}`, { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("heading", { name: "Your best-fit dogs, ranked." })).toBeVisible();
 }
 
 async function expectExplicitConflictOnly(page, incompatibleName, unknownName, warning) {
@@ -172,10 +190,12 @@ test.describe("alone-time preference ranking", () => {
 test.describe("match evidence coverage", () => {
   test.use({ scenario: { dogs: evidenceCoverageDogs } });
 
-  test("equal high scores distinguish sparse from data-rich evidence in results and profile", async ({
+  test("coverage prevents sparse perfect evidence from displaying as 100 percent", async ({
     page,
   }) => {
     await completeEssentialQuiz(page, "e2e-evidence-coverage", {
+      size: "Any size / flexible",
+      age: "Any age / flexible",
       children: "Under 3",
       pets: "Other dogs",
       potty: "Must be potty trained",
@@ -185,23 +205,52 @@ test.describe("match evidence coverage", () => {
     const sparseCard = getResultCard(page, "Sapphire");
     await expect(richCard).toContainText("100% match");
     await expect(richCard).not.toContainText("Limited info");
-    await expect(sparseCard).toContainText("Limited info · 100% match");
+    await expect(sparseCard).toContainText("Limited info · 73% match");
 
     await sparseCard.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
     await expect(
       page.getByRole("button", {
-        name: "Open why you matched. Limited information. 100 percent match",
+        name: "Open why you matched. Limited information. 73 percent match",
       })
     ).toBeVisible();
     await page
       .getByRole("button", {
-        name: "Open why you matched. Limited information. 100 percent match",
+        name: "Open why you matched. Limited information. 73 percent match",
       })
       .click();
     await expect(page.getByRole("dialog", { name: "Why you matched" })).toContainText(
       "Limited information"
     );
+  });
+});
+
+test.describe("deeper quiz scoring", () => {
+  test.use({ scenario: { dogs: deeperQuizDogs } });
+
+  test("supported deeper answers change ranking and explanations use scored traits", async ({ page }) => {
+    await openResultsWithAnswers(page, "e2e-deeper-ranking", {
+      size_preference: ["small"],
+      age_preference: ["adult"],
+      housing_type: "apartment",
+      separation_anxiety_willingness: "no",
+      training_commitment_level: "low",
+      noise_preference: "prefer_quiet",
+      daily_walk_minutes: "15_30",
+      weekend_activity_style: "homebody",
+      energy_preference: "low",
+    });
+
+    const quietCard = getResultCard(page, "Quiet Homebody");
+    const activeCard = getResultCard(page, "Active Vocal");
+    await expect(quietCard).toContainText("Top match");
+    await expect(activeCard).toContainText("#2 match");
+    expect(await getCardPercentage(quietCard)).toBeGreaterThan(await getCardPercentage(activeCard));
+
+    await quietCard.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/dog\/e2e-deep-quiet/);
+    await expect(page.getByText("Shelter-listed exercise needs fit your daily walking capacity")).toBeVisible();
   });
 });

@@ -78,8 +78,8 @@ export async function expectDecodedImage(image) {
 export async function answerEssentialQuiz(
   page,
   {
-    size = "Any size / flexible",
-    age = "Any age / flexible",
+    size = "Medium",
+    age = "Adult (2 to 6)",
     children = "No children in the home",
     pets = "No other animals / not important",
     potty = "Doesn’t matter / I’m open to training",

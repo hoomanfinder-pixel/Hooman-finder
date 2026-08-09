@@ -6,7 +6,6 @@ import SEO from "../components/SEO";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import { computeRankedMatches } from "../lib/matchingLogic";
-import { getMatchReasons as getSupportedMatchReasons } from "../lib/matchReasons.js";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
 import {
   getDogApplyLink,
@@ -317,13 +316,11 @@ function isRealMatchScore(match) {
   return Number.isFinite(Number(match?.scorePct));
 }
 
-function getMatchReasons(match, dog) {
+function getMatchReasons(match) {
   const supportedReasons = Array.isArray(match?.breakdown?.matchReasons)
     ? match.breakdown.matchReasons.filter(Boolean)
     : [];
-
-  if (supportedReasons.length) return supportedReasons.slice(0, 6);
-  return getSupportedMatchReasons(dog, {}, 6);
+  return supportedReasons.slice(0, 6);
 }
 
 export default function DogDetail() {
@@ -643,7 +640,7 @@ export default function DogDetail() {
   const hasQuizMatch = isRealMatchScore(quizMatch);
   const limitedMatchInformation = quizMatch?.breakdown?.limitedInformation === true;
   const evidenceCoveragePct = Number(quizMatch?.breakdown?.evidenceCoveragePct);
-  const matchReasons = getMatchReasons(quizMatch, dog);
+  const matchReasons = getMatchReasons(quizMatch);
   const matchCautions = Array.isArray(quizMatch?.breakdown?.compatibilityCautions)
     ? quizMatch.breakdown.compatibilityCautions.filter(Boolean)
     : [];

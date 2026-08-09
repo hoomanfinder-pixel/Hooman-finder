@@ -203,7 +203,46 @@ export const evidenceCoverageDogs = [
     good_with_kids: null,
     good_with_dogs: null,
     good_with_cats: null,
-    potty_trained: null,
+    potty_trained: true,
     max_alone_hours: null,
+  }),
+];
+
+export const deeperQuizDogs = [
+  scenarioDog({
+    id: "e2e-deep-quiet",
+    name: "Quiet Homebody",
+    color: "#C7D4BB",
+    energy_level: "Low",
+    exercise_needs: "Low",
+    barking_level: "Quiet",
+    obedience_training: "Well Trained",
+    max_alone_hours: 6,
+    ai_traits: {
+      apartment_friendly: {
+        value: "true",
+        confidence: 1,
+        evidence_basis: "bio_explicit",
+        evidence: "Bio explicitly supports apartment living.",
+      },
+    },
+  }),
+  scenarioDog({
+    id: "e2e-deep-active",
+    name: "Active Vocal",
+    color: "#F3C982",
+    energy_level: "High",
+    exercise_needs: "High",
+    barking_level: "Some",
+    obedience_training: "Needs Training",
+    max_alone_hours: 2,
+    ai_traits: {
+      apartment_friendly: {
+        value: "maybe",
+        confidence: 0.6,
+        evidence_basis: "profile_inference",
+        evidence: "Broader profile context only.",
+      },
+    },
   }),
 ];
