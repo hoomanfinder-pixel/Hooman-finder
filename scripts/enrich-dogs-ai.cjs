@@ -28,9 +28,6 @@
 //   node scripts/enrich-dogs-ai.cjs --limit=25 --force
 //   node scripts/enrich-dogs-ai.cjs --limit=5 --dry-run   (calls OpenAI, prints results, writes nothing)
 
-require("dotenv").config({ path: ".env.local" });
-
-const { createClient } = require("@supabase/supabase-js");
 const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 
@@ -95,10 +92,6 @@ function isPubliclyVisibleDog(dog) {
   return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
 }
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
 const AI_ENRICHMENT_VERSION = "dog-ai-traits-v10-provenance";
 const DEFAULT_LIMIT = 10;
 const MODEL = "gpt-4o-mini";
@@ -111,16 +104,27 @@ const BARKING_VALUES = new Set(["quiet", "some", "unknown"]);
 const GROOMING_VALUES = new Set(["low", "moderate", "high", "unknown"]);
 const ALONE_HOURS_LABELS = new Set(["1-2", "3-4", "5-6", "7-8", "unknown"]);
 
-if (!SUPABASE_URL) throw new Error("Missing VITE_SUPABASE_URL in .env.local");
-if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
-if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY in .env.local");
+let supabase = null;
+let openAiApiKey = "";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+function initializeRuntime() {
+  require("dotenv").config({ path: ".env.local" });
+  const { createClient } = require("@supabase/supabase-js");
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  openAiApiKey = process.env.OPENAI_API_KEY || "";
+
+  if (!supabaseUrl) throw new Error("Missing VITE_SUPABASE_URL in .env.local");
+  if (!serviceRoleKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
+  if (!openAiApiKey) throw new Error("Missing OPENAI_API_KEY in .env.local");
+
+  supabase = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
 
 function getArg(name, fallback = null) {
   const prefix = `--${name}=`;
@@ -140,8 +144,8 @@ function cleanText(value, maxLength = 5000) {
     .slice(0, maxLength);
 }
 
-function onlyTrue(value) {
-  return value === true ? true : null;
+function booleanOrNull(value) {
+  return value === true || value === false ? value : null;
 }
 
 function isClearlyPuppy({ ageYears, ageText }) {
@@ -597,20 +601,26 @@ function asDogInput(dog) {
     size: dog.size || null,
     current_energy_level: dog.energy_level || dog.activity_level || null,
 
-    // Only pass TRUE fields as evidence.
-    // In this database, false can mean “unknown/not listed.”
-    current_good_with_kids: onlyTrue(dog.good_with_kids),
-    current_good_with_dogs: onlyTrue(dog.good_with_dogs),
-    current_good_with_cats: onlyTrue(dog.good_with_cats),
-    current_good_with_small_animals: onlyTrue(dog.good_with_small_animals),
-    current_potty_trained: onlyTrue(dog.potty_trained),
-    current_first_time_friendly: onlyTrue(dog.first_time_friendly),
-    current_hypoallergenic: onlyTrue(dog.hypoallergenic),
+    // Preserve source booleans as tri-state values. Importers omit unavailable
+    // source attributes, so null is unknown while true/false are both usable
+    // confirmed inputs that the model must not contradict.
+    current_good_with_kids: booleanOrNull(dog.good_with_kids),
+    current_good_with_dogs: booleanOrNull(dog.good_with_dogs),
+    current_good_with_cats: booleanOrNull(dog.good_with_cats),
+    current_good_with_small_animals: booleanOrNull(dog.good_with_small_animals),
+    current_potty_trained: booleanOrNull(dog.potty_trained),
+    current_first_time_friendly: booleanOrNull(dog.first_time_friendly),
+    current_hypoallergenic: booleanOrNull(dog.hypoallergenic),
 
     current_shedding_level: dog.shedding_level || null,
     current_grooming_level: dog.grooming_level || null,
     current_barking_level: dog.barking_level || null,
     current_max_alone_hours: dog.max_alone_hours ?? null,
+    current_yard_required: dog.yard_required ?? null,
+    current_fence_needs: dog.fence_needs || null,
+    current_exercise_needs: dog.exercise_needs || null,
+    current_obedience_training: dog.obedience_training || null,
+    current_owner_experience: dog.owner_experience || null,
     shelter_name: dog.shelter_name || dog.shelters?.name || null,
     description: cleanText(descriptionParts.join("\n\n")),
   };
@@ -627,7 +637,7 @@ Rules:
 - If the listing does not mention something, use "unknown".
 - If something is strongly implied but not guaranteed, use "likely".
 - If something is somewhat implied or needs caveats, use "maybe".
-- Existing boolean fields are only provided when true. Missing/null means unknown.
+- Existing structured booleans may be true or false. Missing/null means unknown.
 - Never claim good_with_kids, good_with_cats, good_with_dogs, potty_trained, or first_time_friendly unless there is evidence from the structured fields or rescue-provided bio.
 - Every trait object must include evidence_basis.
 - Use "bio_explicit" only when explicit, dog-specific wording in this dog's rescue biography supports the value.
@@ -719,6 +729,9 @@ Other rules:
 - Use description, breed, age_years, age_text, size, gender, activity_level, energy_level, qualities, and existing structured fields as evidence.
 - Never overwrite or reinterpret confirmed shelter/API structured fields. Structured true fields are evidence; missing/null fields are unknown.
 - Be conservative for compatibility fields like cats and kids. It is okay for good_with_cats and good_with_kids to stay unknown when there is no direct evidence.
+- Never infer child, dog, cat, or small-animal safety from breed, age, size, or general tendencies. Small-animal compatibility requires a confirmed source value or explicit dog-specific biography evidence.
+- Never infer aggression, reactivity, bite risk, a hard yard/fence requirement, or hypoallergenic status from breed, age, size, or general tendencies.
+- needs_yard may describe a soft preference when the dog-specific bio supports one, but only confirmed source data or explicit requirement wording may support a hard requirement.
 - Be less conservative for lifestyle-fit fields. First-time friendliness, energy, exercise needs, training needs, and shedding should usually be inferable from breed, age, size, description, coat, and behavior notes.
 - First-time friendliness should be based on overall needs. Use "false" for incontinence/cannot be housebroken, severe medical management, hospice, blind/deaf plus significant care needs, puppy mill survivor with fear of people, abuse history with fear/handling sensitivity, fearful of being picked up, experienced-owner needs, bite/aggression/reactivity language, resource guarding, escape artist, severe separation anxiety, child restrictions due to fear/behavior, very fearful/timid and still learning trust, may never enjoy touch/petting, requires another dog to function/confidence, severe leash/training issues, special handling needs, high training needs, or very high energy working breed with training needs.
 - Use "maybe" for first-time friendliness when needs are meaningful but manageable: shy/timid at first but warms up, needs patience without severe red flags, moderate training needs, normal puppy/young dog needs, slow introductions, manageable medical needs, older-kids/calmer-home/specific-home setup, not good with dogs/cats but otherwise manageable, or some separation concerns that are not severe.
@@ -740,12 +753,12 @@ Return exactly this JSON shape:
 {
   "energy_level": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "shedding_level": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
-  "barking_level": { "value": "unknown", "confidence": 0, "evidence": "" },
-  "grooming_level": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "barking_level": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
+  "grooming_level": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "good_with_kids": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "good_with_dogs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "good_with_cats": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
-  "good_with_small_animals": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "good_with_small_animals": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "potty_trained": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "crate_trained": { "value": "unknown", "confidence": 0, "evidence": "" },
   "leash_trained": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -754,8 +767,8 @@ Return exactly this JSON shape:
   "needs_yard": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "can_be_left_alone": { "value": "unknown", "confidence": 0, "evidence": "" },
   "max_alone_hours_estimate": { "value": null, "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
-  "exercise_needs": { "value": "unknown", "confidence": 0, "evidence": "" },
-  "training_needs": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "exercise_needs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
+  "training_needs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "home_environment": { "value": "unknown", "confidence": 0, "evidence": "" },
   "affection_level": { "value": "unknown", "confidence": 0, "evidence": "" },
   "playfulness": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -802,7 +815,7 @@ function normalizeEvidenceBasis(value) {
 
 function normalizeTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
-    return { value: fallbackValue, confidence: 0, evidence: "" };
+    return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   return {
@@ -834,7 +847,7 @@ function normalizeEnergyLikeValue(value, fallbackValue = "unknown") {
 
 function normalizeEnergyLikeTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
-    return { value: fallbackValue, confidence: 0, evidence: "" };
+    return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   return {
@@ -858,7 +871,7 @@ function normalizeSheddingValue(value, fallbackValue = "unknown") {
 
 function normalizeSheddingTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
-    return { value: fallbackValue, confidence: 0, evidence: "" };
+    return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   return {
@@ -881,7 +894,7 @@ function normalizeBarkingValue(value, fallbackValue = "unknown") {
 
 function normalizeBarkingTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
-    return { value: fallbackValue, confidence: 0, evidence: "" };
+    return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   return {
@@ -904,7 +917,7 @@ function normalizeGroomingValue(value, fallbackValue = "unknown") {
 
 function normalizeGroomingTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
-    return { value: fallbackValue, confidence: 0, evidence: "" };
+    return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   return {
@@ -918,7 +931,7 @@ function normalizeGroomingTraitObject(obj, fallbackValue = "unknown") {
 
 function normalizeNumericTraitObject(obj) {
   if (!obj || typeof obj !== "object") {
-    return { value: null, confidence: 0, evidence: "" };
+    return { value: null, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
   const n = Number(obj.value);
@@ -1117,6 +1130,56 @@ function normalizeAiTraits(parsed, dogInput) {
         "dog-savvy",
       ]) || /\bsiblings?\b/.test(bio)
     );
+  }
+
+  function hasSmallAnimalSpecificEvidence() {
+    return /\b(small animal|small animals|rabbit|rabbits|bunny|bunnies|guinea pig|guinea pigs|hamster|hamsters|ferret|ferrets|bird|birds)\b/.test(bio);
+  }
+
+  function hasExplicitNegativeEvidence(key) {
+    const phrasesByKey = {
+      good_with_kids: [
+        "no kids",
+        "no children",
+        "adult-only home",
+        "adult only home",
+        "not good with kids",
+        "not good with children",
+        "cannot live with kids",
+        "cannot live with children",
+      ],
+      good_with_dogs: [
+        "only dog",
+        "must be the only dog",
+        "no dogs",
+        "not good with dogs",
+        "cannot live with dogs",
+        "dog reactive",
+      ],
+      good_with_cats: [
+        "no cats",
+        "not good with cats",
+        "not cat safe",
+        "cannot live with cats",
+        "cat reactive",
+      ],
+      good_with_small_animals: [
+        "no small animals",
+        "not good with small animals",
+        "cannot live with small animals",
+        "not safe with small animals",
+        "high prey drive",
+      ],
+      potty_trained: [
+        "not potty trained",
+        "not house trained",
+        "not housebroken",
+        "cannot be housebroken",
+        "can't be housebroken",
+      ],
+    };
+
+    return includesAny(phrasesByKey[key] || []);
   }
 
   // age_years is frequently null for listings that only give a free-text
@@ -1482,7 +1545,7 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  function setBarking(value, confidence, evidence, force = false) {
+  function setBarking(value, confidence, evidence, force = false, evidenceBasis = "profile_inference") {
     const normalizedValue = normalizeBarkingValue(value);
     if (!BARKING_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
 
@@ -1496,10 +1559,11 @@ function normalizeAiTraits(parsed, dogInput) {
       value: normalizedValue,
       confidence: force ? confidence : Math.max(currentConfidence, confidence),
       evidence,
+      evidence_basis: normalizeEvidenceBasis(evidenceBasis),
     };
   }
 
-  function setGrooming(value, confidence, evidence, force = false) {
+  function setGrooming(value, confidence, evidence, force = false, evidenceBasis = "profile_inference") {
     const normalizedValue = normalizeGroomingValue(value);
     if (!GROOMING_VALUES.has(normalizedValue) || normalizedValue === "unknown") return;
 
@@ -1513,6 +1577,7 @@ function normalizeAiTraits(parsed, dogInput) {
       value: normalizedValue,
       confidence: force ? confidence : Math.max(currentConfidence, confidence),
       evidence,
+      evidence_basis: normalizeEvidenceBasis(evidenceBasis),
     };
   }
 
@@ -1717,7 +1782,7 @@ function normalizeAiTraits(parsed, dogInput) {
       "not much of a barker",
     ])
   ) {
-    setBarking("quiet", 0.8, "Bio directly describes quiet or minimal barking.", true);
+    setBarking("quiet", 0.8, "Bio directly describes quiet or minimal barking.", true, "bio_explicit");
   } else if (
     includesAny([
       "very vocal",
@@ -1729,7 +1794,7 @@ function normalizeAiTraits(parsed, dogInput) {
       "barky",
     ])
   ) {
-    setBarking("some", 0.78, "Bio directly describes vocal or alert-barking behavior.", true);
+    setBarking("some", 0.78, "Bio directly describes vocal or alert-barking behavior.", true, "bio_explicit");
   }
   // No breed-based fallback for barking: vocalization varies too much within
   // breeds to estimate responsibly without direct bio evidence.
@@ -1741,11 +1806,11 @@ function normalizeAiTraits(parsed, dogInput) {
   if (
     includesAny(["low maintenance coat", "low-maintenance coat", "wash and go", "minimal grooming"])
   ) {
-    setGrooming("low", 0.8, "Bio directly describes a low-maintenance coat.", true);
+    setGrooming("low", 0.8, "Bio directly describes a low-maintenance coat.", true, "bio_explicit");
   } else if (
     includesAny(["needs regular grooming", "requires professional grooming", "high maintenance coat", "high-maintenance coat", "mats easily", "needs regular brushing"])
   ) {
-    setGrooming("high", 0.8, "Bio directly describes a high-maintenance coat or grooming need.", true);
+    setGrooming("high", 0.8, "Bio directly describes a high-maintenance coat or grooming need.", true, "bio_explicit");
   } else if (
     normalizeGroomingValue(normalized.grooming_level?.value) === "unknown" &&
     explicitCoatLength(dogInput.breed) === "short"
@@ -1952,6 +2017,8 @@ function normalizeAiTraits(parsed, dogInput) {
     "according to staff",
   ]);
 
+  const hasSevereAloneConcern = isVeryYoungPuppy || hasExplicitSevereAloneConcern;
+
   const hasStrongWorkdayEvidence =
     ["adult", "senior"].includes(stage) &&
     !hasSevereAloneConcern &&
@@ -1969,7 +2036,6 @@ function normalizeAiTraits(parsed, dogInput) {
       "eight hours alone",
       "8 hours alone",
     ]);
-  const hasSevereAloneConcern = isVeryYoungPuppy || hasExplicitSevereAloneConcern;
 
   const hasModerateAloneEvidence =
     ["adult", "senior"].includes(stage) &&
@@ -2168,7 +2234,14 @@ function normalizeAiTraits(parsed, dogInput) {
       "experienced adopter",
     ])
   ) {
-    setEnergyLikeTrait("training_needs", "medium_high", 0.82, "Bio describes training needs or experienced-adopter support.", true);
+    setEnergyLikeTrait(
+      "training_needs",
+      "medium_high",
+      0.82,
+      "Bio describes training needs or experienced-adopter support.",
+      true,
+      "bio_explicit"
+    );
   } else if (
     includesAny([
       "well trained",
@@ -2187,7 +2260,14 @@ function normalizeAiTraits(parsed, dogInput) {
       "potty trained",
     ])
   ) {
-    setEnergyLikeTrait("training_needs", "medium_low", 0.7, "Bio suggests some training foundation is already present.");
+    setEnergyLikeTrait(
+      "training_needs",
+      "medium_low",
+      0.7,
+      "Bio suggests some training foundation is already present.",
+      true,
+      "bio_explicit"
+    );
   }
 
   if (normalizeEnergyLikeValue(normalized.training_needs?.value) === "unknown") {
@@ -2533,6 +2613,124 @@ function normalizeAiTraits(parsed, dogInput) {
     normalized.needs_human_review = true;
   }
 
+  // Re-apply confirmed source fields after model/bio interpretation so an AI
+  // value cannot contradict source data. These ai_traits entries remain
+  // profile_inference because they are normalized interpretations of separate
+  // Tier A columns; matching and display continue to read the Tier A columns
+  // directly before considering AI fallbacks.
+  if (existingEnergy !== "unknown") {
+    setEnergy(existingEnergy, 0.9, `Existing structured energy level is ${existingEnergy}.`, true);
+  }
+
+  const existingExercise = normalizeEnergyLikeValue(dogInput.current_exercise_needs);
+  if (existingExercise !== "unknown") {
+    setEnergyLikeTrait(
+      "exercise_needs",
+      existingExercise,
+      0.9,
+      `Existing structured exercise needs are ${dogInput.current_exercise_needs}.`,
+      true
+    );
+  }
+
+  const obedience = String(dogInput.current_obedience_training || "").toLowerCase();
+  const existingTraining =
+    /needs? training|untrained/.test(obedience)
+      ? "medium_high"
+      : /well trained|advanced training/.test(obedience)
+        ? "low"
+        : /basic training|some training/.test(obedience)
+          ? "medium_low"
+          : "unknown";
+  if (existingTraining !== "unknown") {
+    setEnergyLikeTrait(
+      "training_needs",
+      existingTraining,
+      0.9,
+      `Existing structured obedience training is ${dogInput.current_obedience_training}.`,
+      true
+    );
+  }
+
+  const existingShedding = normalizeSheddingValue(dogInput.current_shedding_level);
+  if (existingShedding !== "unknown") {
+    setShedding(existingShedding, 0.9, `Existing structured shedding level is ${existingShedding}.`, true);
+  }
+
+  if (dogInput.current_barking_level) {
+    setBarking(
+      dogInput.current_barking_level,
+      0.9,
+      `Existing structured barking level is ${dogInput.current_barking_level}.`,
+      true
+    );
+  }
+
+  if (dogInput.current_grooming_level) {
+    setGrooming(
+      dogInput.current_grooming_level,
+      0.9,
+      `Existing structured grooming level is ${dogInput.current_grooming_level}.`,
+      true
+    );
+  }
+
+  const fenceNeeds = String(dogInput.current_fence_needs || "").toLowerCase().trim();
+  const explicitFenceRequirement =
+    Boolean(fenceNeeds) && !/\b(no|none|not required|optional|unknown)\b/.test(fenceNeeds);
+  if (dogInput.current_yard_required === true || explicitFenceRequirement) {
+    setTraitFromBio(
+      "needs_yard",
+      "true",
+      0.95,
+      explicitFenceRequirement
+        ? `Existing structured fence requirement is ${dogInput.current_fence_needs}.`
+        : "Existing structured data requires yard access.",
+      "profile_inference"
+    );
+  } else if (dogInput.current_yard_required === false) {
+    setTraitFromBio(
+      "needs_yard",
+      "false",
+      0.95,
+      "Existing structured data says a yard is not required.",
+      "profile_inference"
+    );
+  }
+
+  const ownerExperience = String(dogInput.current_owner_experience || "").toLowerCase();
+  if (/experienced|advanced|breed experience/.test(ownerExperience)) {
+    setTraitFromBio(
+      "first_time_friendly",
+      "false",
+      0.9,
+      `Existing structured owner-experience guidance is ${dogInput.current_owner_experience}.`,
+      "profile_inference"
+    );
+  }
+
+  // Re-apply confirmed tri-state source booleans. Their separate structured
+  // columns remain the Tier A facts; these mirrored ai_traits values only
+  // prevent generated bio interpretations from contradicting those facts.
+  for (const [key, sourceValue] of [
+    ["good_with_kids", dogInput.current_good_with_kids],
+    ["good_with_dogs", dogInput.current_good_with_dogs],
+    ["good_with_cats", dogInput.current_good_with_cats],
+    ["good_with_small_animals", dogInput.current_good_with_small_animals],
+    ["potty_trained", dogInput.current_potty_trained],
+    ["first_time_friendly", dogInput.current_first_time_friendly],
+  ]) {
+    if (sourceValue === true || sourceValue === false) {
+      setTraitFromBio(
+        key,
+        sourceValue ? "true" : "false",
+        0.95,
+        `Existing structured source data says ${key} is ${sourceValue}.`,
+        "profile_inference"
+      );
+    }
+  }
+
   const kidsValue = String(normalized.good_with_kids?.value || "").toLowerCase();
 
   const childEvidenceAvailable =
@@ -2546,6 +2744,7 @@ function normalizeAiTraits(parsed, dogInput) {
       value: "unknown",
       confidence: 0,
       evidence: "Generic family language was not treated as child-specific kid compatibility evidence.",
+      evidence_basis: "profile_inference",
     };
   }
 
@@ -2562,6 +2761,7 @@ function normalizeAiTraits(parsed, dogInput) {
       value: "unknown",
       confidence: 0,
       evidence: "Generic sociability language was not treated as cat-specific compatibility evidence.",
+      evidence_basis: "profile_inference",
     };
   }
 
@@ -2578,6 +2778,20 @@ function normalizeAiTraits(parsed, dogInput) {
       value: "unknown",
       confidence: 0,
       evidence: "Generic sociability language was not treated as other-dog-specific compatibility evidence.",
+      evidence_basis: "profile_inference",
+    };
+  }
+
+  const smallAnimalsValue = String(normalized.good_with_small_animals?.value || "").toLowerCase();
+  const smallAnimalEvidenceAvailable =
+    dogInput.current_good_with_small_animals === true || hasSmallAnimalSpecificEvidence();
+
+  if (["true", "likely", "maybe"].includes(smallAnimalsValue) && !smallAnimalEvidenceAvailable) {
+    normalized.good_with_small_animals = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "General profile context was not treated as small-animal compatibility evidence.",
+      evidence_basis: "profile_inference",
     };
   }
 
@@ -2642,23 +2856,22 @@ function normalizeAiTraits(parsed, dogInput) {
     "good_with_small_animals",
   ]) {
     const trait = normalized[key];
-    const evidence = String(trait?.evidence || "").toLowerCase();
     const value = String(trait?.value || "").toLowerCase();
 
-    const explicitNegative =
-      evidence.includes("not ") ||
-      evidence.includes("no ") ||
-      evidence.includes("cannot") ||
-      evidence.includes("can't") ||
-      evidence.includes("isn't") ||
-      evidence.includes("not compatible") ||
-      evidence.includes("should not live");
+    const confirmedFalseByKey = {
+      potty_trained: dogInput.current_potty_trained === false,
+      good_with_kids: dogInput.current_good_with_kids === false,
+      good_with_dogs: dogInput.current_good_with_dogs === false,
+      good_with_cats: dogInput.current_good_with_cats === false,
+      good_with_small_animals: dogInput.current_good_with_small_animals === false,
+    };
 
-    if (value === "false" && !explicitNegative) {
+    if (value === "false" && !confirmedFalseByKey[key] && !hasExplicitNegativeEvidence(key)) {
       normalized[key] = {
         value: "unknown",
         confidence: 0,
-        evidence: "False was not treated as confirmed because the listing does not explicitly say this.",
+        evidence: "False was not treated as supported because the dog-specific listing does not explicitly say this.",
+        evidence_basis: "profile_inference",
       };
     }
   }
@@ -2838,7 +3051,7 @@ async function callOpenAI(prompt) {
       method: "POST",
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${openAiApiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -2874,11 +3087,9 @@ async function callOpenAI(prompt) {
 }
 
 // Fields that actually affect the site (matching, trait display, review
-// queue) — used to decide whether a run produced anything worth writing.
-// Excludes bio_traits_source (static) and bio_traits_updated_at/ai_traits/
-// ai_confidence_score/ai_enriched_at, which either never change or almost
-// always differ slightly on LLM phrasing alone even when the real values
-// didn't move, and would make this check meaningless if included.
+// queue) — used alongside normalized enrichment metadata to decide whether a
+// run produced anything worth writing. bio_traits_updated_at and
+// ai_enriched_at are intentionally excluded because they are run timestamps.
 const MEANINGFUL_BIO_FIELDS = [
   "bio_good_with_kids",
   "bio_good_with_dogs",
@@ -2894,10 +3105,61 @@ const MEANINGFUL_BIO_FIELDS = [
   "bio_barking_level",
   "bio_grooming_level",
   "bio_size",
+  "bio_traits_source",
 ];
 
-function hasMeaningfulChange(bioColumns, needsHumanReview, dog) {
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.keys(value)
+      .sort()
+      .filter((key) => value[key] !== undefined)
+      .map((key) => [key, canonicalize(value[key])])
+  );
+}
+
+function meaningfulAiTraits(value) {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+  const copy = JSON.parse(JSON.stringify(parsed));
+  if (copy.source && typeof copy.source === "object") {
+    delete copy.source.enriched_at;
+  }
+  return canonicalize(copy);
+}
+
+function hasMeaningfulChange(next, dog) {
+  const {
+    bioColumns,
+    aiTraits,
+    enrichmentVersion,
+    aiConfidenceScore,
+    needsHumanReview,
+    enrichedSourceHash,
+  } = next;
+
+  if (String(dog?.ai_enrichment_version || "") !== String(enrichmentVersion || "")) return true;
   if (Boolean(dog?.needs_human_review) !== Boolean(needsHumanReview)) return true;
+  if (normalizeConfidence(dog?.ai_confidence_score) !== normalizeConfidence(aiConfidenceScore)) return true;
+  if (String(dog?.ai_enriched_source_hash ?? "") !== String(enrichedSourceHash ?? "")) return true;
+
+  if (
+    JSON.stringify(meaningfulAiTraits(dog?.ai_traits)) !==
+    JSON.stringify(meaningfulAiTraits(aiTraits))
+  ) {
+    return true;
+  }
 
   return MEANINGFUL_BIO_FIELDS.some((key) => {
     const next = bioColumns[key] ?? null;
@@ -2955,7 +3217,16 @@ async function enrichOneDog(dog, { dryRun = false } = {}) {
     ].slice(0, 8);
   }
 
-  const meaningfulChange = hasMeaningfulChange(bioColumns, aiTraits.needs_human_review, dog);
+  const enrichedSourceHash = dog?.source_content_hash ?? dog?.ai_enriched_source_hash ?? null;
+  const nextEnrichment = {
+    bioColumns,
+    aiTraits,
+    enrichmentVersion: AI_ENRICHMENT_VERSION,
+    aiConfidenceScore: aiTraits.overall_confidence,
+    needsHumanReview: aiTraits.needs_human_review,
+    enrichedSourceHash,
+  };
+  const meaningfulChange = hasMeaningfulChange(nextEnrichment, dog);
 
   if (dryRun) {
     return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed, meaningfulChange, dryRun: true };
@@ -2987,7 +3258,7 @@ async function enrichOneDog(dog, { dryRun = false } = {}) {
     ai_enrichment_version: AI_ENRICHMENT_VERSION,
     ai_confidence_score: aiTraits.overall_confidence,
     needs_human_review: aiTraits.needs_human_review,
-    ai_enriched_source_hash: dog?.source_content_hash ?? null,
+    ai_enriched_source_hash: enrichedSourceHash,
     ...bioColumns,
   };
 
@@ -3001,11 +3272,7 @@ async function enrichOneDog(dog, { dryRun = false } = {}) {
   return { aiTraits, bioColumns, carriedForwardFields, inferredAdultSize, elapsed };
 }
 
-async function fetchDogs({ limit, force, dogId }) {
-  let query = supabase
-    .from("dogs")
-    .select(
-      `
+const ENRICHMENT_DOG_SELECT = `
       id,
       name,
       breed,
@@ -3030,10 +3297,16 @@ async function fetchDogs({ limit, force, dogId }) {
       grooming_level,
       barking_level,
       max_alone_hours,
+      yard_required,
+      fence_needs,
+      exercise_needs,
+      obedience_training,
+      owner_experience,
       shelter_name,
       ai_traits,
       ai_enriched_at,
       ai_enrichment_version,
+      ai_confidence_score,
       bio_good_with_kids,
       bio_good_with_dogs,
       bio_good_with_cats,
@@ -3048,6 +3321,7 @@ async function fetchDogs({ limit, force, dogId }) {
       bio_barking_level,
       bio_grooming_level,
       bio_size,
+      bio_traits_source,
       bio_traits_updated_at,
       needs_human_review,
       source_content_hash,
@@ -3065,8 +3339,12 @@ async function fetchDogs({ limit, force, dogId }) {
       shelters (
         name
       )
-    `
-    )
+    `;
+
+async function fetchDogs({ limit, force, dogId }) {
+  let query = supabase
+    .from("dogs")
+    .select(ENRICHMENT_DOG_SELECT)
     .eq("adoptable", true)
     .or("adoption_pending.is.null,adoption_pending.eq.false")
     .in("availability_status", ["available", "active", "unknown"])
@@ -3144,6 +3422,8 @@ function getEnrichmentEligibilityReason(dog) {
 }
 
 async function main() {
+  initializeRuntime();
+
   const limit = Number(getArg("limit", DEFAULT_LIMIT));
   const force = hasFlag("force");
   const dryRun = hasFlag("dry-run");
@@ -3256,6 +3536,8 @@ module.exports = {
   inferExpectedAdultSizeForPuppy,
   buildBioColumns,
   mergeExistingBioColumns,
+  hasMeaningfulChange,
   bioFieldLabel,
+  ENRICHMENT_DOG_SELECT,
   AI_ENRICHMENT_VERSION,
 };
