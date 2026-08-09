@@ -27,6 +27,7 @@
 //   node scripts/enrich-dogs-ai.cjs --limit=25
 //   node scripts/enrich-dogs-ai.cjs --limit=25 --force
 //   node scripts/enrich-dogs-ai.cjs --limit=5 --dry-run   (calls OpenAI, prints results, writes nothing)
+//   node scripts/enrich-dogs-ai.cjs --drain --limit=25 --max-batches=20 --max-attempts=3
 
 const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
@@ -94,6 +95,9 @@ function isPubliclyVisibleDog(dog) {
 
 const AI_ENRICHMENT_VERSION = "dog-ai-traits-v10-provenance";
 const DEFAULT_LIMIT = 10;
+const DEFAULT_MAX_BATCHES = 20;
+const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY_MS = 5000;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -135,6 +139,18 @@ function getArg(name, fallback = null) {
 
 function hasFlag(name) {
   return process.argv.includes(`--${name}`);
+}
+
+function parseBoundedPositiveInteger(value, fallback, { name, max }) {
+  const parsed = Number(value ?? fallback);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) {
+    throw new Error(`${name} must be an integer between 1 and ${max}.`);
+  }
+  return parsed;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function cleanText(value, maxLength = 5000) {
@@ -3415,41 +3431,41 @@ function getEnrichmentEligibilityReason(dog) {
   return null;
 }
 
-async function main() {
-  initializeRuntime();
+function emptyRunStats() {
+  return {
+    attempted: 0,
+    updated: 0,
+    skippedNoChange: 0,
+    skippedNoData: 0,
+    failed: 0,
+  };
+}
 
-  const limit = Number(getArg("limit", DEFAULT_LIMIT));
-  const force = hasFlag("force");
-  const dryRun = hasFlag("dry-run");
-  const dogId = getArg("dog-id", null);
+function addRunStats(total, batch) {
+  for (const key of Object.keys(total)) total[key] += batch[key] || 0;
+}
 
+function printRunStats(stats, { dryRun = false, heading = "AI enrichment complete" } = {}) {
+  console.log("\n========================================");
+  console.log(dryRun ? "AI enrichment dry run complete (nothing written)" : heading);
+  console.log(`Attempted: ${stats.attempted}`);
+  console.log(`${dryRun ? "Would update" : "Updated"}: ${stats.updated}`);
+  console.log(`Skipped (no meaningful change): ${stats.skippedNoChange}`);
+  console.log(`Skipped (not enough source data): ${stats.skippedNoData}`);
+  console.log(`Failed: ${stats.failed}`);
   console.log("========================================");
-  console.log("AI dog trait enrichment");
-  console.log(`Model: ${MODEL}`);
-  console.log(`Version: ${AI_ENRICHMENT_VERSION}`);
-  console.log(`Limit: ${Number.isFinite(limit) ? limit : DEFAULT_LIMIT}`);
-  console.log(`Force: ${force ? "yes" : "no"}`);
-  console.log(`Dry run: ${dryRun ? "yes (calls OpenAI, writes nothing to Supabase)" : "no"}`);
-  console.log(`Dog ID: ${dogId || "all eligible"}`);
-  console.log("========================================");
+}
 
-  const dogs = await fetchDogs({
-    limit: Number.isFinite(limit) ? limit : DEFAULT_LIMIT,
-    force,
-    dogId,
-  });
-
-  if (!dogs.length) {
-    console.log("No dogs found to enrich.");
-    return;
-  }
-
-  console.log(`Found ${dogs.length} dog(s) to enrich.`);
-
+async function processDogBatch(
+  dogs,
+  { dryRun = false, failureAttempts = new Map(), maxAttempts = DEFAULT_MAX_ATTEMPTS } = {}
+) {
   let updated = 0;
   let skippedNoChange = 0;
   let skippedNoData = 0;
   let failed = 0;
+  const noDataDogs = [];
+  const exhaustedFailures = [];
 
   for (const dog of dogs) {
     try {
@@ -3458,6 +3474,7 @@ async function main() {
       const result = await enrichOneDog(dog, { dryRun });
       if (!result) {
         skippedNoData += 1;
+        noDataDogs.push(`${dog.name || "Unnamed dog"} (${dog.id})`);
         continue;
       }
 
@@ -3470,6 +3487,7 @@ async function main() {
       }
 
       updated += 1;
+      failureAttempts.delete(dog.id);
 
       const tags = Array.isArray(aiTraits.match_tags)
         ? aiTraits.match_tags.join(", ")
@@ -3497,18 +3515,134 @@ async function main() {
       if (tags) console.log(`   Tags: ${tags}`);
     } catch (error) {
       failed += 1;
+      const attempts = (failureAttempts.get(dog.id) || 0) + 1;
+      failureAttempts.set(dog.id, attempts);
       console.error(`❌ Failed ${dog.name || dog.id}: ${error.message || error}`);
+      console.error(`   Attempt ${attempts}/${maxAttempts}`);
+      if (attempts >= maxAttempts) {
+        exhaustedFailures.push(`${dog.name || "Unnamed dog"} (${dog.id})`);
+      }
     }
   }
 
-  console.log("\n========================================");
-  console.log(dryRun ? "AI enrichment dry run complete (nothing written)" : "AI enrichment complete");
-  console.log(`Attempted: ${dogs.length}`);
-  console.log(`${dryRun ? "Would update" : "Updated"}: ${updated}`);
-  console.log(`Skipped (no meaningful change): ${skippedNoChange}`);
-  console.log(`Skipped (not enough source data): ${skippedNoData}`);
-  console.log(`Failed: ${failed}`);
+  const stats = {
+    attempted: dogs.length,
+    updated,
+    skippedNoChange,
+    skippedNoData,
+    failed,
+  };
+  printRunStats(stats, { dryRun, heading: "AI enrichment batch complete" });
+  return { stats, noDataDogs, exhaustedFailures };
+}
+
+async function main() {
+  initializeRuntime();
+
+  const limit = parseBoundedPositiveInteger(getArg("limit", DEFAULT_LIMIT), DEFAULT_LIMIT, {
+    name: "--limit",
+    max: 100,
+  });
+  const force = hasFlag("force");
+  const dryRun = hasFlag("dry-run");
+  const drain = hasFlag("drain");
+  const dogId = getArg("dog-id", null);
+  const maxBatches = parseBoundedPositiveInteger(
+    getArg("max-batches", DEFAULT_MAX_BATCHES),
+    DEFAULT_MAX_BATCHES,
+    { name: "--max-batches", max: 100 }
+  );
+  const maxAttempts = parseBoundedPositiveInteger(
+    getArg("max-attempts", DEFAULT_MAX_ATTEMPTS),
+    DEFAULT_MAX_ATTEMPTS,
+    { name: "--max-attempts", max: 5 }
+  );
+  const retryDelayMs = parseBoundedPositiveInteger(
+    getArg("retry-delay-ms", DEFAULT_RETRY_DELAY_MS),
+    DEFAULT_RETRY_DELAY_MS,
+    { name: "--retry-delay-ms", max: 60000 }
+  );
+
+  if (drain && (force || dryRun || dogId)) {
+    throw new Error("--drain cannot be combined with --force, --dry-run, or --dog-id.");
+  }
+
   console.log("========================================");
+  console.log("AI dog trait enrichment");
+  console.log(`Model: ${MODEL}`);
+  console.log(`Version: ${AI_ENRICHMENT_VERSION}`);
+  console.log(`Batch limit: ${limit}`);
+  console.log(`Drain eligible queue: ${drain ? "yes" : "no"}`);
+  if (drain) {
+    console.log(`Maximum batches: ${maxBatches}`);
+    console.log(`Maximum attempts per dog: ${maxAttempts}`);
+    console.log(`Retry delay after a failed batch: ${retryDelayMs}ms`);
+  }
+  console.log(`Force: ${force ? "yes" : "no"}`);
+  console.log(`Dry run: ${dryRun ? "yes (calls OpenAI, writes nothing to Supabase)" : "no"}`);
+  console.log(`Dog ID: ${dogId || "all eligible"}`);
+  console.log("========================================");
+
+  if (!drain) {
+    const dogs = await fetchDogs({ limit, force, dogId });
+    if (!dogs.length) {
+      console.log("No dogs found to enrich.");
+      return;
+    }
+
+    console.log(`Found ${dogs.length} dog(s) to enrich.`);
+    await processDogBatch(dogs, { dryRun });
+    return;
+  }
+
+  const totals = emptyRunStats();
+  const failureAttempts = new Map();
+  let queueCleared = false;
+  let batchesRun = 0;
+
+  while (batchesRun < maxBatches) {
+    const dogs = await fetchDogs({ limit, force: false, dogId: null });
+    if (!dogs.length) {
+      queueCleared = true;
+      break;
+    }
+
+    batchesRun += 1;
+    console.log(`\nStarting enrichment batch ${batchesRun}/${maxBatches} (${dogs.length} dog(s)).`);
+    const result = await processDogBatch(dogs, {
+      failureAttempts,
+      maxAttempts,
+    });
+    addRunStats(totals, result.stats);
+
+    if (result.noDataDogs.length) {
+      throw new Error(
+        `Eligible dog(s) could not be enriched because they lack usable source/profile data: ${result.noDataDogs.join(", ")}`
+      );
+    }
+    if (result.exhaustedFailures.length) {
+      throw new Error(
+        `Enrichment failed ${maxAttempts} times for: ${result.exhaustedFailures.join(", ")}`
+      );
+    }
+    if (result.stats.failed > 0) {
+      console.log(`Waiting ${retryDelayMs}ms before retrying failed eligible dog(s).`);
+      await wait(retryDelayMs);
+    }
+  }
+
+  if (!queueCleared) {
+    const remaining = await fetchDogs({ limit: 1, force: false, dogId: null });
+    if (remaining.length) {
+      throw new Error(
+        `Eligible enrichment queue was not cleared within ${maxBatches} batches of ${limit}. Increase the explicit bound only after reviewing the backlog.`
+      );
+    }
+    queueCleared = true;
+  }
+
+  console.log(`\nEligible enrichment queue cleared after ${batchesRun} batch(es).`);
+  printRunStats(totals, { heading: "AI enrichment queue drain complete" });
 }
 
 if (require.main === module) {
@@ -3531,6 +3665,9 @@ module.exports = {
   buildBioColumns,
   mergeExistingBioColumns,
   hasMeaningfulChange,
+  isPubliclyVisibleDog,
+  getEnrichmentEligibilityReason,
+  parseBoundedPositiveInteger,
   bioFieldLabel,
   ENRICHMENT_DOG_SELECT,
   AI_ENRICHMENT_VERSION,

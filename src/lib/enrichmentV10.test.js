@@ -8,9 +8,12 @@ const {
   ENRICHMENT_DOG_SELECT,
   asDogInput,
   buildBioColumns,
+  getEnrichmentEligibilityReason,
   hasMeaningfulChange,
+  isPubliclyVisibleDog,
   mergeExistingBioColumns,
   normalizeAiTraits,
+  parseBoundedPositiveInteger,
 } = require("../../scripts/enrich-dogs-ai.cjs");
 
 function trait(value = "unknown", confidence = 0, evidence = "", evidenceBasis = "profile_inference") {
@@ -331,5 +334,64 @@ test("ordinary lifestyle traits retain normal carry-forward behavior", () => {
   assert.deepEqual(
     carriedForwardFields.sort(),
     ["bio_energy_level", "bio_grooming_level", "bio_shedding_level", "bio_training_needs"].sort()
+  );
+});
+
+test("daily enrichment eligibility covers new, outdated, and source-changed dogs only", () => {
+  const current = {
+    ai_enriched_at: "2026-08-09T00:00:00.000Z",
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    source_content_hash: "same-hash",
+    ai_enriched_source_hash: "same-hash",
+  };
+
+  assert.equal(getEnrichmentEligibilityReason({ ...current, ai_enriched_at: null }), "new");
+  assert.equal(
+    getEnrichmentEligibilityReason({ ...current, ai_enrichment_version: "dog-ai-traits-v9" }),
+    "version_outdated"
+  );
+  assert.equal(
+    getEnrichmentEligibilityReason({ ...current, source_content_hash: "changed-hash" }),
+    "content_changed"
+  );
+  assert.equal(getEnrichmentEligibilityReason(current), null);
+});
+
+test("daily enrichment visibility excludes unavailable and untrusted dogs", () => {
+  const visible = {
+    id: "visible-dog",
+    name: "Visible Dog",
+    description: "Available for adoption.",
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "available",
+    urgency_level: "Standard",
+    rescuegroups_id: "123",
+  };
+
+  assert.equal(isPubliclyVisibleDog(visible), true);
+  assert.equal(isPubliclyVisibleDog({ ...visible, adoptable: false }), false);
+  assert.equal(isPubliclyVisibleDog({ ...visible, adoption_pending: true }), false);
+  assert.equal(isPubliclyVisibleDog({ ...visible, availability_status: "unavailable" }), false);
+  assert.equal(isPubliclyVisibleDog({ ...visible, urgency_level: "Adopted" }), false);
+  assert.equal(isPubliclyVisibleDog({ ...visible, rescuegroups_id: null }), false);
+});
+
+test("daily drain bounds reject unbounded or invalid values", () => {
+  assert.equal(
+    parseBoundedPositiveInteger("25", 10, { name: "--limit", max: 100 }),
+    25
+  );
+  assert.throws(
+    () => parseBoundedPositiveInteger("0", 10, { name: "--limit", max: 100 }),
+    /between 1 and 100/
+  );
+  assert.throws(
+    () => parseBoundedPositiveInteger("101", 10, { name: "--limit", max: 100 }),
+    /between 1 and 100/
+  );
+  assert.throws(
+    () => parseBoundedPositiveInteger("forever", 10, { name: "--limit", max: 100 }),
+    /between 1 and 100/
   );
 });
