@@ -34,9 +34,9 @@ export default function Privacy() {
           <section>
             <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#183D35]">Information We Use</h2>
             <p className="mt-2">
-              Quiz answers may be used to suggest potential matches. Saved dogs may be stored
-              locally in your browser so you can revisit them. If you email us, we receive the
-              information you choose to send.
+              Quiz answers and saved dogs are stored locally in your browser so you can revisit
+              your matches on the same device. If you email us, we receive the information you
+              choose to send.
             </p>
           </section>
 

@@ -1,46 +1,9 @@
 // src/lib/quizStorage.js
-import { createClient } from "@supabase/supabase-js";
-import { canonicalizeAllergySensitivity } from "./quizQuestions";
-
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { canonicalizeAllergySensitivity } from "./quizQuestions.js";
 
 const SESSION_STORAGE_PREFIX = "hoomanFinder.quizResponses.session.v1";
 const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.local.v1";
-const CREATED_STORAGE_PREFIX = "hoomanFinder.quizResponsesCreated.v1";
 const ACTIVE_SESSION_KEY = "hoomanFinderActiveQuizSession";
-const sessionClients = new Map();
-
-const REMOTE_QUIZ_COLUMNS = new Set([
-  "size_preference",
-  "age_preference",
-  "kids_in_home",
-  "pets_in_home",
-  "potty_requirement",
-  "separation_anxiety_willingness",
-  "dog_social_preference",
-  "first_time_owner",
-  "housing_type",
-  "landlord_restrictions",
-  "crate_ok",
-  "training_commitment_level",
-  "reactivity_comfort",
-  "behavior_tolerance",
-  "noise_preference",
-  "daily_walk_minutes",
-  "weekend_activity_style",
-  "energy_preference",
-  "play_styles",
-  "yard",
-  "stairs",
-  "alone_time",
-  "allergy_sensitivity",
-  "shedding_preference",
-  "monthly_pet_budget_range",
-  "medical_needs_ok",
-  "medication_comfort",
-  "extra_answers",
-]);
 
 function cleanArray(v) {
   if (v == null) return null;
@@ -77,7 +40,7 @@ function writeJsonTo(storage, key, value) {
   try {
     storage.setItem(key, JSON.stringify(value));
   } catch {
-    // Local persistence is best-effort; Supabase save errors are still surfaced.
+    // Browser persistence is best-effort.
   }
 }
 
@@ -95,16 +58,6 @@ function readLocalJson(key, fallback) {
 
 function writeLocalJson(key, value) {
   writeJsonTo(canUseLocalStorage() ? window.localStorage : null, key, value);
-}
-
-function hasCreatedRemoteRow(sessionId) {
-  if (!canUseLocalStorage()) return false;
-  return window.localStorage.getItem(storageKey(CREATED_STORAGE_PREFIX, sessionId)) === "true";
-}
-
-function markCreatedRemoteRow(sessionId) {
-  if (!canUseLocalStorage()) return;
-  window.localStorage.setItem(storageKey(CREATED_STORAGE_PREFIX, sessionId), "true");
 }
 
 export function getActiveQuizSessionId() {
@@ -148,21 +101,6 @@ export function setActiveQuizSessionId(sessionId) {
   }
 }
 
-function clientForSession(sessionId) {
-  if (sessionClients.has(sessionId)) return sessionClients.get(sessionId);
-
-  const client = createClient(url, anon, {
-    global: {
-      headers: {
-        "x-session-id": sessionId,
-      },
-    },
-  });
-
-  sessionClients.set(sessionId, client);
-  return client;
-}
-
 function normalizeQuizPatch(patch) {
   const safePatch = { ...(patch || {}) };
   delete safePatch.kids_age_band;
@@ -181,66 +119,14 @@ function normalizeQuizPatch(patch) {
   if ("behavior_tolerance" in safePatch) safePatch.behavior_tolerance = cleanArray(safePatch.behavior_tolerance);
   if ("shedding_levels" in safePatch) safePatch.shedding_levels = cleanArray(safePatch.shedding_levels);
 
-  // The table has extra_answers NOT NULL.
-  if (!("extra_answers" in safePatch) || safePatch.extra_answers == null) {
-    safePatch.extra_answers = {};
-  }
-
   return safePatch;
-}
-
-function toRemotePayload(sessionId, answersById) {
-  const safeAnswers = normalizeQuizPatch(answersById);
-  const payload = {
-    session_id: sessionId,
-  };
-  const extraAnswers =
-    safeAnswers.extra_answers && typeof safeAnswers.extra_answers === "object"
-      ? { ...safeAnswers.extra_answers }
-      : {};
-
-  for (const [key, value] of Object.entries(safeAnswers)) {
-    if (key === "extra_answers") continue;
-
-    if (REMOTE_QUIZ_COLUMNS.has(key)) {
-      payload[key] = value;
-    } else {
-      extraAnswers[key] = value;
-    }
-  }
-
-  payload.extra_answers = extraAnswers;
-  return payload;
-}
-
-function isDuplicateInsert(error) {
-  return error?.code === "23505" || /duplicate key/i.test(error?.message || "");
-}
-
-async function insertQuizResponses(sessionId, payload) {
-  const { error } = await clientForSession(sessionId)
-    .from("quiz_responses")
-    .insert(payload);
-
-  if (error) throw error;
-  markCreatedRemoteRow(sessionId);
-}
-
-async function updateQuizResponses(sessionId, payload) {
-  const { error } = await clientForSession(sessionId)
-    .from("quiz_responses")
-    .update(payload)
-    .eq("session_id", sessionId);
-
-  if (error) throw error;
 }
 
 /**
  * Loads quiz answers from browser storage only. Session storage is preferred,
  * with local storage as the same-device fallback after the tab is closed.
  *
- * The public client intentionally does not SELECT from quiz_responses. Quiz
- * answers can be sensitive, and RLS should keep public SELECT unavailable.
+ * Anonymous quiz state never needs to be retrieved from Supabase.
  */
 export async function loadQuizResponses(sessionId) {
   if (!sessionId) throw new Error("Missing session id");
@@ -258,8 +144,7 @@ export async function loadQuizResponses(sessionId) {
 }
 
 /**
- * Saves quiz answers locally, then writes them to Supabase without returning
- * rows. First save inserts; later saves update by session_id.
+ * Saves the complete anonymous quiz state to this browser only.
  */
 export async function saveQuizResponses(sessionId, patch) {
   if (!sessionId) throw new Error("Missing session id");
@@ -268,19 +153,5 @@ export async function saveQuizResponses(sessionId, patch) {
   setActiveQuizSessionId(sessionId);
   writeSessionJson(storageKey(SESSION_STORAGE_PREFIX, sessionId), safePatch);
   writeLocalJson(storageKey(LOCAL_STORAGE_PREFIX, sessionId), safePatch);
-
-  const payload = toRemotePayload(sessionId, safePatch);
-
-  if (!hasCreatedRemoteRow(sessionId)) {
-    try {
-      await insertQuizResponses(sessionId, payload);
-      return { answersById: safePatch };
-    } catch (error) {
-      if (!isDuplicateInsert(error)) throw error;
-      markCreatedRemoteRow(sessionId);
-    }
-  }
-
-  await updateQuizResponses(sessionId, payload);
   return { answersById: safePatch };
 }

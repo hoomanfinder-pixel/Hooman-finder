@@ -2,17 +2,16 @@ import { test as base, expect } from "@playwright/test";
 import { dogFixtures, shelterFixture } from "./fixtures/dogs.js";
 
 async function mockSupabase(page, dogs) {
+  const quizResponseRequests = [];
+
   await page.route("**/rest/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const resource = url.pathname.split("/").pop();
 
     if (resource === "quiz_responses") {
-      await route.fulfill({
-        status: request.method() === "POST" ? 201 : 204,
-        headers: { "content-type": "application/json" },
-        body: request.method() === "POST" ? "[]" : "",
-      });
+      quizResponseRequests.push({ method: request.method(), url: request.url() });
+      await route.abort("blockedbyclient");
       return;
     }
 
@@ -45,6 +44,8 @@ async function mockSupabase(page, dogs) {
 
     await route.abort("blockedbyclient");
   });
+
+  return quizResponseRequests;
 }
 
 export const test = base.extend({
@@ -52,13 +53,17 @@ export const test = base.extend({
   page: async ({ page, scenario }, use) => {
     const pageErrors = [];
     page.on("pageerror", (error) => pageErrors.push(error));
-    await mockSupabase(page, scenario.dogs);
+    const quizResponseRequests = await mockSupabase(page, scenario.dogs);
 
     await use(page);
 
     expect(
       pageErrors.map((error) => error.message),
       "The page emitted an uncaught error"
+    ).toEqual([]);
+    expect(
+      quizResponseRequests,
+      "Anonymous flows must not send GET, POST, PATCH, or any other request to quiz_responses"
     ).toEqual([]);
   },
 });
