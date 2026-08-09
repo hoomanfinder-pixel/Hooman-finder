@@ -29,7 +29,7 @@ export function displayBioTrait(value) {
   return "Unknown";
 }
 
-export function getTraitDisplay({ structuredValue, bioValue }) {
+export function getTraitDisplay({ structuredValue, bioValue, evidenceBasis }) {
   if (structuredValue === true) {
     return {
       value: "Yes",
@@ -49,10 +49,15 @@ export function getTraitDisplay({ structuredValue, bioValue }) {
   const normalizedBio = normalizeBioValue(bioValue);
 
   if (normalizedBio !== "unknown") {
+    const bioExplicit = evidenceBasis === "bio_explicit";
     return {
       value: displayBioTrait(normalizedBio),
-      source: "bio",
+      source: bioExplicit ? "bio" : "profile_inference",
       estimated: true,
+      note: bioExplicit ? "Interpreted from listing bio" : "AI profile estimate",
+      title: bioExplicit
+        ? "AI interpretation of dog-specific wording in the shelter or rescue bio. Confirm with the source."
+        : "AI estimate based on broader profile context. This is not a known behavioral fact. Confirm with the shelter or rescue.",
     };
   }
 

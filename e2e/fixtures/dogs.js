@@ -189,3 +189,21 @@ export const aloneTimeDogs = [
     max_alone_hours: 2,
   }),
 ];
+
+export const evidenceCoverageDogs = [
+  scenarioDog({
+    id: "e2e-coverage-rich",
+    name: "Atlas",
+    color: "#C7D4BB",
+  }),
+  scenarioDog({
+    id: "e2e-coverage-sparse",
+    name: "Sapphire",
+    color: "#B9D7EA",
+    good_with_kids: null,
+    good_with_dogs: null,
+    good_with_cats: null,
+    potty_trained: null,
+    max_alone_hours: null,
+  }),
+];

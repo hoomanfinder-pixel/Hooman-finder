@@ -13,6 +13,7 @@
 
 const MIN_ANSWERED_FOR_REAL_MATCH = 2;
 const CONFIRMED_COMPATIBILITY_CONFLICT_CAP = 49;
+const LIMITED_INFORMATION_COVERAGE_PCT = 60;
 
 const WEIGHTS = {
   // Only fields with real dog-side comparison logic belong here.
@@ -26,26 +27,12 @@ const WEIGHTS = {
   allergy_sensitivity: 2,
   shedding_preference: 1,
   alone_time: 2,
+  yard: 3,
 };
 
 const DEFAULT_AI_CONFIDENCE = 0.35;
-const MAX_ESTIMATED_TRAIT_CREDIT = 0.75;
-
-const FIELD_RELIABILITY = {
-  good_with_dogs: 0.9,
-  good_with_cats: 0.75,
-  good_with_kids: 0.8,
-  energy_level: 0.85,
-  potty_trained: 0.8,
-  shedding_level: 0.65,
-  max_alone_hours: 0.55,
-  first_time_friendly: 0.75,
-  exercise_needs: 0.8,
-  training_needs: 0.75,
-  // Breed/age-based puppy adult-size estimate, not a bio-text extraction.
-  // Kept conservative since mixed-breed adult size is inherently uncertain.
-  size: 0.6,
-};
+const BIO_EXPLICIT_STRENGTH = 0.6;
+const PROFILE_INFERENCE_STRENGTH = 0.2;
 
 const READABLE_MATCH_REASONS = {
   size_preference: "Matches your preferred size range",
@@ -58,6 +45,7 @@ const READABLE_MATCH_REASONS = {
   shedding_preference: "Fits your shedding preference",
   alone_time: "May fit your weekday alone-time schedule",
   first_time_owner: "May fit your experience level",
+  yard: "May fit your yard access",
 };
 
 function w(id) {
@@ -129,11 +117,12 @@ function parsedAgeYearsFromText(ageText) {
 // rows (e.g. a raw month count stored as whole years). When the two disagree
 // by more than half a year, the unit-aware text parse is preferred.
 function resolveTrustworthyAgeYears(ageYears, ageText) {
+  const hasRawAge = ageYears !== null && ageYears !== undefined && String(ageYears).trim() !== "";
   const raw = Number(ageYears);
   const parsed = parsedAgeYearsFromText(ageText);
 
-  if (parsed === null) return Number.isFinite(raw) ? raw : null;
-  if (!Number.isFinite(raw)) return parsed;
+  if (parsed === null) return hasRawAge && Number.isFinite(raw) ? raw : null;
+  if (!hasRawAge || !Number.isFinite(raw)) return parsed;
   if (Math.abs(raw - parsed) > 0.5) return parsed;
 
   return raw;
@@ -215,17 +204,31 @@ function parseAiTraits(raw) {
   }
 }
 
-function aiConfidenceForField(dog, field) {
+function aiEvidenceForField(dog, field) {
   const traits = parseAiTraits(dog?.ai_traits);
   const traitKey = field === "max_alone_hours" ? "max_alone_hours_estimate" : field;
+  const trait = traits?.[traitKey];
   const traitConfidence = Number(traits?.[traitKey]?.confidence);
-  const confidence = Number.isFinite(traitConfidence)
+  let confidence = Number.isFinite(traitConfidence)
     ? Math.max(0, Math.min(1, traitConfidence))
     : aiConfidence(dog);
 
-  return dog?.needs_human_review === true || traits?.needs_human_review === true
-    ? Math.min(confidence, 0.35)
-    : confidence;
+  if (dog?.needs_human_review === true || traits?.needs_human_review === true) {
+    confidence = Math.min(confidence, 0.35);
+  }
+
+  // Legacy traits did not store machine-readable provenance. They must remain
+  // conservative until a future enrichment run explicitly classifies them.
+  const evidenceBasis =
+    trait?.evidence_basis === "bio_explicit" ? "bio_explicit" : "profile_inference";
+
+  return {
+    confidence,
+    evidenceBasis,
+    strength:
+      (evidenceBasis === "bio_explicit" ? BIO_EXPLICIT_STRENGTH : PROFILE_INFERENCE_STRENGTH) *
+      confidence,
+  };
 }
 
 function bioBaseTraitCredit(value) {
@@ -237,41 +240,49 @@ function bioBaseTraitCredit(value) {
   return null;
 }
 
-function aiTraitCredit(dog, field, baseCredit) {
-  if (baseCredit === null || baseCredit === undefined) return null;
-  if (baseCredit <= 0) return 0;
+function aiTraitCredit(dog, field, rawCredit) {
+  if (rawCredit === null || rawCredit === undefined) return null;
 
-  const confidence = aiConfidenceForField(dog, field);
-  const reliability = FIELD_RELIABILITY[field] ?? 0.7;
-  const trust = Math.min(1, confidence * reliability);
+  const raw = Math.max(0, Math.min(1, Number(rawCredit)));
+  if (!Number.isFinite(raw)) return null;
 
-  return Math.min(MAX_ESTIMATED_TRAIT_CREDIT, baseCredit * trust);
+  const { strength } = aiEvidenceForField(dog, field);
+  if (strength <= 0) return null;
+  return 0.5 + strength * (raw - 0.5);
 }
 
-// A bio-derived "no" is an estimate, not a shelter/foster-confirmed fact.
-// Under an absolute user requirement (hardRequirement) it should still be
-// allowed to weigh against a dog, but scaled by how confident the estimate
-// actually is — a low-confidence guess must not land as harshly as a
-// confirmed incompatibility (which returns a flat 0 above, before this is
-// ever reached). At full confidence this still reaches 0, matching prior
-// behavior; at low confidence it lands close to neutral instead.
-function aiTraitNegativeCredit(dog, field) {
-  const confidence = aiConfidenceForField(dog, field);
-  const reliability = FIELD_RELIABILITY[field] ?? 0.7;
-  const trust = Math.min(1, confidence * reliability);
-  return Math.max(0, 1 - trust);
-}
-
-function compatibilityCredit(dog, field, confirmedValue, bioValue, { hardRequirement = false } = {}) {
+function compatibilityCredit(dog, field, confirmedValue, bioValue) {
   if (confirmedValue === true || truthy(confirmedValue)) return 1;
-  if (confirmedValue === false) return hardRequirement ? 0 : null;
+  if (confirmedValue === false || falsy(confirmedValue)) return 0;
 
   const base = bioBaseTraitCredit(bioValue);
-  if (base === 0) {
-    if (!hardRequirement) return null;
-    return aiTraitNegativeCredit(dog, field);
-  }
   return aiTraitCredit(dog, field, base);
+}
+
+function confirmedYardRequirementType(dog) {
+  const fence = String(dog?.fence_needs ?? "").toLowerCase().trim();
+  const fenceNotRequired = !fence || /\b(no|none|not required|optional|unknown)\b/.test(fence);
+
+  // RescueGroups fenceNeeds values such as "3 foot" or "Any Type" are an
+  // explicit fence specification even when they do not contain "required".
+  if (!fenceNotRequired) return "fenced_yard";
+  if (dog?.yard_required === true || truthy(dog?.yard_required)) return "yard";
+  return null;
+}
+
+function isConfirmedYardRequirement(dog) {
+  return confirmedYardRequirementType(dog) !== null;
+}
+
+function yardCredit(dog, answer) {
+  const hasYard = String(answer ?? "").toLowerCase() === "yes";
+  if (isConfirmedYardRequirement(dog)) return hasYard ? 1 : 0;
+
+  const traits = parseAiTraits(dog?.ai_traits);
+  const value = String(traits?.needs_yard?.value ?? "").toLowerCase();
+  if (!["true", "likely", "maybe"].includes(value)) return null;
+
+  return aiTraitCredit(dog, "needs_yard", hasYard ? 1 : 0);
 }
 
 function energyCreditForValues(userEnergy, dogEnergy) {
@@ -347,13 +358,22 @@ function pushUnique(arr, msg) {
   if (!arr.includes(msg)) arr.push(msg);
 }
 
-function positiveCompatibilityEvidence(confirmedValue, bioValue) {
+function positiveCompatibilityEvidence(dog, field, confirmedValue, bioValue) {
   if (confirmedValue === true || truthy(confirmedValue)) return "listed";
   if (falsy(confirmedValue)) return "";
 
   const bio = String(bioValue ?? "").toLowerCase().trim();
-  if (bio === "yes" || bio === "most_likely" || bio === "may_do_well") return "estimated";
+  const credit = aiTraitCredit(dog, field, bioBaseTraitCredit(bio));
+  if ((bio === "yes" || bio === "most_likely" || bio === "may_do_well") && credit > 0.5) {
+    return "estimated";
+  }
   return "";
+}
+
+function estimatedEvidencePhrase(dog, field, bioPhrase, profilePhrase) {
+  return aiEvidenceForField(dog, field).evidenceBasis === "bio_explicit"
+    ? bioPhrase
+    : profilePhrase;
 }
 
 function buildSupportedMatchReasons(dog, answersById, limit = 4) {
@@ -368,7 +388,7 @@ function buildSupportedMatchReasons(dog, answersById, limit = 4) {
   } else {
     const bioDogSize = normalizeSize(dog?.bio_size);
     if (!sizePrefs.includes("flexible") && sizePrefs.length && bioDogSize && sizePrefs.includes(bioDogSize)) {
-      pushUnique(reasons, `Listing bio estimate suggests adult size may fit (likely ${dog.bio_size})`);
+      pushUnique(reasons, `AI profile estimate suggests adult size may fit (likely ${dog.bio_size})`);
     }
   }
 
@@ -391,29 +411,59 @@ function buildSupportedMatchReasons(dog, answersById, limit = 4) {
   );
   if (hasKidsNeed) {
     const evidence = positiveCompatibilityEvidence(
+      dog,
+      "good_with_kids",
       dog?.good_with_kids ?? dog?.kids_ok ?? dog?.kid_friendly ?? dog?.goodWithKids,
       dog?.bio_good_with_kids
     );
     if (evidence === "listed") pushUnique(reasons, "Listed as compatible with children");
-    if (evidence === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with children");
+    if (evidence === "estimated") pushUnique(
+      reasons,
+      estimatedEvidencePhrase(
+        dog,
+        "good_with_kids",
+        "Listing bio interpretation suggests this dog may do well with children",
+        "AI profile estimate cautiously suggests this dog may do well with children"
+      )
+    );
   }
 
   const pets = normalizeAnswerList(answersById.pets_in_home);
   if (pets.includes("dogs")) {
     const evidence = positiveCompatibilityEvidence(
+      dog,
+      "good_with_dogs",
       dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs,
       dog?.bio_good_with_dogs
     );
     if (evidence === "listed") pushUnique(reasons, "Listed as compatible with other dogs");
-    if (evidence === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with another dog");
+    if (evidence === "estimated") pushUnique(
+      reasons,
+      estimatedEvidencePhrase(
+        dog,
+        "good_with_dogs",
+        "Listing bio interpretation suggests this dog may do well with another dog",
+        "AI profile estimate cautiously suggests this dog may do well with another dog"
+      )
+    );
   }
   if (pets.includes("cats")) {
     const evidence = positiveCompatibilityEvidence(
+      dog,
+      "good_with_cats",
       dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats,
       dog?.bio_good_with_cats
     );
     if (evidence === "listed") pushUnique(reasons, "Listed as compatible with cats");
-    if (evidence === "estimated") pushUnique(reasons, "Listing bio estimate suggests this dog may do well with cats");
+    if (evidence === "estimated") pushUnique(
+      reasons,
+      estimatedEvidencePhrase(
+        dog,
+        "good_with_cats",
+        "Listing bio interpretation suggests this dog may do well with cats",
+        "AI profile estimate cautiously suggests this dog may do well with cats"
+      )
+    );
   }
   if ((pets.includes("small_animals") || pets.includes("small_pets")) && dog?.good_with_small_animals === true) {
     pushUnique(reasons, "Listed as okay with small animals");
@@ -426,8 +476,22 @@ function buildSupportedMatchReasons(dog, answersById, limit = 4) {
     if (confirmedAlone >= neededAlone) {
       pushUnique(reasons, "Listed alone-time capacity fits your weekday routine");
     }
-  } else if (neededAlone && Number.isFinite(bioAlone) && bioAlone > 0 && bioAlone >= neededAlone) {
-    pushUnique(reasons, "Listing bio estimate suggests the alone time may fit your weekday routine");
+  } else if (
+    neededAlone &&
+    Number.isFinite(bioAlone) &&
+    bioAlone > 0 &&
+    bioAlone >= neededAlone &&
+    aiTraitCredit(dog, "max_alone_hours", 1) > 0.5
+  ) {
+    pushUnique(
+      reasons,
+      estimatedEvidencePhrase(
+        dog,
+        "max_alone_hours",
+        "Listing bio interpretation suggests the alone time may fit your weekday routine",
+        "AI profile estimate suggests the alone time may fit your weekday routine"
+      )
+    );
   }
 
   const allergy = String(answersById.allergy_sensitivity ?? "").toLowerCase();
@@ -488,7 +552,7 @@ function scoreQuestion(qid, answer, dog) {
       if (!bioSize) return { earned: 0, possible: 0, reasonLabel: null, matched: null };
 
       credit = aiTraitCredit(dog, "size", picks.includes(bioSize) ? 1 : 0);
-      matched = credit !== null ? credit > 0 : null;
+      matched = credit !== null ? credit > 0.5 : null;
       break;
     }
 
@@ -511,7 +575,7 @@ function scoreQuestion(qid, answer, dog) {
         },
         dog?.bio_energy_level
       );
-      matched = credit !== null ? credit > 0 : null;
+      matched = credit !== null ? credit > 0.5 : null;
       break;
     }
 
@@ -528,10 +592,8 @@ function scoreQuestion(qid, answer, dog) {
         null;
 
       if (hasKidsNeed) {
-        credit = compatibilityCredit(dog, "good_with_kids", dogKids, dog?.bio_good_with_kids, {
-          hardRequirement: true,
-        });
-        matched = credit !== null ? credit > 0 : null;
+        credit = compatibilityCredit(dog, "good_with_kids", dogKids, dog?.bio_good_with_kids);
+        matched = credit !== null ? credit > 0.5 : null;
       } else {
         matched = true;
       }
@@ -548,8 +610,7 @@ function scoreQuestion(qid, answer, dog) {
             dog,
             "good_with_dogs",
             dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs,
-            dog?.bio_good_with_dogs,
-            { hardRequirement: true }
+            dog?.bio_good_with_dogs
           )
         );
       }
@@ -560,8 +621,7 @@ function scoreQuestion(qid, answer, dog) {
             dog,
             "good_with_cats",
             dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats,
-            dog?.bio_good_with_cats,
-            { hardRequirement: true }
+            dog?.bio_good_with_cats
           )
         );
       }
@@ -584,7 +644,7 @@ function scoreQuestion(qid, answer, dog) {
           credits.filter((value) => value !== null).length
         : 1;
       if (!Number.isFinite(credit)) credit = null;
-      matched = credit !== null ? credit > 0 : null;
+      matched = credit !== null ? credit > 0.5 : null;
       break;
     }
 
@@ -593,10 +653,8 @@ function scoreQuestion(qid, answer, dog) {
       const dogPotty = dog?.potty_trained ?? dog?.house_trained ?? dog?.houseTrained ?? null;
 
       if (a === "must_be_trained" || a === "required" || a === "must") {
-        credit = compatibilityCredit(dog, "potty_trained", dogPotty, dog?.bio_potty_trained, {
-          hardRequirement: true,
-        });
-        matched = credit !== null ? credit > 0 : null;
+        credit = compatibilityCredit(dog, "potty_trained", dogPotty, dog?.bio_potty_trained);
+        matched = credit !== null ? credit > 0.5 : null;
       } else {
         matched = true;
       }
@@ -613,10 +671,9 @@ function scoreQuestion(qid, answer, dog) {
           dog,
           "first_time_friendly",
           dogFirstTime,
-          dog?.bio_first_time_friendly,
-          { hardRequirement: false }
+          dog?.bio_first_time_friendly
         );
-        matched = credit !== null ? credit > 0 : null;
+        matched = credit !== null ? credit > 0.5 : null;
       } else {
         matched = true;
       }
@@ -637,7 +694,7 @@ function scoreQuestion(qid, answer, dog) {
         a === "allergies"
       ) {
         credit = hypo === true ? 1 : sheddingCredit(dog, "low");
-        matched = credit !== null ? credit > 0 : null;
+        matched = credit !== null ? credit > 0.5 : null;
       } else {
         matched = true;
       }
@@ -647,13 +704,19 @@ function scoreQuestion(qid, answer, dog) {
     case "shedding_preference": {
       const a = String(answer).toLowerCase();
       credit = sheddingCredit(dog, a);
-      matched = credit !== null ? credit > 0 : null;
+      matched = credit !== null ? credit > 0.5 : null;
       break;
     }
 
     case "alone_time": {
       credit = aloneTimeCredit(dog, answer);
-      matched = credit !== null ? credit > 0 : null;
+      matched = credit !== null ? credit > 0.5 : null;
+      break;
+    }
+
+    case "yard": {
+      credit = yardCredit(dog, answer);
+      matched = credit !== null ? credit > 0.5 : null;
       break;
     }
 
@@ -665,8 +728,8 @@ function scoreQuestion(qid, answer, dog) {
 
   if (credit === null && matched === null) {
     return {
-      earned: weight * 0.5,
-      possible: weight,
+      earned: 0,
+      possible: 0,
       reasonLabel: null,
       matched: null,
     };
@@ -684,6 +747,59 @@ function countAnsweredQuestions(answersById) {
   if (!answersById || typeof answersById !== "object") return 0;
 
   return Object.keys(WEIGHTS).filter((questionId) => !isEmptyAnswer(answersById[questionId])).length;
+}
+
+function petsEvidenceCoverageWeight(dog, answer, weight) {
+  const picks = normalizeAnswerList(answer);
+  if (picks.some((pick) => ["none", "not_sure", "flexible"].includes(pick))) return weight;
+
+  const requestedCredits = [];
+
+  if (picks.includes("dogs")) {
+    requestedCredits.push(
+      compatibilityCredit(
+        dog,
+        "good_with_dogs",
+        dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs,
+        dog?.bio_good_with_dogs
+      )
+    );
+  }
+
+  if (picks.includes("cats")) {
+    requestedCredits.push(
+      compatibilityCredit(
+        dog,
+        "good_with_cats",
+        dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats,
+        dog?.bio_good_with_cats
+      )
+    );
+  }
+
+  if (picks.includes("small_pets") || picks.includes("small_animals")) {
+    const smallAnimalValue =
+      dog?.good_with_small_animals ?? dog?.good_with_small_pets ?? dog?.small_pets_ok ?? null;
+    requestedCredits.push(
+      smallAnimalValue === true ||
+      smallAnimalValue === false ||
+      truthy(smallAnimalValue) ||
+      falsy(smallAnimalValue)
+        ? 1
+        : null
+    );
+  }
+
+  if (!requestedCredits.length) return weight;
+  const knownCount = requestedCredits.filter((credit) => credit !== null).length;
+  return weight * (knownCount / requestedCredits.length);
+}
+
+function evidenceCoverageWeight(qid, answer, dog, questionResult) {
+  const weight = w(qid);
+  if (isNoPreferenceValue(answer)) return weight;
+  if (qid === "pets_in_home") return petsEvidenceCoverageWeight(dog, answer, weight);
+  return questionResult.possible > 0 ? weight : 0;
 }
 
 function confirmedCompatibilityCautions(dog, answersById) {
@@ -716,17 +832,32 @@ function confirmedCompatibilityCautions(dog, answersById) {
       "This dog is listed as not compatible with cats, but your home includes a cat."
     );
   }
+  const yardRequirementType = confirmedYardRequirementType(dog);
+  if (String(answersById?.yard ?? "").toLowerCase() === "no" && yardRequirementType) {
+    cautions.push(
+      yardRequirementType === "fenced_yard"
+        ? "This dog is listed as requiring a fenced yard, but your quiz says you do not have yard access."
+        : "This dog is listed as requiring a yard or outdoor space, but your quiz says you do not have yard access."
+    );
+  }
 
   return cautions;
 }
 
-export function matchTierFromActivePct(scorePct) {
+export function matchTierFromActivePct(scorePct, { limitedInformation = false } = {}) {
   const p = Number(scorePct);
 
   if (!Number.isFinite(p)) {
     return {
       label: "Quiz needed",
       pillClass: "bg-white text-stone-950",
+    };
+  }
+
+  if (limitedInformation) {
+    return {
+      label: "Limited information",
+      pillClass: "bg-amber-100 text-amber-950",
     };
   }
 
@@ -769,6 +900,8 @@ export function computeRankedMatches(dogs, answersById) {
   const rows = dogList.map((dog) => {
     let earned = 0;
     let possible = 0;
+    let evidenceCoveredWeight = 0;
+    let evidenceRequestedWeight = 0;
 
     const reasons = [];
 
@@ -778,6 +911,11 @@ export function computeRankedMatches(dogs, answersById) {
 
       earned += r.earned;
       possible += r.possible;
+
+      if (!isEmptyAnswer(ans)) {
+        evidenceRequestedWeight += w(qid);
+        evidenceCoveredWeight += evidenceCoverageWeight(qid, ans, dog, r);
+      }
 
       if (r.possible > 0 && r.reasonLabel) {
         reasons.push({
@@ -796,6 +934,13 @@ export function computeRankedMatches(dogs, answersById) {
       rawScorePct !== null && compatibilityCautions.length
         ? Math.min(rawScorePct, CONFIRMED_COMPATIBILITY_CONFLICT_CAP)
         : rawScorePct;
+    const evidenceCoveragePct = evidenceRequestedWeight > 0
+      ? Math.round((evidenceCoveredWeight / evidenceRequestedWeight) * 100)
+      : null;
+    const limitedInformation =
+      meaningfulScoreAvailable &&
+      evidenceCoveragePct !== null &&
+      evidenceCoveragePct < LIMITED_INFORMATION_COVERAGE_PCT;
 
     const top = meaningfulScoreAvailable
       ? reasons
@@ -806,7 +951,7 @@ export function computeRankedMatches(dogs, answersById) {
           .map((r) => r.label)
       : [];
 
-    const tier = matchTierFromActivePct(scorePct);
+    const tier = matchTierFromActivePct(scorePct, { limitedInformation });
 
     return {
       dog,
@@ -818,6 +963,11 @@ export function computeRankedMatches(dogs, answersById) {
         topReasons: top,
         matchReasons: meaningfulScoreAvailable ? buildSupportedMatchReasons(dog, answersById, 4) : [],
         compatibilityCautions,
+        evidenceCoveragePct,
+        evidenceCoveredWeight,
+        evidenceRequestedWeight,
+        evidenceCoverageLabel: limitedInformation ? "Limited information" : "Sufficient information",
+        limitedInformation,
         answeredCount,
         possible,
         enoughQuizInfo: meaningfulScoreAvailable,
@@ -853,7 +1003,9 @@ export function rankDogs(dogs, answersById) {
   const rows = computeRankedMatches(dogs, answersById);
 
   return rows.map((r) => {
-    const tier = matchTierFromActivePct(r.scorePct);
+    const tier = matchTierFromActivePct(r.scorePct, {
+      limitedInformation: r.breakdown?.limitedInformation === true,
+    });
     const label = tier.label.toLowerCase();
 
     let match_level = "potential";

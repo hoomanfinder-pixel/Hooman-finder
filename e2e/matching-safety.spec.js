@@ -3,6 +3,7 @@ import {
   catCompatibilityDogs,
   childCompatibilityDogs,
   dogCompatibilityDogs,
+  evidenceCoverageDogs,
 } from "./fixtures/dogs.js";
 import {
   answerEssentialQuiz,
@@ -165,5 +166,42 @@ test.describe("alone-time preference ranking", () => {
     ).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expectNoBareProtocolLinks(page);
+  });
+});
+
+test.describe("match evidence coverage", () => {
+  test.use({ scenario: { dogs: evidenceCoverageDogs } });
+
+  test("equal high scores distinguish sparse from data-rich evidence in results and profile", async ({
+    page,
+  }) => {
+    await completeEssentialQuiz(page, "e2e-evidence-coverage", {
+      children: "Under 3",
+      pets: "Other dogs",
+      potty: "Must be potty trained",
+    });
+
+    const richCard = getResultCard(page, "Atlas");
+    const sparseCard = getResultCard(page, "Sapphire");
+    await expect(richCard).toContainText("100% match");
+    await expect(richCard).not.toContainText("Limited info");
+    await expect(sparseCard).toContainText("Limited info · 100% match");
+
+    await sparseCard.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
+    await expect(
+      page.getByRole("button", {
+        name: "Open why you matched. Limited information. 100 percent match",
+      })
+    ).toBeVisible();
+    await page
+      .getByRole("button", {
+        name: "Open why you matched. Limited information. 100 percent match",
+      })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Why you matched" })).toContainText(
+      "Limited information"
+    );
   });
 });

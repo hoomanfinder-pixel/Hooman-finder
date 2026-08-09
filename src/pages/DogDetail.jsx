@@ -182,7 +182,18 @@ function displaySheddingValue(value) {
   return labels[normalized] || "Unknown";
 }
 
-function getEnergyTrait({ structuredValue, bioValue }) {
+function estimatedTraitMetadata(evidenceBasis) {
+  const bioExplicit = evidenceBasis === "bio_explicit";
+  return {
+    source: bioExplicit ? "bio" : "profile_inference",
+    note: bioExplicit ? "Interpreted from listing bio" : "AI profile estimate",
+    title: bioExplicit
+      ? "AI interpretation of dog-specific wording in the shelter or rescue bio. Confirm with the source."
+      : "AI estimate based on broader profile context. This is not a known behavioral fact. Confirm with the shelter or rescue.",
+  };
+}
+
+function getEnergyTrait({ structuredValue, bioValue, evidenceBasis }) {
   const structured = normalizeEnergyValue(structuredValue);
   if (structured !== "unknown") {
     return {
@@ -196,8 +207,8 @@ function getEnergyTrait({ structuredValue, bioValue }) {
   if (bio !== "unknown") {
     return {
       value: `Likely ${displayEnergyValue(bio).toLowerCase()}`,
-      source: "bio",
       estimated: true,
+      ...estimatedTraitMetadata(evidenceBasis),
     };
   }
 
@@ -208,7 +219,7 @@ function getEnergyTrait({ structuredValue, bioValue }) {
   };
 }
 
-function getSheddingTrait({ structuredValue, bioValue }) {
+function getSheddingTrait({ structuredValue, bioValue, evidenceBasis }) {
   const structured = normalizeSheddingValue(structuredValue);
   if (structured !== "unknown") {
     return {
@@ -222,8 +233,8 @@ function getSheddingTrait({ structuredValue, bioValue }) {
   if (bio !== "unknown") {
     return {
       value: `Likely ${displaySheddingValue(bio).toLowerCase()}`,
-      source: "bio",
       estimated: true,
+      ...estimatedTraitMetadata(evidenceBasis),
     };
   }
 
@@ -234,7 +245,7 @@ function getSheddingTrait({ structuredValue, bioValue }) {
   };
 }
 
-function getEstimatedTextTrait({ value, displayValue }) {
+function getEstimatedTextTrait({ value, displayValue, evidenceBasis }) {
   const raw = String(value || "").trim();
   if (!raw || raw.toLowerCase() === "unknown") {
     return {
@@ -246,8 +257,8 @@ function getEstimatedTextTrait({ value, displayValue }) {
 
   return {
     value: displayValue || raw,
-    source: "bio",
     estimated: true,
+    ...estimatedTraitMetadata(evidenceBasis),
   };
 }
 
@@ -630,6 +641,8 @@ export default function DogDetail() {
     Boolean(dog.bio_size);
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);
+  const limitedMatchInformation = quizMatch?.breakdown?.limitedInformation === true;
+  const evidenceCoveragePct = Number(quizMatch?.breakdown?.evidenceCoveragePct);
   const matchReasons = getMatchReasons(quizMatch, dog);
   const matchCautions = Array.isArray(quizMatch?.breakdown?.compatibilityCautions)
     ? quizMatch.breakdown.compatibilityCautions.filter(Boolean)
@@ -688,7 +701,9 @@ export default function DogDetail() {
                 </div>
 
                 <p className="mt-4 text-sm font-semibold leading-6 text-[#6F6A66]">
-                  This score is based on your quiz answers and the dog details currently available from the shelter or rescue.
+                  {limitedMatchInformation
+                    ? `Limited information: this score uses the dog details currently available, but${Number.isFinite(evidenceCoveragePct) ? ` only ${Math.round(evidenceCoveragePct)}% of` : " several of"} your active quiz factors have usable evidence.`
+                    : "This score is based on your quiz answers and the dog details currently available from the shelter or rescue."}
                 </p>
 
                 {matchCautions.length ? (
@@ -904,9 +919,13 @@ export default function DogDetail() {
                     type="button"
                     onClick={() => setMatchInfoOpen(true)}
                     className="inline-flex rounded-full border border-[#183D35]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#183D35] shadow-sm hover:bg-[#eef3e8]"
-                    aria-label={`Open why you matched. ${Math.round(matchScorePct)} percent match`}
+                    aria-label={limitedMatchInformation
+                      ? `Open why you matched. Limited information. ${Math.round(matchScorePct)} percent match`
+                      : `Open why you matched. ${Math.round(matchScorePct)} percent match`}
                   >
-                    {Math.round(matchScorePct)}% match
+                    {limitedMatchInformation
+                      ? `Limited info · ${Math.round(matchScorePct)}% match`
+                      : `${Math.round(matchScorePct)}% match`}
                   </button>
                 ) : null}
               </div>
@@ -1038,6 +1057,7 @@ export default function DogDetail() {
                 trait={getEnergyTrait({
                   structuredValue: dog.energy_level || dog.activity_level,
                   bioValue: dog.bio_energy_level,
+                  evidenceBasis: aiTraits?.energy_level?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1045,6 +1065,7 @@ export default function DogDetail() {
                 trait={getTraitDisplay({
                   structuredValue: dog.potty_trained,
                   bioValue: dog.bio_potty_trained,
+                  evidenceBasis: aiTraits?.potty_trained?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1052,6 +1073,7 @@ export default function DogDetail() {
                 trait={getTraitDisplay({
                   structuredValue: dog.good_with_dogs,
                   bioValue: dog.bio_good_with_dogs,
+                  evidenceBasis: aiTraits?.good_with_dogs?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1059,6 +1081,7 @@ export default function DogDetail() {
                 trait={getTraitDisplay({
                   structuredValue: dog.good_with_cats,
                   bioValue: dog.bio_good_with_cats,
+                  evidenceBasis: aiTraits?.good_with_cats?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1066,6 +1089,7 @@ export default function DogDetail() {
                 trait={getTraitDisplay({
                   structuredValue: dog.good_with_kids,
                   bioValue: dog.bio_good_with_kids,
+                  evidenceBasis: aiTraits?.good_with_kids?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1073,6 +1097,7 @@ export default function DogDetail() {
                 trait={getSheddingTrait({
                   structuredValue: dog.shedding_level,
                   bioValue: dog.bio_shedding_level,
+                  evidenceBasis: aiTraits?.shedding_level?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1083,6 +1108,7 @@ export default function DogDetail() {
                     dog.bio_max_alone_hours_label && dog.bio_max_alone_hours_label !== "unknown"
                       ? `Likely ${dog.bio_max_alone_hours_label} hrs`
                       : "",
+                  evidenceBasis: aiTraits?.max_alone_hours_estimate?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1090,6 +1116,7 @@ export default function DogDetail() {
                 trait={getEnergyTrait({
                   structuredValue: dog.exercise_needs,
                   bioValue: dog.bio_exercise_needs,
+                  evidenceBasis: aiTraits?.exercise_needs?.evidence_basis,
                 })}
               />
               <TraitCard
@@ -1097,6 +1124,7 @@ export default function DogDetail() {
                 trait={getEnergyTrait({
                   structuredValue: obedienceTrainingNeed(dog.obedience_training),
                   bioValue: dog.bio_training_needs,
+                  evidenceBasis: aiTraits?.training_needs?.evidence_basis,
                 })}
               />
             </div>

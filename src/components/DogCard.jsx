@@ -57,6 +57,13 @@ function matchTier(scorePct, breakdown) {
     };
   }
 
+  if (breakdown?.limitedInformation === true) {
+    return {
+      label: "Limited information",
+      className: "bg-amber-100 text-amber-950",
+    };
+  }
+
   const n = Number(scorePct);
 
   if (n >= 85) return { label: "Strong match", className: "bg-white text-[#183D35]" };
@@ -167,6 +174,7 @@ function buildDogInfoBullets(dog) {
 
 function getMatchState({ dog, scorePct, breakdown }) {
   const hasScore = isRealMatchScore(scorePct, breakdown);
+  const limitedInformation = breakdown?.limitedInformation === true;
   const topReasons = getCleanTopReasons(breakdown);
   const cautions = getCompatibilityCautions(breakdown);
   const answeredCount = Number(breakdown?.answeredCount || 0);
@@ -176,14 +184,20 @@ function getMatchState({ dog, scorePct, breakdown }) {
       kind: "match",
       eyebrow: "Why this match",
       headline: dog?.name || "This dog",
-      subhead: `${Math.round(Number(scorePct))}% match`,
+      subhead: limitedInformation
+        ? `${Math.round(Number(scorePct))}% match · Limited listing information`
+        : `${Math.round(Number(scorePct))}% match`,
       reasonsTitle: "Why this dog may match you",
       reasons: topReasons,
       cautions,
-      note: topReasons.length
-        ? "These reasons are based on your quiz answers and available rescue/shelter info."
-        : "We found a possible fit, but there are not enough confirmed details for specific highlights yet.",
-      pillText: `${Math.round(Number(scorePct))}% match`,
+      note: limitedInformation
+        ? "This percentage uses the dog details currently available, but several of your quiz factors are still unknown."
+        : topReasons.length
+          ? "These reasons are based on your quiz answers and available rescue/shelter info."
+          : "We found a possible fit, but there are not enough confirmed details for specific highlights yet.",
+      pillText: limitedInformation
+        ? `Limited info · ${Math.round(Number(scorePct))}% match`
+        : `${Math.round(Number(scorePct))}% match`,
       showScoreCircle: true,
     };
   }

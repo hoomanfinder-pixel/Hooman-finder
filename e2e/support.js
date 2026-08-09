@@ -113,19 +113,19 @@ export function getResultCard(page, dogName) {
 }
 
 export async function getCardPercentage(card) {
-  const labels = await card.getByText(/^\d+% match$/).allTextContents();
+  const labels = await card.getByText(/\d+% match/).allTextContents();
   expect(labels.length, "Expected a visible match percentage on the result card").toBeGreaterThan(0);
-  return Number.parseInt(labels[0], 10);
+  return Number.parseInt(labels[0].match(/(\d+)% match/)?.[1] || "", 10);
 }
 
 export async function expectValidMatchPercentages(page) {
-  const matchLabels = page.getByText(/^\d+% match$/);
+  const matchLabels = page.getByText(/\d+% match/);
   await expect(matchLabels.first()).toBeVisible();
   const labels = await matchLabels.allTextContents();
   expect(labels.length).toBeGreaterThan(0);
 
   for (const label of labels) {
-    const percentage = Number.parseInt(label, 10);
+    const percentage = Number.parseInt(label.match(/(\d+)% match/)?.[1] || "", 10);
     expect(percentage).toBeGreaterThanOrEqual(0);
     expect(percentage).toBeLessThanOrEqual(100);
   }
