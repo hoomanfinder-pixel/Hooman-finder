@@ -26,6 +26,8 @@ export default function QuestionCard({
   question,
   value,
   onChange,
+  onContinue,
+  canContinue = false,
   number = null,
   statusText = "",
 }) {
@@ -42,6 +44,8 @@ export default function QuestionCard({
       multiple={multiple}
       value={value}
       onChange={onChange}
+      onContinue={onContinue}
+      canContinue={canContinue}
       exclusiveValues={question.exclusiveValues || []}
       number={number}
       icon={question.icon || questionIcon(question)}

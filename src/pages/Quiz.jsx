@@ -8,7 +8,6 @@ import QuestionCard from "../components/QuestionCard";
 import usePrefersReducedMotion from "../hooks/usePrefersReducedMotion";
 import {
   QUIZ_MODES,
-  QUESTION_TYPES,
   getQuestionsForMode,
   getCompletionCounts,
 } from "../lib/quizQuestions";
@@ -117,6 +116,7 @@ export default function Quiz() {
   const prefersReducedMotion = usePrefersReducedMotion();
   const quizTopRef = useRef(null);
   const questionRefs = useRef({});
+  const pendingQuestionScrollRef = useRef("");
   const refineSectionRefs = useRef({});
   const didMountModeRef = useRef(false);
 
@@ -165,6 +165,17 @@ export default function Quiz() {
   }, [mode]);
 
   useEffect(() => {
+    const questionId = pendingQuestionScrollRef.current;
+    if (!questionId) return;
+
+    const element = questionRefs.current[questionId];
+    if (!element) return;
+
+    pendingQuestionScrollRef.current = "";
+    scrollToElement(element);
+  }, [openRefineSection]);
+
+  useEffect(() => {
     let mounted = true;
 
     async function run() {
@@ -202,25 +213,20 @@ export default function Quiz() {
     }
   }
 
-  function updateQuestionAnswer(question, nextQuestion, nextValue) {
-    updateAnswer(question.id, nextValue);
+  function continueToQuestion(nextQuestion) {
+    if (!nextQuestion) return;
 
-    const completesSingleSelect =
-      question.type === QUESTION_TYPES.SINGLE && hasAnswer(nextValue);
-    const completesExclusiveMultiSelect =
-      question.type === QUESTION_TYPES.MULTI &&
-      Array.isArray(nextValue) &&
-      nextValue.length === 1 &&
-      (question.exclusiveValues || [])
-        .map(String)
-        .includes(String(nextValue[0]));
+    if (mode === QUIZ_MODES.REFINE) {
+      const nextSection = nextQuestion.refineSection || fallbackRefineSection(nextQuestion);
 
-    if (
-      (completesSingleSelect || completesExclusiveMultiSelect) &&
-      nextQuestion
-    ) {
-      scrollToElement(questionRefs.current[nextQuestion.id]);
+      if (nextSection !== openRefineSection) {
+        pendingQuestionScrollRef.current = nextQuestion.id;
+        setOpenRefineSection(nextSection);
+        return;
+      }
     }
+
+    scrollToElement(questionRefs.current[nextQuestion.id]);
   }
 
   function goRefine() {
@@ -237,6 +243,16 @@ export default function Quiz() {
 
   function saveAndSeeMatches() {
     goResults();
+  }
+
+  function continueAfterQuestion(nextQuestion) {
+    if (nextQuestion) {
+      continueToQuestion(nextQuestion);
+      return;
+    }
+
+    if (mode === QUIZ_MODES.DEALBREAKERS) goRefine();
+    else goResults();
   }
 
   function resetAnswers() {
@@ -435,9 +451,9 @@ export default function Quiz() {
                   <QuestionCard
                     question={q}
                     value={answersById[q.id]}
-                    onChange={(v) =>
-                      updateQuestionAnswer(q, questions[index + 1], v)
-                    }
+                    onChange={(v) => updateAnswer(q.id, v)}
+                    onContinue={() => continueAfterQuestion(questions[index + 1])}
+                    canContinue={hasAnswer(answersById[q.id])}
                     number={index + 1}
                     statusText={answerSummary(q, answersById[q.id])}
                   />
@@ -480,9 +496,14 @@ export default function Quiz() {
                             <QuestionCard
                               question={q}
                               value={answersById[q.id]}
-                              onChange={(v) =>
-                                updateQuestionAnswer(q, group.questions[index + 1], v)
-                              }
+                              onChange={(v) => updateAnswer(q.id, v)}
+                              onContinue={() => {
+                                const questionIndex = questions.findIndex(
+                                  (question) => question.id === q.id
+                                );
+                                continueAfterQuestion(questions[questionIndex + 1]);
+                              }}
+                              canContinue={hasAnswer(answersById[q.id])}
                               number={index + 1}
                               statusText={answerSummary(q, answersById[q.id])}
                             />

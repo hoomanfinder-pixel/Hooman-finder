@@ -49,6 +49,8 @@ export default function OptionSelect({
   multiple = false,
   value,
   onChange,
+  onContinue,
+  canContinue = false,
   exclusiveValues = [],
   number = null,
   icon = "🐾",
@@ -223,6 +225,18 @@ export default function OptionSelect({
           })}
         </div>
       )}
+
+      <div className="flex min-h-12 items-end justify-end pt-1.5">
+        <button
+          type="button"
+          onClick={onContinue}
+          disabled={!canContinue}
+          className="inline-flex min-h-11 min-w-28 items-center justify-center gap-1 rounded-full bg-[#183D35] px-5 py-2 text-xs font-black text-[#F3C982] shadow-sm transition hover:bg-[#12332C] disabled:cursor-not-allowed disabled:bg-[#183D35]/10 disabled:text-[#183D35]/35 disabled:shadow-none sm:text-sm"
+        >
+          Continue
+          <span aria-hidden="true">↓</span>
+        </button>
+      </div>
     </section>
   );
 }
