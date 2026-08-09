@@ -15,6 +15,10 @@ const {
   normalizeAiTraits,
   parseBoundedPositiveInteger,
 } = require("../../scripts/enrich-dogs-ai.cjs");
+const {
+  HASHED_FIELDS,
+  computeSourceContentHash,
+} = require("../../scripts/dog-enrichment-hash.cjs");
 
 function trait(value = "unknown", confidence = 0, evidence = "", evidenceBasis = "profile_inference") {
   return { value, confidence, evidence, evidence_basis: evidenceBasis };
@@ -165,6 +169,76 @@ test("confirmed source fields are passed through and override conflicting AI int
       firstTime: "false",
       cats: "false",
     }
+  );
+});
+
+test("each newly covered structured enrichment input changes the source-content hash", () => {
+  const baseline = {
+    name: "Test Dog",
+    description: "Friendly companion looking for a home.",
+  };
+  const baselineHash = computeSourceContentHash(baseline);
+  const structuredInputs = {
+    yard_required: false,
+    fence_needs: "Six-foot fence required",
+    exercise_needs: "High",
+    obedience_training: "Needs Training",
+    owner_experience: "Experienced owner required",
+  };
+
+  for (const [field, value] of Object.entries(structuredInputs)) {
+    assert.ok(HASHED_FIELDS.includes(field), `${field} must be part of the hash contract`);
+    assert.notEqual(
+      computeSourceContentHash({ ...baseline, [field]: value }),
+      baselineHash,
+      `${field} must change the source-content hash`
+    );
+  }
+});
+
+test("fields outside model evidence do not change the source-content hash", () => {
+  const baseline = {
+    name: "Test Dog",
+    description: "Friendly companion looking for a home.",
+    breed: "Mixed Breed",
+  };
+  const irrelevantChanges = {
+    photo_url: "https://example.com/dog.jpg",
+    photo_urls: ["https://example.com/dog.jpg"],
+    source_updated_at: "2026-08-09T00:00:00.000Z",
+    last_checked_at: "2026-08-09T01:00:00.000Z",
+    shelter_website: "https://example.com/shelter",
+    adoption_url: "https://example.com/adopt",
+    placement_city: "Detroit",
+  };
+
+  assert.equal(
+    computeSourceContentHash({ ...baseline, ...irrelevantChanges }),
+    computeSourceContentHash(baseline)
+  );
+});
+
+test("a current-version enriched dog becomes eligible when a structured source input changes", () => {
+  const sourceDog = {
+    name: "Test Dog",
+    description: "Friendly companion looking for a home.",
+    owner_experience: "First-time owner friendly",
+  };
+  const enrichedHash = computeSourceContentHash(sourceDog);
+  const changedHash = computeSourceContentHash({
+    ...sourceDog,
+    owner_experience: "Experienced owner required",
+  });
+
+  assert.notEqual(changedHash, enrichedHash);
+  assert.equal(
+    getEnrichmentEligibilityReason({
+      ai_enriched_at: "2026-08-09T00:00:00.000Z",
+      ai_enrichment_version: AI_ENRICHMENT_VERSION,
+      source_content_hash: changedHash,
+      ai_enriched_source_hash: enrichedHash,
+    }),
+    "content_changed"
   );
 });
 

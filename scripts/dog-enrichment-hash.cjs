@@ -49,6 +49,11 @@ const HASHED_FIELDS = [
   "grooming_level",
   "barking_level",
   "max_alone_hours",
+  "yard_required",
+  "fence_needs",
+  "exercise_needs",
+  "obedience_training",
+  "owner_experience",
   // Also passed into the prompt as context (asDogInput()'s shelter_name).
   // Note: asDogInput() falls back to the joined dog.shelters?.name when this
   // column is null — a rename of the *linked shelter itself* (rather than
