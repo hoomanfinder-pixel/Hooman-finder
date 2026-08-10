@@ -15,8 +15,9 @@ import {
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
+import { trackQuizComplete } from "../lib/googleAnalytics";
 import { supabase } from "../lib/supabase";
-import { QUIZ_MODES } from "../lib/quizQuestions";
+import { getCompletionCounts, QUIZ_MODES } from "../lib/quizQuestions";
 
 const AGE_OPTIONS = [
   { label: "All ages", value: "all" },
@@ -167,8 +168,21 @@ export default function Results() {
         if (error) throw error;
         if (!mounted) return;
 
-        setAnswersById(loadedAnswers || {});
+        const safeAnswers = loadedAnswers || {};
+        const essentialCompletion = getCompletionCounts(
+          QUIZ_MODES.DEALBREAKERS,
+          safeAnswers
+        );
+
+        setAnswersById(safeAnswers);
         setDogs(filterPublicDogs(data));
+
+        if (
+          essentialCompletion.total > 0 &&
+          essentialCompletion.answered === essentialCompletion.total
+        ) {
+          trackQuizComplete(sessionId);
+        }
       } catch (e) {
         if (!mounted) return;
         setErr(e?.message || String(e));

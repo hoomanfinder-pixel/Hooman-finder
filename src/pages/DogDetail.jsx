@@ -7,6 +7,7 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
+import { trackAdoptionLinkClick } from "../lib/googleAnalytics";
 import {
   getDogApplyLink,
   getDogApplyLabel,
@@ -957,7 +958,12 @@ export default function DogDetail() {
                       : "cursor-not-allowed bg-[#EFE8DC] text-[#6F6A66]"
                   }`}
                   onClick={(e) => {
-                    if (!applyLink) e.preventDefault();
+                    if (!applyLink) {
+                      e.preventDefault();
+                      return;
+                    }
+
+                    trackAdoptionLinkClick();
                   }}
                   aria-disabled={!applyLink}
                 >

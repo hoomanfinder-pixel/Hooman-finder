@@ -17,6 +17,7 @@ import {
   saveQuizResponses,
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
+import { trackQuizStart } from "../lib/googleAnalytics";
 
 function ensureSessionId(existing) {
   if (existing) return existing;
@@ -202,8 +203,12 @@ export default function Quiz() {
 
   async function updateAnswer(questionId, nextValue) {
     const nextAnswers = { ...answersById, [questionId]: nextValue };
+    const isFirstAnswer =
+      !Object.values(answersById).some(hasAnswer) &&
+      Object.values(nextAnswers).some(hasAnswer);
 
     setAnswersById(nextAnswers);
+    if (isFirstAnswer) trackQuizStart(sessionId);
 
     try {
       setSaveError("");
