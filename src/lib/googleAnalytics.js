@@ -8,6 +8,7 @@ const EVENT_STORAGE_PREFIX = "hoomanFinder.googleAnalytics.event.v1";
 export const GOOGLE_ANALYTICS_EVENTS = Object.freeze({
   QUIZ_START: "quiz_start",
   QUIZ_COMPLETE: "quiz_complete",
+  RESULTS_VIEW: "results_view",
   ADOPTION_LINK_CLICK: "adoption_link_click",
 });
 
@@ -98,6 +99,14 @@ export function trackQuizStart(sessionId, options) {
 export function trackQuizComplete(sessionId, options) {
   return trackGoogleAnalyticsEventOnce(
     GOOGLE_ANALYTICS_EVENTS.QUIZ_COMPLETE,
+    sessionId,
+    options
+  );
+}
+
+export function trackResultsView(sessionId, options) {
+  return trackGoogleAnalyticsEventOnce(
+    GOOGLE_ANALYTICS_EVENTS.RESULTS_VIEW,
     sessionId,
     options
   );

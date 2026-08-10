@@ -15,7 +15,7 @@ import {
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
-import { trackQuizComplete } from "../lib/googleAnalytics";
+import { trackQuizComplete, trackResultsView } from "../lib/googleAnalytics";
 import { supabase } from "../lib/supabase";
 import { getCompletionCounts, QUIZ_MODES } from "../lib/quizQuestions";
 
@@ -115,6 +115,7 @@ export default function Results() {
   const [dogs, setDogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [completedResultsSessionId, setCompletedResultsSessionId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef(null);
 
@@ -149,6 +150,7 @@ export default function Results() {
       try {
         setLoading(true);
         setErr("");
+        setCompletedResultsSessionId("");
 
         if (!sessionId) {
           setErr("Missing session id. Please return to the quiz.");
@@ -182,6 +184,7 @@ export default function Results() {
           essentialCompletion.answered === essentialCompletion.total
         ) {
           trackQuizComplete(sessionId);
+          setCompletedResultsSessionId(sessionId);
         }
       } catch (e) {
         if (!mounted) return;
@@ -197,6 +200,19 @@ export default function Results() {
       mounted = false;
     };
   }, [sessionId]);
+
+  useEffect(() => {
+    if (
+      loading ||
+      err ||
+      !sessionId ||
+      completedResultsSessionId !== sessionId
+    ) {
+      return;
+    }
+
+    trackResultsView(sessionId);
+  }, [completedResultsSessionId, err, loading, sessionId]);
 
   const rescueOptions = useMemo(() => {
     const map = new Map();

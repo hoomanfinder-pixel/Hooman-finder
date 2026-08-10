@@ -8,6 +8,7 @@ import {
   trackAdoptionLinkClick,
   trackQuizComplete,
   trackQuizStart,
+  trackResultsView,
 } from "./googleAnalytics.js";
 
 class MemoryStorage {
@@ -78,6 +79,8 @@ test("quiz conversion events fire once per quiz session without event parameters
   assert.equal(trackQuizStart("quiz-session-1", environment), false);
   assert.equal(trackQuizComplete("quiz-session-1", environment), true);
   assert.equal(trackQuizComplete("quiz-session-1", environment), false);
+  assert.equal(trackResultsView("quiz-session-1", environment), true);
+  assert.equal(trackResultsView("quiz-session-1", environment), false);
 
   const eventCalls = environment.windowRef.dataLayer.slice(2);
   assert.deepEqual(
@@ -85,6 +88,7 @@ test("quiz conversion events fire once per quiz session without event parameters
     [
       ["event", GOOGLE_ANALYTICS_EVENTS.QUIZ_START],
       ["event", GOOGLE_ANALYTICS_EVENTS.QUIZ_COMPLETE],
+      ["event", GOOGLE_ANALYTICS_EVENTS.RESULTS_VIEW],
     ]
   );
 });
@@ -95,11 +99,15 @@ test("quiz conversion deduplication survives a page refresh", () => {
   firstPage.windowRef.localStorage = localStorage;
   initializeGoogleAnalytics(firstPage);
   assert.equal(trackQuizStart("quiz-session-1", firstPage), true);
+  assert.equal(trackQuizComplete("quiz-session-1", firstPage), true);
+  assert.equal(trackResultsView("quiz-session-1", firstPage), true);
 
   const refreshedPage = analyticsEnvironment("hoomanfinder.com");
   refreshedPage.windowRef.localStorage = localStorage;
   initializeGoogleAnalytics(refreshedPage);
   assert.equal(trackQuizStart("quiz-session-1", refreshedPage), false);
+  assert.equal(trackQuizComplete("quiz-session-1", refreshedPage), false);
+  assert.equal(trackResultsView("quiz-session-1", refreshedPage), false);
   assert.equal(refreshedPage.windowRef.dataLayer.length, 2);
 });
 
@@ -125,6 +133,7 @@ test("conversion tracking stays disabled when GA is not initialized", () => {
 
   assert.equal(trackQuizStart("quiz-session-1", environment), false);
   assert.equal(trackQuizComplete("quiz-session-1", environment), false);
+  assert.equal(trackResultsView("quiz-session-1", environment), false);
   assert.equal(trackAdoptionLinkClick(environment), false);
   assert.equal(environment.windowRef.dataLayer, undefined);
 });

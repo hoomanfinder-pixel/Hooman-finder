@@ -17,7 +17,7 @@ import {
   saveQuizResponses,
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
-import { trackQuizStart } from "../lib/googleAnalytics";
+import { trackQuizComplete, trackQuizStart } from "../lib/googleAnalytics";
 
 function ensureSessionId(existing) {
   if (existing) return existing;
@@ -243,6 +243,18 @@ export default function Quiz() {
   }
 
   function goResults() {
+    const essentialCompletion = getCompletionCounts(
+      QUIZ_MODES.DEALBREAKERS,
+      answersById
+    );
+
+    if (
+      essentialCompletion.total > 0 &&
+      essentialCompletion.answered === essentialCompletion.total
+    ) {
+      trackQuizComplete(sessionId);
+    }
+
     navigate(`/results?session=${encodeURIComponent(sessionId)}`);
   }
 
