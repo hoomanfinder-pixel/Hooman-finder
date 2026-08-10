@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   sync-dogs:
-    runs-on: ubuntu-latest
+    runs-on: macos-15-intel
     timeout-minutes: 90
 
     steps:
