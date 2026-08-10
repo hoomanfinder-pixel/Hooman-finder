@@ -19,7 +19,7 @@ export default function Privacy() {
         <h1 className="font-['Fraunces',serif] text-3xl font-semibold tracking-tight text-[#183D35]">
           Privacy Policy
         </h1>
-        <p className="mt-2 text-sm text-[#6F6A66]">Last updated: June 6, 2026</p>
+        <p className="mt-2 text-sm text-[#6F6A66]">Last updated: August 9, 2026</p>
 
         <div className="mt-6 space-y-6 rounded-2xl border border-[#C7D4BB] bg-white p-6 text-[#6F6A66] shadow-sm">
           <section>
@@ -28,6 +28,17 @@ export default function Privacy() {
               Hooman Finder helps users browse adoptable dogs and use a quiz to suggest
               potential lifestyle matches. Adoption availability and dog details come from
               rescues, shelters, or their public listings and may change.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#183D35]">Analytics</h2>
+            <p className="mt-2">
+              We use Google Analytics to understand visits and how people navigate the site.
+              Google Analytics may receive information such as pages viewed, referral source,
+              general browser and device details, approximate location, and identifiers stored
+              in cookies or similar technologies. We do not send your quiz answers or saved dogs
+              to Google Analytics.
             </p>
           </section>
 

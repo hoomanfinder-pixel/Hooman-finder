@@ -3,7 +3,10 @@ import React from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
+import { initializeGoogleAnalytics } from "./lib/googleAnalytics.js";
 import "./index.css";
+
+initializeGoogleAnalytics();
 
 // When a new version deploys, old page code-split chunks (e.g. Results.js)
 // get replaced with new hashed filenames. A visitor who already had the
