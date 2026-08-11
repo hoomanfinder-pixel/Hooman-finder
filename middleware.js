@@ -1,13 +1,28 @@
 import { isPubliclyVisibleDog } from "./src/lib/dogVisibility.js";
+import {
+  buildDogProfileMetadata,
+  getConfirmedDogProfile,
+  truncateDogProfileText,
+} from "./src/lib/dogProfileSeo.js";
 
-const SITE_URL = "https://hoomanfinder.com";
-const DEFAULT_IMAGE = `${SITE_URL}/home-hero-adopter-dog-hd.jpg`;
 const DOG_SELECT = [
   "id",
   "name",
   "description",
   "breed",
+  "age_text",
+  "age_years",
+  "size",
+  "placement_city",
+  "placement_state",
+  "placement_location",
+  "shelter_id",
+  "shelter_name",
+  "shelter_website",
   "photo_url",
+  "adoption_url",
+  "source_url",
+  "placement_note",
   "adoptable",
   "adoption_pending",
   "urgency_level",
@@ -16,48 +31,12 @@ const DOG_SELECT = [
   "rescuegroups_org_id",
   "source",
   "external_id",
+  "shelters(id,name,city,state,apply_url,website)",
 ].join(",");
 
 export const config = {
   matcher: ["/dog/:id", "/dogs/:id"],
 };
-
-function clean(value) {
-  return value === null || value === undefined ? "" : String(value).trim();
-}
-
-function decodeHtmlEntities(value) {
-  return clean(value)
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) =>
-      String.fromCodePoint(Number.parseInt(code, 16))
-    )
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;|&#39;/gi, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&rsquo;|&lsquo;/gi, "'")
-    .replace(/&rdquo;|&ldquo;/gi, '"')
-    .replace(/&mdash;/gi, "—")
-    .replace(/&ndash;/gi, "–");
-}
-
-function plainText(value) {
-  return decodeHtmlEntities(value)
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function truncateAtWord(value, maxLength) {
-  if (value.length <= maxLength) return value;
-  const sliced = value.slice(0, maxLength - 1);
-  const lastSpace = sliced.lastIndexOf(" ");
-  const shortened = lastSpace >= maxLength * 0.7 ? sliced.slice(0, lastSpace) : sliced;
-  return `${shortened.trim()}…`;
-}
 
 function escapeHtml(value) {
   return String(value)
@@ -68,17 +47,6 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function validImageUrl(value) {
-  const raw = clean(value);
-
-  try {
-    const url = new URL(raw);
-    return url.protocol === "https:" ? url.toString() : "";
-  } catch {
-    return "";
-  }
-}
-
 function replaceTag(html, pattern, replacement) {
   return pattern.test(html)
     ? html.replace(pattern, replacement)
@@ -86,31 +54,66 @@ function replaceTag(html, pattern, replacement) {
 }
 
 export function buildDogMetadata(dog, id) {
-  const name = plainText(dog?.name) || "Adoptable Dog";
-  const breed = plainText(dog?.breed) || "dog";
-  const bio = plainText(dog?.description);
-  const canonicalUrl = `${SITE_URL}/dog/${encodeURIComponent(id)}`;
   const publiclyVisible = isPubliclyVisibleDog(dog);
-  const title = publiclyVisible
-    ? `${name} - Adoptable ${breed} | Hooman Finder`
-    : `${name} - Adoption Status Unavailable | Hooman Finder`;
-  const fallbackDescription = `Meet ${name}, an adoptable ${breed}. View photos and adoption details on Hooman Finder.`;
-  const description = publiclyVisible
-    ? truncateAtWord(bio ? `Meet ${name}. ${bio}` : fallbackDescription, 160)
-    : `${name} may no longer be available. Browse currently adoptable dogs on Hooman Finder.`;
-  const image = validImageUrl(dog?.photo_url) || DEFAULT_IMAGE;
-  const imageAlt = publiclyVisible
-    ? `${name}, adoptable ${breed}`
-    : `${name}, dog with unavailable adoption status`;
+  return buildDogProfileMetadata(dog, id, { publiclyVisible });
+}
 
-  return {
-    canonicalUrl,
-    description,
+function factItem(label, value) {
+  if (!value) return "";
+  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+}
+
+export function buildDogSnapshotHtml(dog) {
+  const profile = getConfirmedDogProfile(dog);
+  if (!profile.name) return "";
+
+  const facts = [profile.breed, profile.age, profile.size, profile.location].filter(Boolean);
+  const factSummary = facts.length
+    ? `${profile.name} is an adoptable dog: ${facts.join(" · ")}.`
+    : `${profile.name} is currently listed for adoption.`;
+  const factList = [
+    factItem("Breed", profile.breed),
+    factItem("Age", profile.age),
+    factItem("Size", profile.size),
+    factItem("Location", profile.location),
+  ].filter(Boolean).join("");
+  const image = profile.image
+    ? `<img src="${escapeHtml(profile.image)}" alt="${escapeHtml(`${profile.name}, an adoptable dog`)}" loading="eager" decoding="async" />`
+    : "";
+  const shelter = profile.shelterName
+    ? `<p>Listed by <strong>${escapeHtml(profile.shelterName)}</strong>.</p>`
+    : "";
+  const bioPreview = truncateDogProfileText(profile.description, 900);
+  const bio = bioPreview
+    ? `<section aria-labelledby="dog-snapshot-about"><h2 id="dog-snapshot-about">About ${escapeHtml(profile.name)}</h2><p>${escapeHtml(bioPreview)}</p></section>`
+    : "";
+  const adoptionLink = profile.adoptionUrl
+    ? `<p><a href="${escapeHtml(profile.adoptionUrl)}" target="_blank" rel="noreferrer">${escapeHtml(profile.adoptionLabel || "View official adoption listing")}</a></p>`
+    : "";
+
+  return [
+    '<main data-dog-profile-snapshot="true">',
+    "<article>",
     image,
-    imageAlt,
-    noindex: !publiclyVisible,
-    title,
-  };
+    '<p>Adoptable dog profile</p>',
+    `<h1>${escapeHtml(profile.name)}</h1>`,
+    `<p>${escapeHtml(factSummary)}</p>`,
+    factList ? `<dl>${factList}</dl>` : "",
+    shelter,
+    bio,
+    adoptionLink,
+    "</article>",
+    "</main>",
+  ].filter(Boolean).join("");
+}
+
+export function injectDogSnapshot(html, snapshotHtml) {
+  if (!snapshotHtml) return html;
+
+  return html.replace(
+    /<div\b(?=[^>]*\bid=["']root["'])[^>]*>\s*<\/div>/i,
+    (root) => root.replace(">", ' data-server-rendered-dog="true">').replace("</div>", `${snapshotHtml}</div>`)
+  );
 }
 
 export function injectDogMetadata(html, metadata) {
@@ -189,6 +192,12 @@ export function injectDogMetadata(html, metadata) {
   return result;
 }
 
+export function injectDogDocument(html, dog, metadata) {
+  const withMetadata = injectDogMetadata(html, metadata);
+  if (metadata.noindex) return withMetadata;
+  return injectDogSnapshot(withMetadata, buildDogSnapshotHtml(dog));
+}
+
 async function fetchDog(id) {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const supabaseKey =
@@ -264,7 +273,7 @@ export default async function middleware(request) {
       "public, s-maxage=300, stale-while-revalidate=86400"
     );
 
-    return new Response(request.method === "HEAD" ? null : injectDogMetadata(html, metadata), {
+    return new Response(request.method === "HEAD" ? null : injectDogDocument(html, dog, metadata), {
       status: shellResponse.status,
       headers,
     });

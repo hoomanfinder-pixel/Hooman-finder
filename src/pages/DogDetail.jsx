@@ -7,6 +7,7 @@ import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
+import { buildDogProfileMetadata } from "../lib/dogProfileSeo";
 import { trackAdoptionLinkClick } from "../lib/googleAnalytics";
 import {
   getDogApplyLink,
@@ -505,28 +506,19 @@ export default function DogDetail() {
     setImgSrc(resolvedImage || FALLBACK_IMG);
   }, [resolvedImage]);
 
-  const seoDogName = dog?.name?.trim();
   const dogIsPublic = dog ? isPubliclyVisibleDog(dog) : false;
-  const seoBreed = dog ? displayBreed(dog) : "Dog";
-  const seoShelter = dog ? displayShelterName(dog) : "a rescue or shelter";
-  const seoTitle = seoDogName
-    ? dogIsPublic
-      ? `${seoDogName} - Adoptable ${seoBreed} | Hooman Finder`
-      : `${seoDogName} - Adoption Status Unavailable | Hooman Finder`
+  const sharedSeo = dog
+    ? buildDogProfileMetadata(dog, id, { publiclyVisible: dogIsPublic })
+    : null;
+  const seoTitle = sharedSeo
+    ? sharedSeo.title
     : !loading && (loadError || !dog)
       ? "Dog Not Found | Hooman Finder"
       : "Adoptable Dog | Hooman Finder";
-  const seoDescription = seoDogName
-    ? dogIsPublic
-      ? `Meet ${seoDogName}, an adoptable ${seoBreed} listed through ${seoShelter}. View photos, rescue details, and lifestyle fit information on Hooman Finder.`
-      : `${seoDogName} may no longer be available. Browse currently adoptable dogs on Hooman Finder.`
-    : "View adoptable dog details, photos, and adoption fit information on Hooman Finder.";
-  const seoImage = resolvedImage?.startsWith("https://") ? resolvedImage : "/home-hero-dogs.jpg";
-  const seoImageAlt = seoDogName
-    ? dogIsPublic
-      ? `${seoDogName}, adoptable ${seoBreed}`
-      : `${seoDogName}, dog with unavailable adoption status`
-    : "Adoptable dog on Hooman Finder";
+  const seoDescription = sharedSeo?.description ||
+    "View adoptable dog details, photos, and adoption fit information on Hooman Finder.";
+  const seoImage = sharedSeo?.image || "/home-hero-dogs.jpg";
+  const seoImageAlt = sharedSeo?.imageAlt || "Adoptable dog on Hooman Finder";
   const seoNoindex = Boolean(sessionFromUrl) || (!loading && (loadError || !dog || !dogIsPublic));
   const seo = (
     <SEO

@@ -1,4 +1,4 @@
-import { normalizeExternalUrl as normalizeSafeExternalUrl, normalizeImageUrl } from "./urlSafety";
+import { normalizeExternalUrl as normalizeSafeExternalUrl, normalizeImageUrl } from "./urlSafety.js";
 
 const UNAVAILABLE_ORG_LABEL = "Listing organization unavailable";
 const DACC_RESCUEGROUPS_ORG_ID = "8883";
