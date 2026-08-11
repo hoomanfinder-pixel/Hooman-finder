@@ -421,6 +421,44 @@ function buildUpdate(dog, animal, bio, cautiousNote) {
   return { update, logs: bioTraitResult.logs };
 }
 
+// Resolves a single dog against the ShelterManager match (if any) and builds
+// its update, without touching Supabase. Extracted out of main()'s loop so
+// the "no match" / "detail fetch failed" / "no bio" / "nothing to change"
+// outcomes are independently testable — in particular so a ShelterManager
+// request failure can be proven to never reach buildUpdate (and therefore
+// never touch the dog's existing description) rather than just trusting the
+// try/catch by inspection.
+async function evaluateDogUpdate(dog, { animal, fetchTextImpl = fetchText } = {}) {
+  if (!animal) {
+    return { outcome: "no_match", update: null, logs: [], bio: null, url: null };
+  }
+
+  const url = detailUrl(animal.ID);
+  let detailHtml = "";
+
+  try {
+    detailHtml = await fetchTextImpl(url);
+  } catch (error) {
+    return { outcome: "detail_fetch_failed", update: null, logs: [], bio: null, url, error };
+  }
+
+  const bio = extractBioFromDetailHtml(detailHtml) || extractBioFromAnimal(animal);
+  if (!bio) {
+    return { outcome: "no_bio", update: null, logs: [], bio: null, url };
+  }
+
+  const cautiousNote = extractCautiousNotes(bio);
+  const { update, logs } = buildUpdate(dog, animal, bio, cautiousNote);
+
+  return {
+    outcome: Object.keys(update).length === 0 ? "no_change" : "updated",
+    update,
+    logs,
+    bio,
+    url,
+  };
+}
+
 async function main() {
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -472,35 +510,30 @@ async function main() {
     const shelterCode = clean(rescueGroupsInfo?.rescueId);
     const animal = shelterManagerByCode.get(shelterCode.toLowerCase());
 
-    if (!animal) {
+    const result = await evaluateDogUpdate(dog, { animal });
+
+    if (result.outcome === "no_match") {
       summary.noMatch += 1;
       console.log(`NO DETAIL: ${dog.name} (${dog.rescuegroups_id}) rescueId=${shelterCode || "missing"}`);
       continue;
     }
 
-    const url = detailUrl(animal.ID);
     summary.detailPagesFound += 1;
-    console.log(`DETAIL FOUND: ${dog.name} -> ${url}`);
+    console.log(`DETAIL FOUND: ${dog.name} -> ${result.url}`);
 
-    let detailHtml = "";
-
-    try {
-      detailHtml = await fetchText(url);
-    } catch (error) {
+    if (result.outcome === "detail_fetch_failed") {
       summary.failedDetailFetches += 1;
-      console.log(`DETAIL FETCH FAILED: ${dog.name} (${url}) ${error.message}`);
+      console.log(`DETAIL FETCH FAILED: ${dog.name} (${result.url}) ${result.error.message}`);
       continue;
     }
 
-    const bio = extractBioFromDetailHtml(detailHtml) || extractBioFromAnimal(animal);
-    if (!bio) {
+    if (result.outcome === "no_bio") {
       summary.noBio += 1;
       console.log(`NO BIO: ${dog.name}`);
       continue;
     }
 
-    const cautiousNote = extractCautiousNotes(bio);
-    const { update, logs } = buildUpdate(dog, animal, bio, cautiousNote);
+    const { update, logs, bio } = result;
 
     if (hasText(dog.description) && !isGenericDescription(dog.description)) {
       summary.manualPreserved += 1;
@@ -527,7 +560,7 @@ async function main() {
       console.log(update.description || bio);
     }
 
-    if (Object.keys(update).length === 0) continue;
+    if (result.outcome === "no_change") continue;
 
     summary.enriched += 1;
 
@@ -543,8 +576,26 @@ async function main() {
   console.log(JSON.stringify(summary, null, 2));
 }
 
-main().catch((error) => {
-  console.error("DACC bio enrichment failed.");
-  console.error(error?.message || error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("DACC bio enrichment failed.");
+    console.error(error?.message || error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  isGenericDescription,
+  extractBioFromAnimal,
+  extractBioFromDetailHtml,
+  extractCautiousNotes,
+  hasDogMayDoWellClue,
+  hasPatientOwnerClue,
+  buildTraitUpdates,
+  buildBioTraitUpdates,
+  buildUpdate,
+  evaluateDogUpdate,
+  detailUrl,
+  htmlToText,
+  removeBoilerplate,
+};

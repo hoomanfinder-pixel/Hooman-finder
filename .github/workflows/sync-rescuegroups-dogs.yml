@@ -39,6 +39,21 @@ jobs:
           RESCUEGROUPS_API_KEY: ${{ secrets.RESCUEGROUPS_API_KEY }}
         run: node sync-rescuegroups-dogs.cjs
 
+      - name: Run DACC ShelterManager bio enrichment
+        # Only runs once the primary sync above has succeeded (default GitHub
+        # Actions step ordering). continue-on-error is intentional: a
+        # ShelterManager outage must not block AI enrichment or the sitemap
+        # step for every other shelter — the script itself never blanks or
+        # overwrites an existing description on failure, so degrading
+        # gracefully here is safe. See scripts/enrich-dacc-bios.cjs.
+        if: success()
+        continue-on-error: true
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESCUEGROUPS_API_KEY: ${{ secrets.RESCUEGROUPS_API_KEY }}
+        run: node scripts/enrich-dacc-bios.cjs --confirm
+
       - name: Run AI dog trait enrichment
         env:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

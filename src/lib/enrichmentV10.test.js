@@ -19,6 +19,7 @@ const {
   HASHED_FIELDS,
   computeSourceContentHash,
 } = require("../../scripts/dog-enrichment-hash.cjs");
+const { DACC_RESCUEGROUPS_ORG_ID } = require("../../scripts/rescuegroups-shelter-utils.cjs");
 
 function trait(value = "unknown", confidence = 0, evidence = "", evidenceBasis = "profile_inference") {
   return { value, confidence, evidence, evidence_basis: evidenceBasis };
@@ -429,6 +430,80 @@ test("daily enrichment eligibility covers new, outdated, and source-changed dogs
     "content_changed"
   );
   assert.equal(getEnrichmentEligibilityReason(current), null);
+});
+
+test("a DACC dog with a blank/generic description is not eligible via 'new' or 'version_outdated'", () => {
+  const neverEnriched = {
+    rescuegroups_org_id: DACC_RESCUEGROUPS_ORG_ID,
+    description: null,
+    ai_enriched_at: null,
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    source_content_hash: "blank-bio-hash",
+    ai_enriched_source_hash: null,
+  };
+
+  // Would normally be "new", but a ShelterManager/DACC bio recovery failure
+  // (or a dog the recovery step simply hasn't matched yet) must not let it
+  // through with only breed/age profile-inference evidence.
+  assert.equal(getEnrichmentEligibilityReason(neverEnriched), null);
+
+  const enrichedUnderOldVersionStillBlank = {
+    ...neverEnriched,
+    ai_enriched_at: "2026-08-10T21:59:38.846Z",
+    ai_enrichment_version: "dog-ai-traits-v9",
+    ai_enriched_source_hash: "blank-bio-hash",
+  };
+
+  // Same guard applies to "version_outdated" — re-running a newer prompt
+  // version over the same incomplete evidence isn't a real improvement.
+  assert.equal(getEnrichmentEligibilityReason(enrichedUnderOldVersionStillBlank), null);
+});
+
+test("a DACC dog becomes eligible again once its bio actually lands, via the normal content_changed path", () => {
+  const alreadyEnrichedWhileBlank = {
+    rescuegroups_org_id: DACC_RESCUEGROUPS_ORG_ID,
+    description: null,
+    ai_enriched_at: "2026-08-10T21:59:38.846Z",
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    source_content_hash: "blank-bio-hash",
+    ai_enriched_source_hash: "blank-bio-hash",
+  };
+
+  assert.equal(getEnrichmentEligibilityReason(alreadyEnrichedWhileBlank), null);
+
+  const afterBioBackfill = {
+    ...alreadyEnrichedWhileBlank,
+    description: "Charlie loves toys and fetches a tennis ball.",
+    source_content_hash: "real-bio-hash",
+  };
+
+  assert.equal(getEnrichmentEligibilityReason(afterBioBackfill), "content_changed");
+});
+
+test("a DACC dog with an existing meaningful description is never blocked by the blank-bio safeguard", () => {
+  const meaningfulDaccDog = {
+    rescuegroups_org_id: DACC_RESCUEGROUPS_ORG_ID,
+    description: "Charlie is a real shelter-authored bio already on file.",
+    ai_enriched_at: null,
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    source_content_hash: "hash-a",
+    ai_enriched_source_hash: null,
+  };
+
+  assert.equal(getEnrichmentEligibilityReason(meaningfulDaccDog), "new");
+});
+
+test("a non-DACC dog with a blank description is unaffected by the DACC-only bio-recovery safeguard", () => {
+  const blankBioOtherShelter = {
+    rescuegroups_org_id: "7921", // Happy Days Dog and Cat Rescue, not DACC
+    description: null,
+    ai_enriched_at: null,
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+    source_content_hash: "hash-a",
+    ai_enriched_source_hash: null,
+  };
+
+  assert.equal(getEnrichmentEligibilityReason(blankBioOtherShelter), "new");
 });
 
 test("daily enrichment visibility excludes unavailable and untrusted dogs", () => {

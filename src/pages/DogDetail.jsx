@@ -603,7 +603,7 @@ export default function DogDetail() {
   const location = displayLocation(dog);
   const applyLink = displayApplyLink(dog);
   const applyLabel = displayApplyLabel(dog);
-  const description = cleanText(dog.description) || "No description provided yet.";
+  const description = cleanText(dog.description) || "A full description isn't available here yet.";
   const coreFactsLine = [breed, age, dog.size, dog.energy_level].filter(Boolean).join(" • ");
   const bioIsLong = description.length > BIO_PREVIEW_LENGTH;
   const bioPreview = getPreviewText(description);

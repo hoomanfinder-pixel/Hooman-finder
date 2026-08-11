@@ -31,6 +31,8 @@
 
 const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
+const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
+const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
 
 // Mirrors src/lib/dogVisibility.js isPubliclyVisibleDog (same logic already
 // shipped in scripts/generate-dog-sitemap.cjs) — enrichment must only ever
@@ -3409,6 +3411,22 @@ async function fetchDogs({ limit, force, dogId }) {
   return eligible.slice(0, limit);
 }
 
+function isDaccDog(dog) {
+  return String(dog?.rescuegroups_org_id || "") === DACC_RESCUEGROUPS_ORG_ID;
+}
+
+// True for a DACC dog whose description is still blank/generic — i.e. one
+// that hasn't yet had a real chance at scripts/enrich-dacc-bios.cjs's
+// ShelterManager bio recovery, or whose most recent recovery attempt failed
+// or didn't find a match. Enriching a dog in this state under "new" or
+// "version_outdated" would recreate the incomplete-evidence problem the bio
+// backfill exists to fix (see Charlie/#837229e1 investigation). Reuses
+// enrich-dacc-bios.cjs's own isGenericDescription so both scripts agree on
+// what counts as "no real bio yet".
+function isAwaitingDaccBioRecovery(dog) {
+  return isDaccDog(dog) && isGenericDescription(dog?.description);
+}
+
 // "new" — never enriched at all.
 // "version_outdated" — enriched under an older AI_ENRICHMENT_VERSION (e.g.
 //   after a prompt/logic change), independent of whether source data moved.
@@ -3419,7 +3437,7 @@ async function fetchDogs({ limit, force, dogId }) {
 // sync-rescuegroups-dogs.cjs/enrich-dacc-bios.cjs since those started
 // stamping it) is never treated as "changed" purely from that absence —
 // only a genuine hash mismatch counts.
-function getEnrichmentEligibilityReason(dog) {
+function computeRawEligibilityReason(dog) {
   if (!dog?.ai_enriched_at) return "new";
   if (dog?.ai_enrichment_version !== AI_ENRICHMENT_VERSION) return "version_outdated";
 
@@ -3429,6 +3447,23 @@ function getEnrichmentEligibilityReason(dog) {
   }
 
   return null;
+}
+
+function getEnrichmentEligibilityReason(dog) {
+  const reason = computeRawEligibilityReason(dog);
+
+  // Block only the reasons that would enrich a DACC dog off a description
+  // that's still blank/generic. "content_changed" is deliberately let
+  // through unchanged — once the bio actually lands (description becomes
+  // non-generic), source_content_hash changes and that's exactly the
+  // signal that should make the dog eligible again, no separate workflow
+  // flag required. A DACC dog with a real, already-meaningful description
+  // is never touched by this guard at all.
+  if ((reason === "new" || reason === "version_outdated") && isAwaitingDaccBioRecovery(dog)) {
+    return null;
+  }
+
+  return reason;
 }
 
 function emptyRunStats() {
