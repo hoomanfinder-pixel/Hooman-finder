@@ -4,11 +4,19 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const {
+  NO_BIO_RETRY_MS,
+  RECOVERED_REFRESH_MS,
   isGenericDescription,
+  hashAuthoritativeBio,
   buildTraitUpdates,
   buildBioTraitUpdates,
   buildUpdate,
+  buildRecoveryAttemptUpdate,
   evaluateDogUpdate,
+  fetchRescueGroupsDaccRoster,
+  getRecoveryCandidateDecision,
+  indexShelterManagerByCode,
+  resolveShelterManagerMatch,
 } = require("../../scripts/enrich-dacc-bios.cjs");
 const {
   AI_ENRICHMENT_VERSION,
@@ -53,6 +61,17 @@ function baseDog(overrides = {}) {
     bio_good_with_kids: null,
     bio_potty_trained: null,
     bio_first_time_friendly: null,
+    rescuegroups_id: "rg-1",
+    rescuegroups_org_id: "8883",
+    source: "rescuegroups",
+    external_id: "rg-1",
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "available",
+    urgency_level: "Standard",
+    dacc_bio_recovery_status: null,
+    dacc_bio_checked_at: null,
+    dacc_bio_source_hash: null,
     ...overrides,
   };
 }
@@ -124,11 +143,18 @@ test("a failed ShelterManager detail fetch never reaches buildUpdate or touches 
     },
   });
 
-  assert.equal(result.outcome, "detail_fetch_failed");
+  assert.equal(result.outcome, "fetch_failed");
   assert.equal(result.update, null);
+  const attemptUpdate = buildRecoveryAttemptUpdate(dog, result, "2026-08-13T12:00:00.000Z");
+  assert.deepEqual(Object.keys(attemptUpdate).sort(), [
+    "dacc_bio_checked_at",
+    "dacc_bio_recovery_status",
+  ]);
+  assert.equal(Object.hasOwn(attemptUpdate, "adoptable"), false);
+  assert.equal(Object.hasOwn(attemptUpdate, "availability_status"), false);
 });
 
-test("evaluateDogUpdate returns an 'updated' outcome once a bio is actually found via the detail page", async () => {
+test("evaluateDogUpdate returns a recovered outcome once a bio is actually found via the detail page", async () => {
   const dog = baseDog({ description: null });
   const animal = shelterManagerAnimal();
   const html =
@@ -139,7 +165,7 @@ test("evaluateDogUpdate returns an 'updated' outcome once a bio is actually foun
     fetchTextImpl: async () => html,
   });
 
-  assert.equal(result.outcome, "updated");
+  assert.equal(result.outcome, "recovered");
   assert.equal(result.update.description, "Charlie is a very good boy who loves tennis balls.");
 });
 
@@ -245,4 +271,227 @@ test("isGenericDescription treats blank, null, and known placeholder text as gen
   assert.equal(isGenericDescription("No description provided yet."), true);
   assert.equal(isGenericDescription("Charlie is available through Detroit Animal Care and Control."), true);
   assert.equal(isGenericDescription("Charlie is a real, dog-specific shelter bio."), false);
+});
+
+test("DACC recovery uses the shared complete multi-page RescueGroups roster", async () => {
+  const requestedPages = [];
+  const roster = await fetchRescueGroupsDaccRoster("test-key", {
+    pageLimit: 2,
+    timeoutMs: 1000,
+    fetchImpl: async (url) => {
+      const page = Number(new URL(url).searchParams.get("page"));
+      requestedPages.push(page);
+      const ids = page === 1 ? ["1", "2"] : ["3"];
+      return {
+        ok: true,
+        json: async () => ({
+          data: ids.map((id) => ({
+            id,
+            attributes: { name: `Dog ${id}`, rescueId: `A${id}` },
+            relationships: { orgs: { data: [{ type: "orgs", id: "8883" }] } },
+          })),
+          included: [],
+          meta: {
+            count: 3,
+            countReturned: ids.length,
+            pageReturned: page,
+            limit: 2,
+            pages: 2,
+          },
+        }),
+        text: async () => "",
+      };
+    },
+  });
+
+  assert.deepEqual(requestedPages, [1, 2]);
+  assert.deepEqual([...roster.authoritativeIds], ["1", "2", "3"]);
+});
+
+test("matching requires exact ShelterManager code and rejects name-only or duplicate-code matches", () => {
+  const index = indexShelterManagerByCode([
+    shelterManagerAnimal({ ID: 1, SHELTERCODE: "A100", ANIMALNAME: "Charlie" }),
+    shelterManagerAnimal({ ID: 2, SHELTERCODE: "A200", ANIMALNAME: "Charlie" }),
+    shelterManagerAnimal({ ID: 3, SHELTERCODE: "A200", ANIMALNAME: "Other" }),
+  ]);
+
+  assert.equal(resolveShelterManagerMatch({ rescueId: "A100", name: "Different" }, index).outcome, "exact_code");
+  assert.equal(resolveShelterManagerMatch({ rescueId: "A999", name: "Charlie" }, index).outcome, "no_match");
+  assert.equal(resolveShelterManagerMatch({ rescueId: "A200", name: "Charlie" }, index).outcome, "ambiguous_code");
+});
+
+test("new recoverable DACC bio becomes naturally eligible for AI", async () => {
+  const dog = baseDog({ ai_enriched_at: null, description: null });
+  const result = await evaluateDogUpdate(dog, {
+    animal: shelterManagerAnimal(),
+    fetchTextImpl: async () =>
+      '<p class="adoptee-description">Charlie loves fetch and settles nicely after play.</p>',
+  });
+  const update = buildRecoveryAttemptUpdate(dog, result, "2026-08-13T12:00:00.000Z");
+
+  assert.equal(result.outcome, "recovered");
+  assert.equal(update.dacc_bio_recovery_status, "recovered");
+  assert.equal(getEnrichmentEligibilityReason({ ...dog, ...update }), "new");
+});
+
+test("a no-match dog is deferred and can recover when its exact code appears later", async () => {
+  const dog = baseDog();
+  const missing = await evaluateDogUpdate(dog, { animal: null });
+  const deferred = buildRecoveryAttemptUpdate(dog, missing, "2026-08-13T12:00:00.000Z");
+  assert.equal(deferred.dacc_bio_recovery_status, "no_match");
+
+  const decision = getRecoveryCandidateDecision({ ...dog, ...deferred }, {
+    now: new Date("2026-08-14T12:00:00.000Z"),
+  });
+  assert.deepEqual(decision, { eligible: true, reason: "retry_no_match" });
+
+  const recovered = await evaluateDogUpdate({ ...dog, ...deferred }, {
+    animal: shelterManagerAnimal(),
+    fetchTextImpl: async () =>
+      '<p class="adoptee-description">Charlie now has an authoritative shelter bio.</p>',
+  });
+  assert.equal(recovered.outcome, "recovered");
+});
+
+test("no-bio and parse-failure outcomes remain distinct and safe", async () => {
+  const dog = baseDog();
+  const animal = shelterManagerAnimal();
+  const noBio = await evaluateDogUpdate(dog, {
+    animal,
+    fetchTextImpl: async () => '<p class="adoptee-description"></p>',
+  });
+  const parseFailure = await evaluateDogUpdate(dog, {
+    animal,
+    fetchTextImpl: async () => "<html><body>unexpected template</body></html>",
+  });
+
+  assert.equal(noBio.outcome, "no_bio");
+  assert.equal(parseFailure.outcome, "parse_failed");
+  assert.equal(noBio.update, null);
+  assert.equal(parseFailure.update, null);
+  assert.equal(
+    getEnrichmentEligibilityReason({
+      ...dog,
+      ...buildRecoveryAttemptUpdate(dog, noBio, "2026-08-13T12:00:00.000Z"),
+      ai_enriched_at: null,
+    }),
+    null
+  );
+});
+
+test("unavailable dogs are skipped and no-bio cooldown is respected", () => {
+  const now = new Date("2026-08-13T12:00:00.000Z");
+  assert.equal(
+    getRecoveryCandidateDecision(baseDog({ adoptable: false }), { now }).reason,
+    "not_public"
+  );
+
+  const recentNoBio = baseDog({
+    dacc_bio_recovery_status: "no_bio",
+    dacc_bio_checked_at: new Date(now.getTime() - NO_BIO_RETRY_MS + 1000).toISOString(),
+  });
+  assert.deepEqual(getRecoveryCandidateDecision(recentNoBio, { now }), {
+    eligible: false,
+    reason: "no_bio_cooldown",
+  });
+
+  const dueNoBio = {
+    ...recentNoBio,
+    dacc_bio_checked_at: new Date(now.getTime() - NO_BIO_RETRY_MS).toISOString(),
+  };
+  assert.deepEqual(getRecoveryCandidateDecision(dueNoBio, { now }), {
+    eligible: true,
+    reason: "retry_no_bio",
+  });
+});
+
+test("current recovered dogs skip until source change or periodic refresh", () => {
+  const now = new Date("2026-08-13T12:00:00.000Z");
+  const dog = baseDog({
+    description: "Authoritative DACC bio.",
+    dacc_bio_recovery_status: "recovered",
+    dacc_bio_source_hash: hashAuthoritativeBio("Authoritative DACC bio."),
+    dacc_bio_checked_at: new Date(now.getTime() - RECOVERED_REFRESH_MS + 1000).toISOString(),
+    source_updated_at: "2026-08-01T00:00:00.000Z",
+  });
+  assert.equal(getRecoveryCandidateDecision(dog, { now }).reason, "current");
+
+  const sourceChanged = { ...dog, source_updated_at: "2026-08-13T11:00:00.000Z" };
+  assert.equal(
+    getRecoveryCandidateDecision(sourceChanged, { now }).reason,
+    "rescuegroups_source_changed"
+  );
+
+  const periodic = {
+    ...dog,
+    dacc_bio_checked_at: new Date(now.getTime() - RECOVERED_REFRESH_MS).toISOString(),
+  };
+  assert.equal(getRecoveryCandidateDecision(periodic, { now }).reason, "periodic_refresh");
+});
+
+test("unchanged recovered bio is idempotent and does not create AI eligibility", async () => {
+  const bio = "Charlie has a stable authoritative bio.";
+  const dog = baseDog({
+    description: bio,
+    dacc_bio_recovery_status: "recovered",
+    dacc_bio_source_hash: hashAuthoritativeBio(bio),
+    ai_enriched_at: "2026-08-10T00:00:00.000Z",
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+  });
+  dog.source_content_hash = computeSourceContentHash(dog);
+  dog.ai_enriched_source_hash = dog.source_content_hash;
+
+  const result = await evaluateDogUpdate(dog, {
+    animal: shelterManagerAnimal(),
+    fetchTextImpl: async () => `<p class="adoptee-description">${bio}</p>`,
+  });
+  const update = buildRecoveryAttemptUpdate(dog, result, "2026-08-13T12:00:00.000Z");
+
+  assert.equal(result.outcome, "recovered");
+  assert.deepEqual(result.update, {});
+  assert.equal(Object.hasOwn(update, "source_content_hash"), false);
+  assert.equal(getEnrichmentEligibilityReason({ ...dog, ...update }), null);
+});
+
+test("changed authoritative bio safely updates tracked content and triggers content_changed", async () => {
+  const oldBio = "Charlie used to prefer quiet walks.";
+  const newBio = "Charlie now loves fetch, training games, and active walks.";
+  const dog = baseDog({
+    description: oldBio,
+    dacc_bio_recovery_status: "recovered",
+    dacc_bio_source_hash: hashAuthoritativeBio(oldBio),
+    ai_enriched_at: "2026-08-10T00:00:00.000Z",
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+  });
+  dog.source_content_hash = computeSourceContentHash(dog);
+  dog.ai_enriched_source_hash = dog.source_content_hash;
+
+  const result = await evaluateDogUpdate(dog, {
+    animal: shelterManagerAnimal(),
+    fetchTextImpl: async () => `<p class="adoptee-description">${newBio}</p>`,
+  });
+  const update = buildRecoveryAttemptUpdate(dog, result, "2026-08-13T12:00:00.000Z");
+
+  assert.equal(update.description, newBio);
+  assert.notEqual(update.source_content_hash, dog.ai_enriched_source_hash);
+  assert.equal(getEnrichmentEligibilityReason({ ...dog, ...update }), "content_changed");
+});
+
+test("founder-edited description is preserved as a manual conflict", async () => {
+  const importedBio = "The originally imported ShelterManager bio.";
+  const dog = baseDog({
+    description: "Founder-edited profile copy that must remain untouched.",
+    dacc_bio_recovery_status: "recovered",
+    dacc_bio_source_hash: hashAuthoritativeBio(importedBio),
+  });
+  const result = await evaluateDogUpdate(dog, {
+    animal: shelterManagerAnimal(),
+    fetchTextImpl: async () =>
+      '<p class="adoptee-description">A newly changed ShelterManager bio.</p>',
+  });
+  const update = buildRecoveryAttemptUpdate(dog, result, "2026-08-13T12:00:00.000Z");
+
+  assert.equal(result.outcome, "manual_conflict");
+  assert.equal(Object.hasOwn(update, "description"), false);
+  assert.equal(update.dacc_bio_recovery_status, "manual_conflict");
 });

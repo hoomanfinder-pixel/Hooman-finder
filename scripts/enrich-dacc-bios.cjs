@@ -11,6 +11,10 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
+const crypto = require("crypto");
+const {
+  fetchCompleteRescueGroupsRoster,
+} = require("./rescuegroups-roster.cjs");
 const {
   HASHED_FIELDS,
   computeSourceContentHash,
@@ -22,6 +26,11 @@ const SHELTERMANAGER_ACCOUNT = "pe3256";
 const SHELTERMANAGER_BASE_URL = "https://service.sheltermanager.com/asmservice";
 const RESCUEGROUPS_API_URL =
   "https://api.rescuegroups.org/v5/public/animals/search/available/dogs";
+const RESCUEGROUPS_PAGE_LIMIT = 100;
+const RESCUEGROUPS_MAX_PAGES = 5;
+const NO_BIO_RETRY_MS = 3 * 24 * 60 * 60 * 1000;
+const RECOVERED_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+const ACTIVE_AVAILABILITY_STATUSES = new Set(["active", "available", "unknown"]);
 
 const CONFIRMED = process.argv.includes("--confirm");
 const LIMIT = Number(getArg("limit", "0"));
@@ -40,6 +49,20 @@ function clean(value) {
 
 function hasText(value) {
   return clean(value).length > 0;
+}
+
+function hashAuthoritativeBio(value) {
+  return crypto.createHash("sha256").update(clean(value)).digest("hex");
+}
+
+function parseTimestamp(value) {
+  const timestamp = Date.parse(value || "");
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function elapsedAtLeast(value, now, durationMs) {
+  const timestamp = parseTimestamp(value);
+  return timestamp === null || now.getTime() - timestamp >= durationMs;
 }
 
 function decodeHtml(value) {
@@ -311,65 +334,105 @@ async function fetchShelterManagerAnimals() {
   return JSON.parse(json);
 }
 
-async function fetchRescueGroupsDaccIds(apiKey) {
-  const response = await fetch(RESCUEGROUPS_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: apiKey,
-      "Content-Type": "application/vnd.api+json",
-    },
-    body: JSON.stringify({
-      data: {
-        filters: [
-          {
-            fieldName: "orgs.id",
-            operation: "equals",
-            criteria: DACC_RESCUEGROUPS_ORG_ID,
-          },
-          {
-            fieldName: "statuses.name",
-            operation: "equals",
-            criteria: "Available",
-          },
-        ],
-        fields: {
-          animals: ["name", "rescueId"],
+function buildDaccRosterRequestBody() {
+  return {
+    data: {
+      filters: [
+        {
+          fieldName: "orgs.id",
+          operation: "equals",
+          criteria: DACC_RESCUEGROUPS_ORG_ID,
         },
-        page: {
-          limit: 100,
-          offset: 0,
+        {
+          fieldName: "statuses.name",
+          operation: "equals",
+          criteria: "Available",
         },
+      ],
+      fields: {
+        animals: ["name", "rescueId"],
       },
-    }),
+    },
+  };
+}
+
+async function fetchRescueGroupsDaccRoster(apiKey, options = {}) {
+  const roster = await fetchCompleteRescueGroupsRoster({
+    apiUrl: RESCUEGROUPS_API_URL,
+    apiKey,
+    orgId: DACC_RESCUEGROUPS_ORG_ID,
+    buildRequestBody: buildDaccRosterRequestBody,
+    pageLimit: options.pageLimit || RESCUEGROUPS_PAGE_LIMIT,
+    maxPages: options.maxPages || RESCUEGROUPS_MAX_PAGES,
+    timeoutMs: options.timeoutMs || 30000,
+    fetchImpl: options.fetchImpl || fetch,
   });
 
-  const json = await response.json();
-  if (!response.ok) {
-    throw new Error(`RescueGroups ${response.status}: ${JSON.stringify(json)}`);
+  if (!roster.staleMarkingAllowed) {
+    throw new Error(`DACC recovery aborted: ${roster.quarantineReason || "roster is not usable"}.`);
   }
 
+  return roster;
+}
+
+function rescueGroupsRosterById(roster) {
   return new Map(
-    (Array.isArray(json.data) ? json.data : [])
-      .map((animal) => [
-        String(animal.id),
-        {
-          rescueId: clean(animal.attributes?.rescueId),
-          name: clean(animal.attributes?.name),
-        },
-      ])
-      .filter(([, value]) => value.rescueId)
+    roster.animals.map((animal) => [
+      String(animal.id),
+      {
+        rescueId: clean(animal.attributes?.rescueId),
+        name: clean(animal.attributes?.name),
+      },
+    ])
   );
 }
 
+function indexShelterManagerByCode(animals) {
+  const byCode = new Map();
+  for (const animal of animals || []) {
+    const code = clean(animal?.SHELTERCODE).toLowerCase();
+    if (!code) continue;
+    if (!byCode.has(code)) byCode.set(code, []);
+    byCode.get(code).push(animal);
+  }
+  return byCode;
+}
+
+function resolveShelterManagerMatch(rescueGroupsInfo, shelterManagerByCode) {
+  const shelterCode = clean(rescueGroupsInfo?.rescueId);
+  if (!shelterCode) {
+    return { outcome: "no_match", shelterCode: null, animal: null };
+  }
+
+  const matches = shelterManagerByCode.get(shelterCode.toLowerCase()) || [];
+  if (matches.length > 1) {
+    return { outcome: "ambiguous_code", shelterCode, animal: null };
+  }
+  if (matches.length === 0) {
+    return { outcome: "no_match", shelterCode, animal: null };
+  }
+  return { outcome: "exact_code", shelterCode, animal: matches[0] };
+}
+
 async function fetchDaccDogs(supabase) {
-  let query = supabase
-    .from("dogs")
-    .select(
-      `
+  const selectFields = (includeRecoveryTracking) => `
         id,
         rescuegroups_id,
         rescuegroups_org_id,
         adoptable,
+        adoption_pending,
+        availability_status,
+        urgency_level,
+        source,
+        external_id,
+        source_url,
+        adoption_url,
+        created_at,
+        source_updated_at,
+        ${includeRecoveryTracking ? "dacc_bio_recovery_status, dacc_bio_checked_at, dacc_bio_source_hash," : ""}
+        ai_enriched_at,
+        ai_enrichment_version,
+        ai_enriched_source_hash,
         source_content_hash,
         bio_good_with_dogs,
         bio_good_with_cats,
@@ -377,25 +440,91 @@ async function fetchDaccDogs(supabase) {
         bio_potty_trained,
         bio_first_time_friendly,
         ${HASHED_FIELDS.join(",\n        ")}
-      `
-    )
-    .eq("source", "rescuegroups")
-    .eq("rescuegroups_org_id", DACC_RESCUEGROUPS_ORG_ID)
-    .eq("adoptable", true)
-    .order("created_at", { ascending: false });
+      `;
 
-  if (NAME_FILTER) query = query.ilike("name", `%${NAME_FILTER}%`);
-  if (Number.isFinite(LIMIT) && LIMIT > 0) query = query.limit(LIMIT);
+  const buildQuery = (includeRecoveryTracking) => {
+    let query = supabase
+      .from("dogs")
+      .select(selectFields(includeRecoveryTracking))
+      .eq("source", "rescuegroups")
+      .eq("rescuegroups_org_id", DACC_RESCUEGROUPS_ORG_ID)
+      .order("created_at", { ascending: false });
 
-  const { data, error } = await query;
+    if (NAME_FILTER) query = query.ilike("name", `%${NAME_FILTER}%`);
+    if (Number.isFinite(LIMIT) && LIMIT > 0) query = query.limit(LIMIT);
+    return query;
+  };
+
+  let { data, error } = await buildQuery(true);
+
+  if (!CONFIRMED && error && /dacc_bio_/i.test(error.message || "")) {
+    console.log("Recovery tracking migration is not applied; dry-run fields default to null.");
+    ({ data, error } = await buildQuery(false));
+    data = (data || []).map((dog) => ({
+      ...dog,
+      dacc_bio_recovery_status: null,
+      dacc_bio_checked_at: null,
+      dacc_bio_source_hash: null,
+    }));
+  }
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 
-function buildUpdate(dog, animal, bio, cautiousNote) {
-  const update = {};
+function isCoarselyPublicRecoveryDog(dog) {
+  if (dog?.adoptable !== true) return false;
+  if (dog?.adoption_pending === true) return false;
+  if (clean(dog?.urgency_level).toLowerCase() === "adopted") return false;
+  return ACTIVE_AVAILABILITY_STATUSES.has(clean(dog?.availability_status).toLowerCase());
+}
 
-  if (bio && isGenericDescription(dog.description)) {
+function getRecoveryCandidateDecision(dog, { now = new Date(), publiclyVisible = true } = {}) {
+  if (!publiclyVisible || !isCoarselyPublicRecoveryDog(dog)) {
+    return { eligible: false, reason: "not_public" };
+  }
+
+  const status = clean(dog.dacc_bio_recovery_status).toLowerCase();
+  const generic = isGenericDescription(dog.description);
+  const sourceUpdatedAt = parseTimestamp(dog.source_updated_at);
+  const checkedAt = parseTimestamp(dog.dacc_bio_checked_at);
+  const sourceChanged = sourceUpdatedAt !== null && (checkedAt === null || sourceUpdatedAt > checkedAt);
+
+  if (status === "manual_conflict") {
+    return { eligible: false, reason: "manual_conflict_review" };
+  }
+
+  if (status === "no_bio" && !elapsedAtLeast(dog.dacc_bio_checked_at, now, NO_BIO_RETRY_MS)) {
+    return { eligible: false, reason: "no_bio_cooldown" };
+  }
+
+  if (generic) {
+    if (["no_match", "fetch_failed", "parse_failed"].includes(status)) {
+      return { eligible: true, reason: `retry_${status}` };
+    }
+    if (status === "no_bio") return { eligible: true, reason: "retry_no_bio" };
+    return { eligible: true, reason: "generic_bio" };
+  }
+
+  if (!dog.dacc_bio_source_hash) {
+    return { eligible: false, reason: "meaningful_bio_without_recovery_provenance" };
+  }
+
+  if (["fetch_failed", "parse_failed"].includes(status)) {
+    return { eligible: true, reason: `retry_${status}` };
+  }
+  if (sourceChanged) return { eligible: true, reason: "rescuegroups_source_changed" };
+  if (elapsedAtLeast(dog.dacc_bio_checked_at, now, RECOVERED_REFRESH_MS)) {
+    return { eligible: true, reason: "periodic_refresh" };
+  }
+
+  return { eligible: false, reason: "current" };
+}
+
+function buildUpdate(dog, animal, bio, cautiousNote, options = {}) {
+  const update = {};
+  const replaceDescription = options.replaceDescription ?? isGenericDescription(dog.description);
+
+  if (bio && replaceDescription && clean(dog.description) !== clean(bio)) {
     update.description = bio;
   }
 
@@ -421,6 +550,22 @@ function buildUpdate(dog, animal, bio, cautiousNote) {
   return { update, logs: bioTraitResult.logs };
 }
 
+function buildRecoveryAttemptUpdate(dog, result, checkedAt) {
+  const statusOnly = {
+    dacc_bio_recovery_status: result.outcome,
+    dacc_bio_checked_at: checkedAt,
+  };
+
+  if (result.outcome !== "recovered") return statusOnly;
+
+  return {
+    ...result.update,
+    dacc_bio_recovery_status: "recovered",
+    dacc_bio_checked_at: checkedAt,
+    dacc_bio_source_hash: result.bioHash,
+  };
+}
+
 // Resolves a single dog against the ShelterManager match (if any) and builds
 // its update, without touching Supabase. Extracted out of main()'s loop so
 // the "no match" / "detail fetch failed" / "no bio" / "nothing to change"
@@ -439,22 +584,55 @@ async function evaluateDogUpdate(dog, { animal, fetchTextImpl = fetchText } = {}
   try {
     detailHtml = await fetchTextImpl(url);
   } catch (error) {
-    return { outcome: "detail_fetch_failed", update: null, logs: [], bio: null, url, error };
+    return { outcome: "fetch_failed", update: null, logs: [], bio: null, url, error };
   }
 
-  const bio = extractBioFromDetailHtml(detailHtml) || extractBioFromAnimal(animal);
+  const detailBio = extractBioFromDetailHtml(detailHtml);
+  const fallbackBio = extractBioFromAnimal(animal);
+  const bio = detailBio || fallbackBio;
   if (!bio) {
-    return { outcome: "no_bio", update: null, logs: [], bio: null, url };
+    const detailMarkupPresent = /\badoptee-description\b/i.test(String(detailHtml || ""));
+    return {
+      outcome: detailMarkupPresent ? "no_bio" : "parse_failed",
+      update: null,
+      logs: [],
+      bio: null,
+      url,
+    };
   }
 
+  const bioHash = hashAuthoritativeBio(bio);
+  const currentDescriptionHash = hashAuthoritativeBio(dog.description);
+  const previousBioHash = clean(dog.dacc_bio_source_hash);
+  if (
+    previousBioHash &&
+    !isGenericDescription(dog.description) &&
+    currentDescriptionHash !== previousBioHash
+  ) {
+    return {
+      outcome: "manual_conflict",
+      update: null,
+      logs: [],
+      bio,
+      bioHash,
+      url,
+    };
+  }
+
+  const replaceDescription =
+    isGenericDescription(dog.description) ||
+    (previousBioHash && currentDescriptionHash === previousBioHash && bioHash !== previousBioHash);
   const cautiousNote = extractCautiousNotes(bio);
-  const { update, logs } = buildUpdate(dog, animal, bio, cautiousNote);
+  const { update, logs } = buildUpdate(dog, animal, bio, cautiousNote, {
+    replaceDescription,
+  });
 
   return {
-    outcome: Object.keys(update).length === 0 ? "no_change" : "updated",
+    outcome: "recovered",
     update,
     logs,
     bio,
+    bioHash,
     url,
   };
 }
@@ -480,100 +658,160 @@ async function main() {
   console.log(`Limit: ${Number.isFinite(LIMIT) && LIMIT > 0 ? LIMIT : "none"}`);
   console.log(`Name filter: ${NAME_FILTER || "none"}`);
 
-  const [dogs, rescueGroupsById, shelterManagerAnimals] = await Promise.all([
+  const { isPubliclyVisibleDog } = await import("../src/lib/dogVisibility.js");
+  const { getEnrichmentEligibilityReason } = require("./enrich-dogs-ai.cjs");
+  const now = new Date();
+  const checkedAt = now.toISOString();
+
+  const [dogs, rescueGroupsRoster, shelterManagerAnimals] = await Promise.all([
     fetchDaccDogs(supabase),
-    fetchRescueGroupsDaccIds(rescueGroupsApiKey),
+    fetchRescueGroupsDaccRoster(rescueGroupsApiKey),
     fetchShelterManagerAnimals(),
   ]);
+  const rescueGroupsById = rescueGroupsRosterById(rescueGroupsRoster);
 
-  const shelterManagerByCode = new Map(
-    shelterManagerAnimals
-      .filter((animal) => clean(animal.SHELTERCODE))
-      .map((animal) => [clean(animal.SHELTERCODE).toLowerCase(), animal])
-  );
+  const shelterManagerByCode = indexShelterManagerByCode(shelterManagerAnimals);
 
   const summary = {
-    checked: 0,
-    detailPagesFound: 0,
-    enriched: 0,
-    manualPreserved: 0,
+    completeRescueGroupsRoster: rescueGroupsRoster.count,
+    rescueGroupsPages: rescueGroupsRoster.pages,
+    shelterManagerRoster: shelterManagerAnimals.length,
+    databaseDaccDogs: dogs.length,
+    publicAdoptable: 0,
+    candidates: 0,
+    skippedCurrent: 0,
+    skippedNotPublic: 0,
+    skippedNotInCompleteRoster: 0,
+    exactMatches: 0,
+    ambiguousMatches: 0,
+    nameMismatches: 0,
+    recoverableBios: 0,
     noMatch: 0,
     noBio: 0,
-    failedDetailFetches: 0,
+    fetchFailed: 0,
+    parseFailed: 0,
+    manualConflicts: 0,
+    projectedDbUpdates: 0,
+    projectedEvidenceUpdates: 0,
+    projectedAiCandidates: 0,
+    retryLater: [],
+    writeErrors: 0,
     written: 0,
   };
 
   for (const dog of dogs) {
-    summary.checked += 1;
+    const publiclyVisible = isPubliclyVisibleDog(dog);
+    if (publiclyVisible) summary.publicAdoptable += 1;
+
+    if (!rescueGroupsRoster.authoritativeIds.has(String(dog.rescuegroups_id))) {
+      summary.skippedNotInCompleteRoster += 1;
+      continue;
+    }
+
+    const decision = getRecoveryCandidateDecision(dog, { now, publiclyVisible });
+    if (!decision.eligible) {
+      if (decision.reason === "not_public") summary.skippedNotPublic += 1;
+      else summary.skippedCurrent += 1;
+      continue;
+    }
+
+    summary.candidates += 1;
 
     const rescueGroupsInfo = rescueGroupsById.get(String(dog.rescuegroups_id));
-    const shelterCode = clean(rescueGroupsInfo?.rescueId);
-    const animal = shelterManagerByCode.get(shelterCode.toLowerCase());
+    const match = resolveShelterManagerMatch(rescueGroupsInfo, shelterManagerByCode);
+    const { shelterCode, animal } = match;
+    const ambiguousCode = match.outcome === "ambiguous_code";
+
+    if (ambiguousCode) summary.ambiguousMatches += 1;
+    if (animal) {
+      summary.exactMatches += 1;
+      if (normalizeName(rescueGroupsInfo?.name) !== normalizeName(animal.ANIMALNAME)) {
+        summary.nameMismatches += 1;
+      }
+    }
 
     const result = await evaluateDogUpdate(dog, { animal });
+    const attemptUpdate = buildRecoveryAttemptUpdate(dog, result, checkedAt);
+    const projectedDog = { ...dog, ...attemptUpdate };
+    const projectedEligibility = getEnrichmentEligibilityReason(projectedDog);
+    const plannedFields = Object.keys(attemptUpdate).filter(
+      (key) => clean(attemptUpdate[key]) !== clean(dog[key])
+    );
+    const evidenceFields = plannedFields.filter(
+      (key) => !["dacc_bio_recovery_status", "dacc_bio_checked_at", "dacc_bio_source_hash"].includes(key)
+    );
+
+    summary.projectedDbUpdates += plannedFields.length > 0 ? 1 : 0;
+    summary.projectedEvidenceUpdates += evidenceFields.length > 0 ? 1 : 0;
 
     if (result.outcome === "no_match") {
       summary.noMatch += 1;
-      console.log(`NO DETAIL: ${dog.name} (${dog.rescuegroups_id}) rescueId=${shelterCode || "missing"}`);
-      continue;
-    }
-
-    summary.detailPagesFound += 1;
-    console.log(`DETAIL FOUND: ${dog.name} -> ${result.url}`);
-
-    if (result.outcome === "detail_fetch_failed") {
-      summary.failedDetailFetches += 1;
-      console.log(`DETAIL FETCH FAILED: ${dog.name} (${result.url}) ${result.error.message}`);
-      continue;
-    }
-
-    if (result.outcome === "no_bio") {
+    } else if (result.outcome === "no_bio") {
       summary.noBio += 1;
-      console.log(`NO BIO: ${dog.name}`);
-      continue;
+    } else if (result.outcome === "fetch_failed") {
+      summary.fetchFailed += 1;
+    } else if (result.outcome === "parse_failed") {
+      summary.parseFailed += 1;
+    } else if (result.outcome === "manual_conflict") {
+      summary.manualConflicts += 1;
+    } else if (result.outcome === "recovered") {
+      summary.recoverableBios += 1;
+      if (projectedEligibility) summary.projectedAiCandidates += 1;
     }
 
-    const { update, logs, bio } = result;
-
-    if (hasText(dog.description) && !isGenericDescription(dog.description)) {
-      summary.manualPreserved += 1;
-      console.log(`PRESERVED DESCRIPTION: ${dog.name}`);
+    if (result.outcome !== "recovered") {
+      summary.retryLater.push({
+        name: dog.name,
+        rescuegroupsId: String(dog.rescuegroups_id),
+        rescueId: shelterCode || null,
+        outcome: ambiguousCode ? "ambiguous_code" : result.outcome,
+      });
     }
 
     console.log(
-      `${CONFIRMED ? "UPDATE" : "DRY RUN"}: ${dog.name} bio=${update.description ? "yes" : "no"} traits=${
-        ["good_with_dogs", "good_with_cats", "good_with_kids", "potty_trained"]
-          .filter((key) => Object.prototype.hasOwnProperty.call(update, key))
-          .join(",") || "none"
-      } note=${update.placement_note ? "yes" : "no"}`
+      JSON.stringify({
+        dog: dog.name,
+        dogId: dog.id,
+        rescuegroupsId: String(dog.rescuegroups_id),
+        rescueId: shelterCode || null,
+        rescueGroupsName: rescueGroupsInfo?.name || null,
+        trigger: decision.reason,
+        identity: ambiguousCode ? "ambiguous_code" : animal ? "exact_sheltercode" : "no_match",
+        shelterManagerId: animal?.ID || null,
+        shelterManagerName: animal?.ANIMALNAME || null,
+        nameConsistent: animal
+          ? normalizeName(rescueGroupsInfo?.name) === normalizeName(animal.ANIMALNAME)
+          : null,
+        outcome: ambiguousCode ? "no_match_ambiguous_code" : result.outcome,
+        bioLength: result.bio?.length || 0,
+        bioHash: result.bioHash || null,
+        plannedFields,
+        projectedAiEligibility: projectedEligibility,
+      })
     );
 
-    logs.forEach((message) => console.log(`  ${message}`));
-    if (update.placement_note) {
-      console.log("  notes added");
-    }
-
-    if (dog.name.toLowerCase() === "cruise") {
-      console.log("CRUISE BEFORE DESCRIPTION:");
-      console.log(dog.description || "(empty)");
-      console.log("CRUISE ENRICHED DESCRIPTION:");
-      console.log(update.description || bio);
-    }
-
-    if (result.outcome === "no_change") continue;
-
-    summary.enriched += 1;
+    result.logs?.forEach((message) => console.log(`  ${message}`));
 
     if (CONFIRMED) {
-      const { error } = await supabase.from("dogs").update(update).eq("id", dog.id);
-      if (error) throw new Error(`Could not update ${dog.name}: ${error.message}`);
-      summary.written += 1;
+      const { error } = await supabase.from("dogs").update(attemptUpdate).eq("id", dog.id);
+      if (error) {
+        summary.writeErrors += 1;
+        console.error(`Could not update ${dog.name}: ${error.message}`);
+      } else {
+        summary.written += 1;
+      }
     }
   }
 
   console.log("");
   console.log("Summary:");
   console.log(JSON.stringify(summary, null, 2));
+
+  if (summary.writeErrors > 0 || summary.fetchFailed > 0 || summary.parseFailed > 0) {
+    throw new Error(
+      `DACC recovery completed with failures (writes=${summary.writeErrors}, fetch=${summary.fetchFailed}, parse=${summary.parseFailed}).`
+    );
+  }
 }
 
 if (require.main === module) {
@@ -585,7 +823,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  NO_BIO_RETRY_MS,
+  RECOVERED_REFRESH_MS,
   isGenericDescription,
+  hashAuthoritativeBio,
   extractBioFromAnimal,
   extractBioFromDetailHtml,
   extractCautiousNotes,
@@ -594,7 +835,12 @@ module.exports = {
   buildTraitUpdates,
   buildBioTraitUpdates,
   buildUpdate,
+  buildRecoveryAttemptUpdate,
   evaluateDogUpdate,
+  fetchRescueGroupsDaccRoster,
+  getRecoveryCandidateDecision,
+  indexShelterManagerByCode,
+  resolveShelterManagerMatch,
   detailUrl,
   htmlToText,
   removeBoilerplate,
