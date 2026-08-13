@@ -21,6 +21,9 @@ const {
   resolveDogAvailability,
 } = require("./scripts/dog-availability.cjs");
 const {
+  resolveRescueGroupsAdoptionUrl,
+} = require("./scripts/rescuegroups-adoption-urls.cjs");
+const {
   HASHED_FIELDS,
   computeSourceContentHash,
   mergeHashedSnapshot,
@@ -317,18 +320,18 @@ function addSourceField(
   row[databaseField] = value;
 }
 
-function getAdoptionUrl(animal) {
+function getAdoptionUrl(animal, orgId) {
   const attrs = animal?.attributes || {};
-  return (
-    attrs.url ||
-    attrs.webpageUrl ||
-    attrs.animalUrl ||
-    attrs.adoptionUrl ||
-    attrs.link ||
-    (animal?.id
-      ? `https://www.rescuegroups.org/animals/detail?AnimalID=${animal.id}`
-      : null)
-  );
+  return resolveRescueGroupsAdoptionUrl({
+    orgId,
+    candidates: [
+      attrs.url,
+      attrs.webpageUrl,
+      attrs.animalUrl,
+      attrs.adoptionUrl,
+      attrs.link,
+    ],
+  });
 }
 
 function getPublicListingUrl(animal, orgId) {
@@ -336,7 +339,7 @@ function getPublicListingUrl(animal, orgId) {
     return DACC_ADOPT_URL;
   }
 
-  return getAdoptionUrl(animal);
+  return getAdoptionUrl(animal, orgId);
 }
 
 function getBreed(attrs) {
@@ -1054,6 +1057,7 @@ module.exports = {
   describeError,
   fetchOnePageForRescue,
   fetchDogsForRescue,
+  getAdoptionUrl,
   getDogPublicationFilterReason,
   isRetryableRescueGroupsError,
   mapAnimalToDogRow,

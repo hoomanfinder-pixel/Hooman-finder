@@ -24,9 +24,8 @@
 //   than inventing a new policy.
 // - Organization/adoption URLs are validated. A malformed URL (e.g. a street
 //   address stored in the website field) is REJECTED, not passed through --
-//   the row falls back to the next valid candidate, and ultimately to a
-//   guaranteed-valid RescueGroups.org public detail-page URL, so a dog is
-//   never given a broken link silently.
+//   only an explicitly verified destination for that stable organization ID
+//   may be used when RescueGroups supplies no valid dog-specific URL.
 // - This script never calls the AI enrichment pipeline (scripts/enrich-dogs-ai.cjs).
 //   Enrichment is a separate, explicit, opt-in step.
 
@@ -36,6 +35,9 @@ const { createClient } = require("@supabase/supabase-js");
 const { ensureShelterForSource } = require("./rescuegroups-shelter-utils.cjs");
 const { resolveDogAvailability } = require("./dog-availability.cjs");
 const { fetchCompleteRescueGroupsRoster } = require("./rescuegroups-roster.cjs");
+const {
+  resolveRescueGroupsAdoptionUrl,
+} = require("./rescuegroups-adoption-urls.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -454,23 +456,18 @@ function mapAnimalToDogRow(animal, included, orgMeta, orgId) {
   const description =
     cleanText(attrs.descriptionText) || cleanText(attrs.descriptionHtml) || cleanText(attrs.description);
 
-  // Adoption link: try animal-specific URLs first, then the org's own
-  // website/adoptionUrl, then the org metadata we fetched directly by ID.
-  // Anything malformed (e.g. a street address in a website field) is
-  // rejected by isValidHttpUrl rather than used as-is. The RescueGroups.org
-  // public detail page is a guaranteed-valid last resort so a dog is never
-  // left with a broken link.
-  const adoptionUrl = firstValidUrl(
-    attrs.url,
-    attrs.webpageUrl,
-    attrs.animalUrl,
-    attrs.adoptionUrl,
-    attrs.link,
-    orgAttrs.adoptionUrl,
-    orgAttrs.url,
-    orgAttrs.website,
-    `https://www.rescuegroups.org/animals/detail?AnimalID=${externalId}`
-  );
+  // Prefer valid animal-specific source URLs. Otherwise, use only a verified
+  // destination configured for this exact stable organization ID.
+  const adoptionUrl = resolveRescueGroupsAdoptionUrl({
+    orgId,
+    candidates: [
+      attrs.url,
+      attrs.webpageUrl,
+      attrs.animalUrl,
+      attrs.adoptionUrl,
+      attrs.link,
+    ],
+  });
 
   const photoUrls = getPhotoUrls(animal, included);
   const photoUrl = photoUrls[0] || null;
