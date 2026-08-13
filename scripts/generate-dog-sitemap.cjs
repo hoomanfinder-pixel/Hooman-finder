@@ -9,11 +9,16 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
-const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 
 const SITE_URL = "https://hoomanfinder.com";
 const SITEMAP_PATH = path.join(process.cwd(), "public", "sitemap.xml");
 const DOG_SITEMAP_PATH = path.join(process.cwd(), "public", "dog-sitemap.xml");
+const PLATFORM_STATS_PATH = path.join(
+  process.cwd(),
+  "src",
+  "generated",
+  "platform-stats.json"
+);
 const PAGE_SIZE = 1000;
 const STATIC_ROUTES = [
   { path: "/", changefreq: "weekly", priority: "1.0" },
@@ -25,90 +30,6 @@ const STATIC_ROUTES = [
   { path: "/terms", changefreq: "yearly", priority: "0.2" },
 ];
 
-const DOG_SELECT = [
-  "id",
-  "name",
-  "description",
-  "adoptable",
-  "adoption_pending",
-  "urgency_level",
-  "availability_status",
-  "rescuegroups_id",
-  "rescuegroups_org_id",
-  "source",
-  "external_id",
-  "source_url",
-  "adoption_url",
-  "created_at",
-  "last_seen_at",
-  "source_updated_at",
-].join(", ");
-
-const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
-const VERIFIED_CONFIDENCE = new Set(["current", "trusted", "verified"]);
-const TRUSTED_EXTERNAL_ID_SOURCES = new Set(["rescuegroups"]);
-const TRUSTED_LISTING_HOSTS = [
-  "rescuegroups.org",
-  "petfinder.com",
-  "adoptapet.com",
-  "shelterluv.com",
-  "petango.com",
-];
-
-function clean(value) {
-  return value === null || value === undefined ? "" : String(value).trim();
-}
-
-function lower(value) {
-  return clean(value).toLowerCase();
-}
-
-function hasReliableUrl(value) {
-  const url = clean(value);
-
-  if (!url.startsWith("https://")) return false;
-
-  try {
-    const { hostname } = new URL(url);
-    return TRUSTED_LISTING_HOSTS.some(
-      (host) => hostname === host || hostname.endsWith(`.${host}`)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function hasRescueGroupsIdentity(dog) {
-  return Boolean(clean(dog?.rescuegroups_id) || clean(dog?.rescuegroups_org_id));
-}
-
-function hasTrustedSyncedSource(dog) {
-  return (
-    hasRescueGroupsIdentity(dog) ||
-    (TRUSTED_EXTERNAL_ID_SOURCES.has(lower(dog?.source)) && Boolean(clean(dog?.external_id)))
-  );
-}
-
-function hasVerifiedListingSource(dog) {
-  const confidence = lower(dog?.source_confidence);
-  const verified =
-    dog?.verified === true ||
-    dog?.availability_verified === true ||
-    VERIFIED_CONFIDENCE.has(confidence);
-
-  return verified && (hasReliableUrl(dog?.source_url) || hasReliableUrl(dog?.adoption_url));
-}
-
-function isPubliclyVisibleDog(dog) {
-  if (!dog) return false;
-  if (dog.adoptable !== true) return false;
-  if (dog.adoption_pending === true) return false;
-  if (lower(dog.urgency_level) === "adopted") return false;
-  if (!ACTIVE_STATUSES.has(lower(dog.availability_status))) return false;
-  if (getDogAvailabilitySignal(dog)) return false;
-
-  return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
-}
 
 function escapeXml(value) {
   return String(value)
@@ -201,7 +122,7 @@ async function fetchDogRows(supabase) {
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from("dogs")
-      .select(DOG_SELECT)
+      .select("*")
       .eq("adoptable", true)
       .in("availability_status", ["available", "active", "unknown"])
       .order("created_at", { ascending: false, nullsFirst: false })
@@ -219,10 +140,22 @@ async function fetchDogRows(supabase) {
 }
 
 async function main() {
+  const [{ filterPublicDogs }, { getDogSourceName }] = await Promise.all([
+    import("../src/lib/dogVisibility.js"),
+    import("../src/lib/dogSource.js"),
+  ]);
   const { supabase, keyType } = createSupabaseClient();
   const rows = await fetchDogRows(supabase);
-  const dogs = rows
-    .filter(isPubliclyVisibleDog)
+  const { data: shelters, error: shelterError } = await supabase
+    .from("shelters")
+    .select("id, name");
+  if (shelterError) throw shelterError;
+  const shelterById = new Map((shelters || []).map((shelter) => [shelter.id, shelter]));
+  const joinedRows = rows.map((dog) => ({
+    ...dog,
+    shelters: shelterById.get(dog.shelter_id) || null,
+  }));
+  const dogs = filterPublicDogs(joinedRows)
     .sort((a, b) => String(a.id).localeCompare(String(b.id)));
   const staticEntries = STATIC_ROUTES.map((route) => ({
     loc: `${SITE_URL}${route.path}`,
@@ -233,9 +166,28 @@ async function main() {
 
   fs.writeFileSync(DOG_SITEMAP_PATH, buildXml(dogsOnly), "utf8");
   fs.writeFileSync(SITEMAP_PATH, buildXml([...staticEntries, ...dogsOnly]), "utf8");
+  const publicShelters = new Set(
+    dogs.map((dog) => getDogSourceName(dog, "").toLowerCase()).filter(Boolean)
+  );
+  fs.mkdirSync(path.dirname(PLATFORM_STATS_PATH), { recursive: true });
+  fs.writeFileSync(
+    PLATFORM_STATS_PATH,
+    `${JSON.stringify(
+      {
+        version: 1,
+        generated_at: new Date().toISOString(),
+        public_dog_count: dogs.length,
+        public_shelter_count: publicShelters.size,
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
 
   console.log(`Generated ${path.relative(process.cwd(), SITEMAP_PATH)}.`);
   console.log(`Generated ${path.relative(process.cwd(), DOG_SITEMAP_PATH)}.`);
+  console.log(`Generated ${path.relative(process.cwd(), PLATFORM_STATS_PATH)}.`);
   console.log(`Supabase key used: ${keyType}.`);
   console.log(`Fetched ${rows.length} candidate dogs; included ${dogs.length} public dog URLs.`);
 }

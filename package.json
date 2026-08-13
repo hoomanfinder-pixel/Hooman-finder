@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build --ssr src/entry-server.jsx --outDir dist/server && node scripts/prerender-home.mjs",
+    "lint": "eslint .",
     "test": "node --test src/lib/*.test.js",
     "test:e2e": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test",
     "test:e2e:headed": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --headed",
@@ -19,6 +20,7 @@
     "backfill:source-content-hash": "node scripts/backfill-source-content-hash.cjs",
     "generate:dog-sitemap": "node scripts/generate-dog-sitemap.cjs",
     "sync:rescuegroups": "node sync-rescuegroups-dogs.cjs",
+    "dry-run:rescuegroups-reconciliation": "node scripts/dry-run-rescuegroups-reconciliation.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -31,10 +33,15 @@
     "react-router-dom": "^7.11.0"
   },
   "devDependencies": {
+    "@eslint/js": "9.39.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.0",
     "@vitejs/plugin-react": "^5.2.0",
     "autoprefixer": "^10.5.0",
+    "eslint": "9.39.1",
+    "eslint-plugin-react-hooks": "6.1.1",
+    "eslint-plugin-react-refresh": "0.4.24",
+    "globals": "16.5.0",
     "postcss": "^8.5.15",
     "react-refresh": "^0.14.2",
     "tailwindcss": "^4.3.0",

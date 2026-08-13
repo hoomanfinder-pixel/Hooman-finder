@@ -7,6 +7,11 @@ require("dotenv").config({ path: ".env.local" });
 const { createClient } = require("@supabase/supabase-js");
 const { RESCUES } = require("./rescuegroups-rescues.cjs");
 const {
+  fetchCompleteRescueGroupsRoster,
+  planStaleDogs,
+  reconcileCompleteRoster,
+} = require("./scripts/rescuegroups-roster.cjs");
+const {
   DACC_ADOPT_URL,
   DACC_RESCUEGROUPS_ORG_ID,
   DACC_WEBSITE,
@@ -43,6 +48,8 @@ const SPARSE_SOURCE_FIELDS = [
   "shelter_website",
   "placement_city",
   "source_updated_at",
+  "photo_url",
+  "photo_urls",
 ];
 
 let supabase;
@@ -599,7 +606,7 @@ function isRetryableRescueGroupsError(error) {
   return error?.status === 408 || error?.status === 429 || error?.status >= 500;
 }
 
-function buildRequestBody(rescue, pageNumber) {
+function buildRequestBody(rescue) {
   const orgFilter = rescue.rescueGroupsOrgId
     ? {
         fieldName: "orgs.id",
@@ -688,10 +695,6 @@ function buildRequestBody(rescue, pageNumber) {
         statuses: ["name", "description"],
       },
       include: ["pictures", "orgs", "statuses"],
-      page: {
-        limit: PAGE_LIMIT,
-        offset: (pageNumber - 1) * PAGE_LIMIT,
-      },
     },
   };
 }
@@ -757,39 +760,46 @@ async function fetchOnePageForRescue(rescue, pageNumber, options = {}) {
   throw new Error(`RescueGroups request attempts exhausted for ${rescue.name}.`);
 }
 
+function getDogPublicationFilterReason(dog) {
+  if (!dog?.rescuegroups_id) return "missing authoritative animal ID";
+  if (!dog?.name || /^unnamed dog$/i.test(dog.name.trim())) return "missing name";
+  if (/^(?:application|pre-approval)$/i.test(dog.name.trim())) {
+    return "placeholder-like name";
+  }
+  if (!dog.photo_url) return "missing photo";
+  if (dog.adoptable !== true) return "source data is not adoptable";
+  if (dog.adoption_pending === true) return "adoption pending";
+  if (!["available", "active", "unknown"].includes(String(dog.availability_status || "").toLowerCase())) {
+    return `availability status is ${dog.availability_status || "missing"}`;
+  }
+  return null;
+}
+
 async function fetchDogsForRescue(rescue) {
   console.log("");
   console.log(`Fetching dogs for: ${rescue.name}`);
 
-  const allMappedDogs = [];
-  const seenIds = new Set();
+  const roster = await fetchCompleteRescueGroupsRoster({
+    apiUrl: RESCUEGROUPS_API_URL,
+    apiKey: RESCUEGROUPS_API_KEY,
+    orgId: rescue.rescueGroupsOrgId,
+    buildRequestBody: () => buildRequestBody(rescue),
+    pageLimit: PAGE_LIMIT,
+    maxPages: MAX_PAGES,
+    timeoutMs: API_TIMEOUT_MS,
+    allowVerifiedEmptyRoster: rescue.allowVerifiedEmptyRoster === true,
+  });
 
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber += 1) {
-    const { animals, included } = await fetchOnePageForRescue(rescue, pageNumber);
-
-    console.log(`Raw API animals returned on page ${pageNumber}: ${animals.length}`);
-
-    const mappedDogsForPage = animals
-      .map((animal) => mapAnimalToDogRow(animal, included, rescue))
-      .filter((dog) => {
-        if (!dog.name || !dog.photo_url) return false;
-        return rescueMatchesDog(dog, rescue);
-      });
-
-    for (const dog of mappedDogsForPage) {
-      if (!seenIds.has(dog.rescuegroups_id)) {
-        seenIds.add(dog.rescuegroups_id);
-        allMappedDogs.push(dog);
-      }
-    }
-
-    if (animals.length < PAGE_LIMIT) {
-      break;
-    }
-  }
+  const allMappedDogs = roster.animals
+    .map((animal) => mapAnimalToDogRow(animal, roster.included, rescue))
+    .filter((dog) => rescueMatchesDog(dog, rescue))
+    .map((dog) => ({
+      ...dog,
+      _publicationFilterReason: getDogPublicationFilterReason(dog),
+    }));
 
   console.log(
-    `Usable dogs after filtering for ${rescue.name}: ${allMappedDogs.length}`
+    `Mapped authoritative roster dogs for ${rescue.name}: ${allMappedDogs.length}`
   );
 
   if (allMappedDogs.length > 0) {
@@ -799,13 +809,13 @@ async function fetchDogsForRescue(rescue) {
     );
   }
 
-  return allMappedDogs;
+  return { roster, dogs: allMappedDogs };
 }
 
 async function upsertDogs(dogs) {
   if (dogs.length === 0) {
     console.log("No dogs to insert/update.");
-    return { inserted: 0, updated: 0, skipped: 0 };
+    return { inserted: 0, updated: 0, filtered: 0, failed: 0 };
   }
 
   console.log(`Inserting/updating ${dogs.length} dogs in Supabase...`);
@@ -849,17 +859,21 @@ async function upsertDogs(dogs) {
 
   let inserted = 0;
   let updated = 0;
-  let skipped = 0;
+  let filtered = 0;
+  let failed = 0;
 
   for (const dog of dogs) {
     const existingDog = existingByRescueGroupsId.get(String(dog.rescuegroups_id));
+    const publicationFilterReason = dog._publicationFilterReason || null;
+    const cleanDog = { ...dog };
+    delete cleanDog._publicationFilterReason;
 
     try {
       if (existingDog) {
         // Computed from the row as it will actually end up after sparse source
         // values and preserved fields are omitted, so a dropped value never
         // causes a false "content changed" signal downstream.
-        const updateRow = buildExistingDogUpdate(dog, existingDog);
+        const updateRow = buildExistingDogUpdate(cleanDog, existingDog);
 
         const { error } = await supabase
           .from("dogs")
@@ -871,10 +885,13 @@ async function upsertDogs(dogs) {
         }
 
         updated += 1;
+      } else if (publicationFilterReason) {
+        filtered += 1;
+        console.log(`Not inserting ${dog.name}: ${publicationFilterReason}.`);
       } else {
         const dogWithHash = {
-          ...dog,
-          source_content_hash: computeSourceContentHash(dog),
+          ...cleanDog,
+          source_content_hash: computeSourceContentHash(cleanDog),
         };
 
         const { error } = await supabase.from("dogs").insert(dogWithHash);
@@ -886,60 +903,58 @@ async function upsertDogs(dogs) {
         inserted += 1;
       }
     } catch (error) {
-      skipped += 1;
+      failed += 1;
       console.error(`Could not sync ${dog.name}: ${error.message}`);
     }
   }
 
   console.log(
-    `Upsert complete. Inserted ${inserted}. Updated ${updated}. Skipped ${skipped}.`
+    `Upsert complete. Inserted ${inserted}. Updated ${updated}. Filtered ${filtered}. Failed ${failed}.`
   );
 
-  return { inserted, updated, skipped };
+  return { inserted, updated, filtered, failed };
 }
 
 async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) {
-  if (seenRescueGroupsIds.length === 0) {
-    console.log(
-      `No dogs seen for ${rescue.name}. Skipping unavailable update so we do not accidentally hide dogs.`
-    );
-    return;
-  }
-
   console.log(`Checking for dogs no longer returned by ${rescue.name}...`);
 
-  const quotedIds = seenRescueGroupsIds.map((id) => `"${id}"`).join(",");
+  const { data: candidates, error: candidateError } = await supabase
+    .from("dogs")
+    .select("id, source, rescuegroups_id, rescuegroups_org_id, adoptable")
+    .eq("rescuegroups_org_id", String(rescue.rescueGroupsOrgId))
+    .eq("adoptable", true)
+    .not("rescuegroups_id", "is", null);
 
-  let query = supabase
+  if (candidateError) {
+    throw new Error(`Supabase stale-candidate lookup error: ${candidateError.message}`);
+  }
+
+  const staleDogs = planStaleDogs(
+    candidates,
+    rescue.rescueGroupsOrgId,
+    seenRescueGroupsIds
+  );
+  if (staleDogs.length === 0) {
+    console.log(`No missing adoptable dogs found for ${rescue.name}.`);
+    return { staleMarked: 0 };
+  }
+
+  const { error } = await supabase
     .from("dogs")
     .update({
       adoptable: false,
       availability_status: "unavailable",
-      unavailable_reason: "No longer returned by RescueGroups API",
+      unavailable_reason: "No longer returned by complete RescueGroups roster",
       last_checked_at: new Date().toISOString(),
     })
-    .eq("source", "rescuegroups")
-    .eq("adoptable", true)
-    .not("rescuegroups_id", "in", `(${quotedIds})`);
-
-  if (rescue.supabaseShelterId) {
-    query = query.eq("shelter_id", rescue.supabaseShelterId);
-  } else if (rescue.rescueGroupsOrgId) {
-    query = query.eq("rescuegroups_org_id", String(rescue.rescueGroupsOrgId));
-  } else {
-    console.log(
-      `Skipping unavailable update for ${rescue.name}: missing shelter and RescueGroups org IDs.`
-    );
-    return;
-  }
-
-  const { error } = await query;
+    .in("id", staleDogs.map((dog) => dog.id));
 
   if (error) {
     throw new Error(`Supabase unavailable update error: ${error.message}`);
   }
 
   console.log(`Availability check complete for ${rescue.name}.`);
+  return { staleMarked: staleDogs.length };
 }
 
 async function syncConfiguredRescues({
@@ -960,15 +975,38 @@ async function syncConfiguredRescues({
         continue;
       }
 
-      const dogs = await fetchDogs(rescue);
+      const result = await reconcileCompleteRoster({
+        source: rescue,
+        fetchRoster: async () => {
+          const fetched = await fetchDogs(rescue);
+          if (Array.isArray(fetched)) {
+            const authoritativeIds = new Set(
+              fetched.map((dog) => String(dog.rescuegroups_id)).filter(Boolean)
+            );
+            return {
+              complete: true,
+              staleMarkingAllowed: authoritativeIds.size > 0,
+              quarantineReason:
+                authoritativeIds.size === 0 ? "Unverified zero-result roster" : null,
+              authoritativeIds,
+              mappedDogs: fetched,
+            };
+          }
+          return fetched.roster
+            ? { ...fetched.roster, mappedDogs: fetched.dogs }
+            : fetched;
+        },
+        mapRoster: async (roster) => {
+          const dogs = roster.mappedDogs || roster.animals || [];
+          await attachShelters(dogs);
+          return { rows: dogs };
+        },
+        upsert: async (dogs) => upsert(dogs),
+        markUnavailable: async (currentRescue, seenIds) =>
+          markUnavailable(currentRescue, seenIds),
+      });
 
-      await attachShelters(dogs);
-
-      const syncResult = await upsert(dogs);
-
-      const seenRescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
-
-      await markUnavailable(rescue, seenRescueGroupsIds);
+      const syncResult = result.upsertResult;
 
       totalUpserted += syncResult.inserted + syncResult.updated;
     } catch (error) {
@@ -1015,7 +1053,10 @@ module.exports = {
   buildExistingDogUpdate,
   describeError,
   fetchOnePageForRescue,
+  fetchDogsForRescue,
+  getDogPublicationFilterReason,
   isRetryableRescueGroupsError,
   mapAnimalToDogRow,
+  markMissingDogsUnavailableForRescue,
   syncConfiguredRescues,
 };

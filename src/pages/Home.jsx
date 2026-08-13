@@ -3,12 +3,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
 import TrustRibbon, { HomeIcon } from "../components/TrustRibbon";
-import { getDogSourceLocation, getDogSourceName } from "../lib/dogSource";
+import { getDogSourceLocation } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { normalizeImageUrl } from "../lib/urlSafety";
 import { formatAge, resolveAgeYears } from "../utils/formatAge";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { truncateAtWord } from "../utils/truncateAtWord";
+import platformStats from "../generated/platform-stats.json";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -282,22 +283,11 @@ function pickDailyFeaturedDogs(dogs, count = 6) {
   return picks;
 }
 
-function distinctShelterCount(dogs) {
-  const names = new Set();
-
-  for (const dog of Array.isArray(dogs) ? dogs : []) {
-    const name = getDogSourceName(dog, "");
-    if (name) names.add(name.toLowerCase());
-  }
-
-  return names.size;
-}
-
 export default function Home() {
   const [featuredDogs, setFeaturedDogs] = useState([]);
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
-  const [shelterCount, setShelterCount] = useState(0);
-  const [publicDogCount, setPublicDogCount] = useState(0);
+  const publicDogCount = platformStats.public_dog_count;
+  const shelterCount = platformStats.public_shelter_count;
 
   useEffect(() => {
     let isMounted = true;
@@ -358,53 +348,6 @@ export default function Home() {
 
     return () => {
       isMounted = false;
-    };
-  }, []);
-
-  // Separate, deferred query (few columns, no image or biography data)
-  // so the trust-bar stats reflect every currently public listing rather
-  // than just the 48 dogs sampled above for the homepage preview cards.
-  useEffect(() => {
-    let isMounted = true;
-    let timeoutId;
-
-    async function loadStats() {
-      try {
-        const data = await fetchHomepageDogs({
-          select: `
-            id,
-            shelter_name,
-            rescuegroups_id,
-            rescuegroups_org_id,
-            source,
-            external_id,
-            adoptable,
-            adoption_pending,
-            urgency_level,
-            availability_status,
-            source_url,
-            adoption_url,
-            shelters ( name )
-          `,
-          limit: 4000,
-        });
-        if (!isMounted) return;
-
-        const publicDogs = filterPublicDogs(data);
-        setPublicDogCount(publicDogs.length);
-        setShelterCount(distinctShelterCount(publicDogs));
-      } catch (error) {
-        console.error("Could not load homepage stats:", error);
-      }
-    }
-
-    // The stats are useful context but are not needed for the first paint.
-    // Let the hero, navigation, fonts, and primary dog query finish first.
-    timeoutId = window.setTimeout(loadStats, 3000);
-
-    return () => {
-      isMounted = false;
-      window.clearTimeout(timeoutId);
     };
   }, []);
 

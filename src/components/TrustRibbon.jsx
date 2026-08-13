@@ -1,6 +1,5 @@
 // src/components/TrustRibbon.jsx
 import { Fragment, useState } from "react";
-import useCountUp from "../hooks/useCountUp";
 
 function HeartIcon(props) {
   return (
@@ -168,7 +167,6 @@ function RibbonItem({ item, interactive }) {
 }
 
 function PlatformStat({ stat }) {
-  const { ref, value: displayValue } = useCountUp(stat.value);
   const digits = String(stat.value).length;
   const StatIcon = stat.icon || PawIcon;
 
@@ -182,12 +180,11 @@ function PlatformStat({ stat }) {
       </span>
       <p className="whitespace-nowrap text-[12px] font-semibold leading-tight text-[#183D35] sm:text-[14.5px]">
         <span
-          ref={ref}
           aria-hidden="true"
           className="inline-block tabular-nums font-['Fraunces',serif] text-[17px] font-bold sm:text-xl"
           style={{ minWidth: `${digits}ch` }}
         >
-          {displayValue}
+          {stat.value}
         </span>{" "}
         <span aria-hidden="true">{stat.label}</span>
         <span className="sr-only">{`${stat.value} ${stat.label}`}</span>

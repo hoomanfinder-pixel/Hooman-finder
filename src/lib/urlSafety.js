@@ -15,7 +15,12 @@ function clean(value) {
 }
 
 function hasUnsafeCharacters(value) {
-  return /[\u0000-\u001F\u007F<>"'`\\]/.test(value);
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint <= 0x1f || codePoint === 0x7f) return true;
+  }
+
+  return /[<>"'`\\]/.test(value);
 }
 
 export function normalizeHttpsUrl(raw) {

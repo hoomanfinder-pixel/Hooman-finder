@@ -2,6 +2,7 @@
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import shelterUtils from "./scripts/rescuegroups-shelter-utils.cjs";
+import rosterUtils from "./scripts/rescuegroups-roster.cjs";
 
 dotenv.config({ path: ".env.local" });
 
@@ -49,6 +50,7 @@ const TARGET_RESCUES = [
 const IMPORT_LIMIT_PER_RESCUE = 75;
 const DEFAULT_PLACEMENT_TYPE = "Shelter";
 const { ensureShelterForSource } = shelterUtils;
+const { fetchCompleteRescueGroupsRoster } = rosterUtils;
 
 if (!SUPABASE_URL) {
   console.error("Missing VITE_SUPABASE_URL in .env.local");
@@ -442,92 +444,23 @@ async function ensureShelterForRescue(rescue) {
   });
 }
 
-async function fetchDogsForRescueWithFilter(rescue, fieldName) {
-  const url = `${RESCUEGROUPS_BASE_URL}/animals/search/available?include=orgs,pictures&limit=100`;
-
-  const body = {
-    data: {
-      filters: [
-        {
-          fieldName: "species.singular",
-          operation: "equals",
-          criteria: "Dog",
-        },
-        {
-          fieldName: "statuses.name",
-          operation: "equals",
-          criteria: "Available",
-        },
-        {
-          fieldName,
-          operation: "equals",
-          criteria: rescue.orgId,
-        },
-      ],
-    },
-  };
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: RESCUEGROUPS_API_KEY,
-      "Content-Type": "application/vnd.api+json",
-    },
-    body: JSON.stringify(body),
+async function fetchDogsForRescue(rescue) {
+  const roster = await fetchCompleteRescueGroupsRoster({
+    apiUrl: `${RESCUEGROUPS_BASE_URL}/animals/search/available`,
+    apiKey: RESCUEGROUPS_API_KEY,
+    orgId: rescue.orgId,
+    buildRequestBody: () => ({
+      data: {
+        filters: [
+          { fieldName: "species.singular", operation: "equals", criteria: "Dog" },
+          { fieldName: "statuses.name", operation: "equals", criteria: "Available" },
+          { fieldName: "orgs.id", operation: "equals", criteria: rescue.orgId },
+        ],
+      },
+    }),
   });
 
-  const json = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      `Filter ${fieldName} failed for ${rescue.name} with status ${
-        response.status
-      }: ${JSON.stringify(json)}`
-    );
-  }
-
-  return {
-    animals: Array.isArray(json.data) ? json.data : [],
-    included: Array.isArray(json.included) ? json.included : [],
-  };
-}
-
-async function fetchDogsForRescue(rescue) {
-  const possibleOrgFilterFields = [
-    "orgs.id",
-    "org.id",
-    "organizations.id",
-    "organization.id",
-    "animalOrgID",
-    "animalOrgId",
-  ];
-
-  let lastError = null;
-
-  for (const fieldName of possibleOrgFilterFields) {
-    try {
-      console.log(`Trying ${rescue.name} org filter: ${fieldName}`);
-
-      const result = await fetchDogsForRescueWithFilter(rescue, fieldName);
-
-      console.log(
-        `Filter ${fieldName} returned ${result.animals.length} dogs for ${rescue.name}.`
-      );
-
-      if (result.animals.length > 0) {
-        return result;
-      }
-    } catch (error) {
-      lastError = error;
-      console.log(`Filter ${fieldName} did not work. Trying next option...`);
-    }
-  }
-
-  throw new Error(
-    `Could not fetch dogs for ${rescue.name}. Last error: ${
-      lastError?.message || "Unknown error"
-    }`
-  );
+  return { animals: roster.animals, included: roster.included };
 }
 
 async function findExistingDog(dogRow) {

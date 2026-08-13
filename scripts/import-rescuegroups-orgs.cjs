@@ -35,6 +35,7 @@ require("dotenv").config({ path: ".env.local" });
 const { createClient } = require("@supabase/supabase-js");
 const { ensureShelterForSource } = require("./rescuegroups-shelter-utils.cjs");
 const { resolveDogAvailability } = require("./dog-availability.cjs");
+const { fetchCompleteRescueGroupsRoster } = require("./rescuegroups-roster.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -390,7 +391,7 @@ async function fetchOrgMeta(orgId) {
   return json.data?.[0] || null;
 }
 
-function buildRequestBody(orgId, pageNumber) {
+function buildRequestBody(orgId) {
   return {
     data: {
       filters: [
@@ -422,40 +423,21 @@ function buildRequestBody(orgId, pageNumber) {
         statuses: ["name", "description"],
       },
       include: ["pictures", "orgs", "statuses"],
-      page: { limit: PAGE_LIMIT, offset: (pageNumber - 1) * PAGE_LIMIT },
     },
   };
 }
 
 async function fetchDogsForOrg(orgId) {
-  const allAnimals = [];
-  const allIncluded = [];
-
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber += 1) {
-    const res = await fetchWithTimeout(
-      `${RESCUEGROUPS_API_BASE}/public/animals/search/available`,
-      {
-        method: "POST",
-        headers: { Authorization: RESCUEGROUPS_API_KEY, "Content-Type": "application/vnd.api+json" },
-        body: JSON.stringify(buildRequestBody(orgId, pageNumber)),
-      },
-      API_TIMEOUT_MS
-    );
-
-    const json = await res.json();
-    if (!res.ok) throw new Error(`RescueGroups error for org ${orgId}: ${res.status} ${JSON.stringify(json)}`);
-
-    const animals = Array.isArray(json.data) ? json.data : [];
-    const included = Array.isArray(json.included) ? json.included : [];
-
-    allAnimals.push(...animals);
-    allIncluded.push(...included);
-
-    if (animals.length < PAGE_LIMIT) break;
-    await new Promise((r) => setTimeout(r, 150));
-  }
-
-  return { animals: allAnimals, included: allIncluded };
+  const roster = await fetchCompleteRescueGroupsRoster({
+    apiUrl: `${RESCUEGROUPS_API_BASE}/public/animals/search/available`,
+    apiKey: RESCUEGROUPS_API_KEY,
+    orgId,
+    buildRequestBody: () => buildRequestBody(orgId),
+    pageLimit: PAGE_LIMIT,
+    maxPages: MAX_PAGES,
+    timeoutMs: API_TIMEOUT_MS,
+  });
+  return { animals: roster.animals, included: roster.included, roster };
 }
 
 // ---------------------------------------------------------------------------

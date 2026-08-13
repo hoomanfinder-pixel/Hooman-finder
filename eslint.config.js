@@ -10,12 +10,11 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
-      reactHooks.configs.flat.recommended,
+      reactHooks.configs['flat/recommended'],
       reactRefresh.configs.vite,
     ],
     languageOptions: {
       ecmaVersion: 2020,
-      globals: globals.browser,
       parserOptions: {
         ecmaVersion: 'latest',
         ecmaFeatures: { jsx: true },
@@ -24,6 +23,31 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+  {
+    files: ['src/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
+  {
+    files: ['*.js', 'scripts/**/*.{js,cjs,mjs}', 'e2e/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+      },
+    },
+    rules: {
+      // Playwright injects a fixture callback named `use`; it is not a React hook.
+      'react-hooks/rules-of-hooks': 'off',
     },
   },
 ])

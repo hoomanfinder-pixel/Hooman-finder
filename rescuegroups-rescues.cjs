@@ -1,68 +1,10 @@
 // rescuegroups-rescues.cjs
 
-const RESCUES = [
-  {
-    name: "Happy Days Dog and Cat Rescue",
-    city: "Livonia",
-    state: "MI",
-    rescueGroupsOrgId: "7921",
-    supabaseShelterId: "2bd4355c-93f6-4f8d-8e47-4b734a24e953",
-    enabled: true,
-  },
-  {
-    name: "Detroit Animal Care and Control",
-    city: "Detroit",
-    state: "MI",
-    rescueGroupsOrgId: "8883",
-    supabaseShelterId: null,
-    enabled: true,
-  },
-  {
-    name: "LUVUMALL ANIMAL RESCUE",
-    city: "Marine City",
-    state: "MI",
-    rescueGroupsOrgId: "5470",
-    supabaseShelterId: "324ff4ca-b15a-4948-9281-e815ec085694",
-    enabled: true,
-  },
+const { RESCUEGROUPS_SOURCES } = require("./scripts/rescuegroups-sources.cjs");
 
-  // Peace Love and Paws did not return usable dogs from RescueGroups yet.
-  // Keep it disabled until we confirm whether they are listed in RescueGroups
-  // or need a different import method.
-  {
-    name: "Peace Love and Paws",
-    city: "Detroit",
-    state: "MI",
-    rescueGroupsOrgId: null,
-    supabaseShelterId: null,
-    enabled: false,
-  },
-
-  // Saved for later once we confirm sources/import method
-  {
-    name: "Detroit Dog Rescue",
-    city: "Detroit",
-    state: "MI",
-    rescueGroupsOrgId: null,
-    supabaseShelterId: null,
-    enabled: false,
-  },
-  {
-    name: "Rebel Dogs Detroit",
-    city: "Detroit",
-    state: "MI",
-    rescueGroupsOrgId: null,
-    supabaseShelterId: null,
-    enabled: false,
-  },
-  {
-    name: "Friends of Detroit Animal Care and Control",
-    city: "Detroit",
-    state: "MI",
-    rescueGroupsOrgId: null,
-    supabaseShelterId: null,
-    enabled: false,
-  },
-];
+// Backwards-compatible export name for the scheduled sync. The registry is
+// intentionally limited to represented organizations whose non-zero current
+// RescueGroups rosters were verified before activation.
+const RESCUES = RESCUEGROUPS_SOURCES;
 
 module.exports = { RESCUES };

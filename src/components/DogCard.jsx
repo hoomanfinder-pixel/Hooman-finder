@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
-  getDogApplyLink,
   getDogSourceLocation,
   getDogSourceName,
 } from "../lib/dogSource";
@@ -29,7 +28,9 @@ function writeSavedIds(ids) {
   try {
     localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
     window.dispatchEvent(new Event("hooman:saved_changed"));
-  } catch {}
+  } catch {
+    // Saving is best-effort when browser storage is unavailable.
+  }
 }
 
 function isSavedId(id) {
@@ -158,20 +159,6 @@ function hasStructuredDogInfo(dog) {
   );
 }
 
-function buildDogInfoBullets(dog) {
-  const bullets = [];
-
-  if (dog?.size) bullets.push(`${dog.size} size`);
-  if (dog?.energy_level) bullets.push(`${dog.energy_level} energy`);
-  if (dog?.good_with_dogs === true) bullets.push("Listed as good with dogs");
-  if (dog?.good_with_cats === true) bullets.push("Listed as good with cats");
-  if (dog?.good_with_kids === true) bullets.push("Listed as good with kids");
-  if (dog?.potty_trained === true) bullets.push("Potty trained");
-  if (dog?.hypoallergenic === true) bullets.push("Hypoallergenic");
-
-  return bullets.slice(0, 4);
-}
-
 function getMatchState({ dog, scorePct, breakdown }) {
   const hasScore = isRealMatchScore(scorePct, breakdown);
   const limitedInformation = breakdown?.limitedInformation === true;
@@ -253,10 +240,6 @@ function getMatchState({ dog, scorePct, breakdown }) {
     pillText: "More info needed",
     showScoreCircle: false,
   };
-}
-
-function displayApplyLink(dog) {
-  return getDogApplyLink(dog);
 }
 
 function displayLocation(dog) {
@@ -376,7 +359,6 @@ export default function DogCard({
   const [imageFailed, setImageFailed] = useState(false);
 
   const urgency = dog?.urgency_level || "Standard";
-  const applyLink = displayApplyLink(dog);
   const rawImgSrc = useMemo(
     () => [dog?.photo_url, dog?.image_url, dog?.photo, dog?.image, dog?.primary_photo_url]
       .map((url) => normalizeImageUrl(url, { allowRelative: false }))
@@ -449,12 +431,6 @@ export default function DogCard({
     setImageFailed(false);
   }, [dog?.id, rawImgSrc]);
 
-  function openFromClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    setOpenModal(true);
-  }
-
   function closeModal() {
     setOpenModal(false);
   }
@@ -465,15 +441,6 @@ export default function DogCard({
 
     const nextSaved = toggleSavedId(dog?.id);
     setSaved(nextSaved);
-  }
-
-  function onApplyClick(e) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    if (!applyLink) return;
-
-    window.open(applyLink, "_blank", "noopener,noreferrer");
   }
 
   const heartButton = (

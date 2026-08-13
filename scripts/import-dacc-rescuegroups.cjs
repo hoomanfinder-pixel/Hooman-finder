@@ -17,6 +17,7 @@ require("dotenv").config();
 
 const { createClient } = require("@supabase/supabase-js");
 const { resolveDogAvailability } = require("./dog-availability.cjs");
+const { fetchCompleteRescueGroupsRoster } = require("./rescuegroups-roster.cjs");
 const {
   DACC_ADOPT_URL,
   DACC_WEBSITE,
@@ -428,7 +429,7 @@ function mapAnimalToDogRow(animal, included) {
   return row;
 }
 
-function buildRequestBody(pageNumber) {
+function buildRequestBody() {
   return {
     data: {
       filters: [
@@ -518,10 +519,6 @@ function buildRequestBody(pageNumber) {
         orgs: ["name", "city", "state", "url", "website", "email"],
       },
       include: ["pictures", "orgs"],
-      page: {
-        limit: PAGE_LIMIT,
-        offset: (pageNumber - 1) * PAGE_LIMIT,
-      },
     },
   };
 }
@@ -576,20 +573,16 @@ async function fetchPage(apiKey, pageNumber) {
 }
 
 async function fetchAllDogs(apiKey) {
-  const allAnimals = [];
-  const allIncluded = [];
-
-  for (let pageNumber = 1; pageNumber <= MAX_PAGES; pageNumber += 1) {
-    const { animals, included, meta } = await fetchPage(apiKey, pageNumber);
-
-    allAnimals.push(...animals);
-    allIncluded.push(...included);
-
-    const totalPages = Number(meta.pages || 1);
-    if (animals.length < PAGE_LIMIT || pageNumber >= totalPages) break;
-  }
-
-  return { animals: allAnimals, included: allIncluded };
+  const roster = await fetchCompleteRescueGroupsRoster({
+    apiUrl: RESCUEGROUPS_API_URL,
+    apiKey,
+    orgId: DACC_ORG_ID,
+    buildRequestBody,
+    pageLimit: PAGE_LIMIT,
+    maxPages: MAX_PAGES,
+    timeoutMs: API_TIMEOUT_MS,
+  });
+  return { animals: roster.animals, included: roster.included };
 }
 
 function uniqueDogs(dogs) {

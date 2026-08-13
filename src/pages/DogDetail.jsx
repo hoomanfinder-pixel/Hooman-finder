@@ -44,7 +44,9 @@ function writeSavedIds(ids) {
   try {
     localStorage.setItem(SAVED_KEY, JSON.stringify(ids));
     window.dispatchEvent(new Event("hooman:saved_changed"));
-  } catch {}
+  } catch {
+    // Saving is best-effort when browser storage is unavailable.
+  }
 }
 
 function isSavedId(id) {
@@ -260,17 +262,6 @@ function getEstimatedTextTrait({ value, displayValue, evidenceBasis }) {
     value: displayValue || raw,
     estimated: true,
     ...estimatedTraitMetadata(evidenceBasis),
-  };
-}
-
-function getSimpleTrait({ value }) {
-  return {
-    value:
-      value === null || value === undefined || value === ""
-        ? "Unknown"
-        : String(value),
-    source: "listed",
-    estimated: false,
   };
 }
 

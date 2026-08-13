@@ -55,6 +55,17 @@ test("external URLs require a real hostname", () => {
   assert.equal(normalizeExternalUrl("http://projecthoperescue.org"), "https://projecthoperescue.org");
 });
 
+test("external URLs continue to reject control and delimiter characters", () => {
+  for (const unsafeCharacter of ["\u0000", "\u001f", "\u007f", "<", ">", '"', "'", "`", "\\"]) {
+    assert.equal(normalizeExternalUrl(`https://example.com/${unsafeCharacter}unsafe`), "");
+  }
+
+  assert.equal(
+    normalizeExternalUrl("https://example.com/safe-path?dog=Louise"),
+    "https://example.com/safe-path?dog=Louise"
+  );
+});
+
 test("allergy quiz options use the database constraint values", () => {
   const question = ALL_QUESTIONS.find(({ id }) => id === "allergy_sensitivity");
   assert.deepEqual(question.options.map(({ value }) => value), ["have_allergies", "mild_allergies", "no_allergies"]);
