@@ -36,11 +36,12 @@ const app = (
   </React.StrictMode>
 );
 
-// Production serves a build-time-rendered homepage at `/`, while all other
-// direct routes receive the empty SPA shell. Hydrate only that exact homepage
-// shell; development and non-home routes continue using a normal client root.
+// Home is eagerly imported by the browser app, so its server tree can hydrate
+// exactly. Other indexable routes are code-split: their crawler-visible build
+// snapshot is replaced with a normal client root instead of attempting to
+// hydrate through a lazy Suspense boundary with a different server tree.
 if (
-  rootElement.dataset.prerenderedHome === "true" &&
+  rootElement.dataset.prerenderedRoute === "/" &&
   window.location.pathname === "/"
 ) {
   hydrateRoot(rootElement, app);

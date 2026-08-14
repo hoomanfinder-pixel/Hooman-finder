@@ -28,6 +28,7 @@ const STATIC_ROUTES = [
   { path: "/contact", changefreq: "yearly", priority: "0.4" },
   { path: "/privacy", changefreq: "yearly", priority: "0.2" },
   { path: "/terms", changefreq: "yearly", priority: "0.2" },
+  { path: "/shelters/join", changefreq: "monthly", priority: "0.4" },
 ];
 
 
@@ -71,6 +72,18 @@ function dogEntries(dogs) {
     changefreq: "daily",
     priority: "0.7",
   }));
+}
+
+function shelterEntries(dogs, shelterById) {
+  const ids = new Set(dogs.map((dog) => dog.shelter_id).filter(Boolean));
+  return Array.from(ids)
+    .filter((id) => shelterById.has(id))
+    .sort((a, b) => String(a).localeCompare(String(b)))
+    .map((id) => ({
+      loc: `${SITE_URL}/shelter/${encodeURIComponent(String(id))}`,
+      changefreq: "daily",
+      priority: "0.6",
+    }));
 }
 
 function buildXml(entries) {
@@ -163,9 +176,10 @@ async function main() {
     priority: route.priority,
   }));
   const dogsOnly = dogEntries(dogs);
+  const sheltersOnly = shelterEntries(dogs, shelterById);
 
   fs.writeFileSync(DOG_SITEMAP_PATH, buildXml(dogsOnly), "utf8");
-  fs.writeFileSync(SITEMAP_PATH, buildXml([...staticEntries, ...dogsOnly]), "utf8");
+  fs.writeFileSync(SITEMAP_PATH, buildXml([...staticEntries, ...sheltersOnly, ...dogsOnly]), "utf8");
   const publicShelters = new Set(
     dogs.map((dog) => getDogSourceName(dog, "").toLowerCase()).filter(Boolean)
   );

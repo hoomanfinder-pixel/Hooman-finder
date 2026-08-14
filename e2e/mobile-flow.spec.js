@@ -21,8 +21,10 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
   await expectNoHorizontalOverflow(page);
 
   await page.getByRole("link", { name: "Take the Quiz", exact: true }).first().click();
-  await expect(page).toHaveURL(/\/quiz\?session=[^&]+&mode=dealbreakers/);
-  await expect(page.getByRole("heading", { name: "Start your match" })).toBeVisible();
+  await expect(page).toHaveURL(/\/quiz$/);
+  await expect(
+    page.getByRole("heading", { name: "Find an adoptable dog that fits your lifestyle" })
+  ).toBeVisible();
 
   const firstAnswer = page.getByRole("button", {
     name: "Any size / flexible",

@@ -1,12 +1,17 @@
 // src/pages/Shelter.jsx
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import DogCard from "../components/DogCard";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import { normalizeExternalUrl } from "../lib/urlSafety";
+import SEO from "../components/SEO";
+import Breadcrumbs, { StructuredData } from "../components/Breadcrumbs";
+import { breadcrumbJsonLd } from "../lib/structuredData";
+import { readPrerenderData } from "../lib/siteSeo";
+import { normalizeDogLocation } from "../lib/dogProfileSeo";
 
 function getParam(search, key) {
   const params = new URLSearchParams(search);
@@ -23,9 +28,12 @@ export default function Shelter() {
     [location.search]
   );
 
-  const [loading, setLoading] = useState(true);
-  const [shelter, setShelter] = useState(null);
-  const [dogs, setDogs] = useState([]);
+  const initialData = useMemo(() => readPrerenderData("shelterPage"), []);
+  const [loading, setLoading] = useState(!initialData?.shelter);
+  const [shelter, setShelter] = useState(initialData?.shelter || null);
+  const [dogs, setDogs] = useState(
+    filterPublicDogs(initialData?.dogs || [])
+  );
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -110,14 +118,45 @@ export default function Shelter() {
     );
   }
 
-  const locationLine = [shelter.city, shelter.state].filter(Boolean).join(", ");
+  const locationLine = normalizeDogLocation(
+    [shelter.city, shelter.state].filter(Boolean).join(", ")
+  );
   const applyUrl = normalizeExternalUrl(shelter.apply_url || shelter.website || "");
+  const shelterTitle = `${shelter.name || "Animal Shelter"} Dogs for Adoption${locationLine ? ` in ${locationLine}` : ""} | Hooman Finder`;
+  const shelterDescription = `View current adoptable dogs from ${shelter.name || "this shelter or rescue"}${locationLine ? ` in ${locationLine}` : ""}, with confirmed profile details and links to the official adoption source.`;
+  const breadcrumbItems = [
+    { label: "Home", to: "/" },
+    { label: "Dogs", to: "/dogs" },
+    { label: shelter.name || "Shelter", to: `/shelter/${id}` },
+  ];
 
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
+      <SEO
+        title={shelterTitle}
+        description={shelterDescription}
+        canonicalPath={`/shelter/${id}`}
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt={`Adoptable dogs from ${shelter.name || "a shelter or rescue"}`}
+      />
+      <StructuredData
+        value={{
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "CollectionPage",
+              name: shelterTitle,
+              url: `https://hoomanfinder.com/shelter/${id}`,
+              description: shelterDescription,
+            },
+            breadcrumbJsonLd(breadcrumbItems),
+          ],
+        }}
+      />
       <SiteHeader />
 
       <div className="mx-auto max-w-6xl w-full px-6 py-10 flex-1">
+        <Breadcrumbs items={breadcrumbItems} />
         <button
           onClick={() => navigate(-1)}
           className="text-sm text-[#6F6A66] hover:text-[#183D35]"
@@ -184,12 +223,21 @@ export default function Shelter() {
 
           {dogs.length > 6 && (
             <div className="mt-6">
-              <button
-                onClick={viewDogs}
-                className="text-sm font-semibold text-[#183D35] underline hover:decoration-[#183D35]"
-              >
-                View all {dogs.length} dogs →
-              </button>
+              <h3 className="font-['Fraunces',serif] text-base font-semibold text-[#183D35]">
+                All current dogs from {shelter.name}
+              </h3>
+              <ul className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                {dogs.map((dog) => (
+                  <li key={dog.id}>
+                    <Link
+                      to={`/dog/${dog.id}`}
+                      className="font-semibold text-[#183D35] underline decoration-[#C7D4BB] underline-offset-4 hover:decoration-[#183D35]"
+                    >
+                      {dog.name || "Adoptable dog"}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

@@ -5,9 +5,11 @@ import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import SEO from "../components/SEO";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
+import Breadcrumbs, { StructuredData } from "../components/Breadcrumbs";
+import { breadcrumbJsonLd } from "../lib/structuredData";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
-import { buildDogProfileMetadata } from "../lib/dogProfileSeo";
+import { buildDogProfileMetadata, normalizeDogLocation } from "../lib/dogProfileSeo";
 import { trackAdoptionLinkClick } from "../lib/googleAnalytics";
 import {
   getDogApplyLink,
@@ -111,7 +113,7 @@ function displayShelterLogo(dog) {
 }
 
 function displayLocation(dog) {
-  return getDogSourceLocation(dog);
+  return normalizeDogLocation(getDogSourceLocation(dog));
 }
 
 function displayApplyLink(dog) {
@@ -590,17 +592,19 @@ export default function DogDetail() {
   const age = displayAge(dog);
   const breed = displayBreed(dog);
   const shelterName = displayShelterName(dog);
+  const shelterId = dog?.shelters?.id || dog?.shelter_id || "";
   const shelterLogo = displayShelterLogo(dog);
   const location = displayLocation(dog);
   const applyLink = displayApplyLink(dog);
   const applyLabel = displayApplyLabel(dog);
   const description = cleanText(dog.description) || "A full description isn't available here yet.";
-  const coreFactsLine = [breed, age, dog.size, dog.energy_level].filter(Boolean).join(" • ");
+  const coreFactsLine = [breed, age, dog.gender, dog.size, dog.energy_level].filter(Boolean).join(" • ");
   const bioIsLong = description.length > BIO_PREVIEW_LENGTH;
   const bioPreview = getPreviewText(description);
   const quickFacts = [
     { label: "Breed", value: breed },
     { label: "Age", value: age },
+    dog.gender ? { label: "Gender", value: dog.gender } : null,
     dog.size ? { label: "Size", value: dog.size } : null,
     dog.energy_level ? { label: "Energy", value: dog.energy_level } : null,
     location !== "Location unknown" ? { label: "Location", value: location } : null,
@@ -828,7 +832,35 @@ export default function DogDetail() {
         ctas={[{ label: "View saved dogs", to: "/saved", variant: "secondary" }]}
       />
 
+      <StructuredData
+        value={{
+          "@context": "https://schema.org",
+          "@graph": [
+            {
+              "@type": "ItemPage",
+              name: sharedSeo.title,
+              url: sharedSeo.canonicalUrl,
+              description: sharedSeo.description,
+            },
+            breadcrumbJsonLd([
+              { label: "Home", to: "/" },
+              { label: "Dogs", to: "/dogs" },
+              ...(shelterId ? [{ label: shelterName, to: `/shelter/${shelterId}` }] : []),
+              { label: name, to: `/dog/${id}` },
+            ]),
+          ],
+        }}
+      />
+
       <div className="mx-auto max-w-5xl px-4 py-5 sm:py-6">
+        <Breadcrumbs
+          items={[
+            { label: "Home", to: "/" },
+            { label: "Dogs", to: "/dogs" },
+            ...(shelterId ? [{ label: shelterName, to: `/shelter/${shelterId}` }] : []),
+            { label: name, to: `/dog/${id}` },
+          ]}
+        />
         <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#183D35]/10 bg-white shadow-sm">
           <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="relative aspect-[5/4] w-full bg-[#EFE8DC] lg:aspect-auto lg:min-h-[360px]">
@@ -1166,7 +1198,16 @@ export default function DogDetail() {
               )}
 
               <div className="min-w-0">
-                <div className="break-words font-semibold text-[#183D35]">{shelterName}</div>
+                {shelterId ? (
+                  <Link
+                    to={`/shelter/${shelterId}`}
+                    className="break-words font-semibold text-[#183D35] underline-offset-4 hover:underline"
+                  >
+                    {shelterName}
+                  </Link>
+                ) : (
+                  <div className="break-words font-semibold text-[#183D35]">{shelterName}</div>
+                )}
                 <div className="break-words text-sm text-[#6F6A66]">{location}</div>
               </div>
             </div>

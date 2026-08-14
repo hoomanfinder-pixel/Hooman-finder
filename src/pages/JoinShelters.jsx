@@ -1,8 +1,10 @@
 // src/pages/JoinShelters.jsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import SiteHeader from "../components/SiteHeader";
 import SiteFooter from "../components/SiteFooter";
+import SEO from "../components/SEO";
+import { INDEXABLE_ROUTE_SEO } from "../lib/siteSeo";
 
 const CONTACT_EMAIL = "info@hoomanfinder.com";
 
@@ -50,7 +52,6 @@ function StepPill({ n, title, desc }) {
 }
 
 export default function JoinShelters() {
-  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   function scrollToWhyJoin() {
@@ -70,9 +71,16 @@ export default function JoinShelters() {
 
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35] flex flex-col">
+      <SEO
+        title={INDEXABLE_ROUTE_SEO["/shelters/join"].title}
+        description={INDEXABLE_ROUTE_SEO["/shelters/join"].description}
+        canonicalPath="/shelters/join"
+        ogImage="/home-hero-dogs.jpg"
+        ogImageAlt="Adoptable shelter and rescue dogs"
+      />
       <SiteHeader />
 
-      <div className="mx-auto max-w-5xl w-full px-6 py-10 flex-1">
+      <main className="mx-auto max-w-5xl w-full px-6 py-10 flex-1">
         {/* Hero */}
         <div>
           <h1 className="font-['Fraunces',serif] text-3xl md:text-4xl font-semibold text-[#183D35]">
@@ -84,18 +92,18 @@ export default function JoinShelters() {
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => navigate("/dogs")}
+            <Link
+              to="/dogs"
               className="rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
             >
               Browse adoptable dogs →
-            </button>
-            <button
-              onClick={() => navigate("/")}
+            </Link>
+            <Link
+              to="/"
               className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#183D35] hover:bg-[#EFE8DC]"
             >
               Back to home
-            </button>
+            </Link>
             <button
               onClick={scrollToWhyJoin}
               className="text-sm font-semibold text-[#183D35] underline-offset-4 hover:underline"
@@ -207,18 +215,18 @@ export default function JoinShelters() {
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                onClick={() => navigate("/dogs")}
+              <Link
+                to="/dogs"
                 className="rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
               >
                 Browse adoptable dogs →
-              </button>
-              <button
-                onClick={() => navigate("/")}
+              </Link>
+              <Link
+                to="/"
                 className="rounded-full border border-[#C7D4BB] bg-white px-5 py-2.5 text-sm font-semibold text-[#183D35] hover:bg-[#EFE8DC]"
               >
                 Back to home
-              </button>
+              </Link>
             </div>
 
             <p className="mt-3 text-xs text-[#6F6A66]">
@@ -285,7 +293,7 @@ export default function JoinShelters() {
             </div>
           </Card>
         </div>
-      </div>
+      </main>
 
       <SiteFooter />
     </div>

@@ -1,6 +1,6 @@
 // src/App.jsx
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 
 import Home from "./pages/Home.jsx";
 
@@ -15,6 +15,7 @@ const About = lazy(() => import("./pages/About.jsx"));
 const Contact = lazy(() => import("./pages/Contact.jsx"));
 const Privacy = lazy(() => import("./pages/Privacy.jsx"));
 const Terms = lazy(() => import("./pages/Terms.jsx"));
+const NotFound = lazy(() => import("./pages/NotFound.jsx"));
 
 function ScrollToTop() {
   const location = useLocation();
@@ -83,7 +84,7 @@ export default function App() {
             <Route path="/shelters/join" element={<JoinShelters />} />
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </div>

@@ -28,8 +28,10 @@ const PUBLIC_DOG = {
   age_text: "2 years",
   age_years: 2,
   size: "Large",
+  gender: "female",
   placement_city: "Detroit",
-  placement_state: "MI",
+  placement_state: "mi",
+  shelter_id: "shelter-123",
   shelter_name: "Detroit Dog Rescue",
   description: "A gentle, house-trained dog who enjoys neighborhood walks.",
   photo_url: "https://images.example.org/mabel.jpg",
@@ -52,8 +54,10 @@ test("confirmed dog profile excludes AI-estimated traits", () => {
     breed: "Labrador Retriever",
     age: "2 years",
     size: "Large",
+    gender: "Female",
     location: "Detroit, MI",
     shelterName: "Detroit Dog Rescue",
+    shelterId: "shelter-123",
     description: "A gentle, house-trained dog who enjoys neighborhood walks.",
     image: "https://images.example.org/mabel.jpg",
     adoptionUrl: "https://adopt.example.org/mabel",
@@ -65,15 +69,16 @@ test("confirmed dog profile excludes AI-estimated traits", () => {
 test("server dog document contains crawlable profile content and canonical metadata", () => {
   const html = buildDogDocument(PUBLIC_DOG);
 
-  assert.match(html, /<title>Mabel &amp; Friends - Adoptable Labrador Retriever \| Hooman Finder<\/title>/);
+  assert.match(html, /<title>Mabel &amp; Friends for Adoption in Detroit, MI \| Hooman Finder<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/hoomanfinder\.com\/dog\/dog-123" \/>/);
   assert.match(html, /<main data-dog-profile-snapshot="true">/);
   assert.match(html, /<h1>Mabel &amp; Friends<\/h1>/);
   assert.match(html, /<dt>Breed<\/dt><dd>Labrador Retriever<\/dd>/);
   assert.match(html, /<dt>Age<\/dt><dd>2 years<\/dd>/);
   assert.match(html, /<dt>Size<\/dt><dd>Large<\/dd>/);
+  assert.match(html, /<dt>Gender<\/dt><dd>Female<\/dd>/);
   assert.match(html, /<dt>Location<\/dt><dd>Detroit, MI<\/dd>/);
-  assert.match(html, /Listed by <strong>Detroit Dog Rescue<\/strong>/);
+  assert.match(html, /href="\/shelter\/shelter-123"><strong>Detroit Dog Rescue<\/strong><\/a>/);
   assert.match(html, /A gentle, house-trained dog who enjoys neighborhood walks\./);
   assert.match(html, /src="https:\/\/images\.example\.org\/mabel\.jpg"/);
   assert.match(html, /href="https:\/\/adopt\.example\.org\/mabel"/);
@@ -125,10 +130,30 @@ test("shared metadata keeps React and server title and description inputs aligne
 
   assert.equal(
     metadata.title,
-    "Mabel & Friends - Adoptable Labrador Retriever | Hooman Finder"
+    "Mabel & Friends for Adoption in Detroit, MI | Hooman Finder"
   );
   assert.equal(
     metadata.description,
-    "Meet Mabel & Friends, an adoptable Labrador Retriever listed through Detroit Dog Rescue. View photos, rescue details, and lifestyle fit information on Hooman Finder."
+    "Meet Mabel & Friends — female, 2 years, Labrador Retriever — available for adoption in Detroit, MI. View confirmed details and the official adoption link."
   );
+});
+
+test("metadata normalizes state casing and never uses AI estimates", () => {
+  const metadata = buildDogProfileMetadata(
+    {
+      ...PUBLIC_DOG,
+      placement_city: "Muskegon",
+      placement_state: "mi",
+      bio_energy_level: "high",
+      ai_traits: { apartment_friendly: { value: "true" } },
+    },
+    PUBLIC_DOG.id,
+    { publiclyVisible: true }
+  );
+
+  assert.match(metadata.title, /Muskegon, MI/);
+  assert.match(metadata.description, /female/);
+  assert.doesNotMatch(metadata.description, /high|apartment/i);
+  assert.doesNotMatch(metadata.description, /…/);
+  assert.ok(metadata.description.length <= 160);
 });

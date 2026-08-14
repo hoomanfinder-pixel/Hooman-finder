@@ -5,6 +5,8 @@ import DogCard from "../components/DogCard";
 import DogGridSkeleton from "../components/DogGridSkeleton";
 import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
+import Breadcrumbs, { StructuredData } from "../components/Breadcrumbs";
+import { breadcrumbJsonLd } from "../lib/structuredData";
 import { filterPublicDogs } from "../lib/dogVisibility";
 import {
   getDogApplyLink,
@@ -13,6 +15,7 @@ import {
   hasDogLevelSource,
 } from "../lib/dogSource";
 import { supabase } from "../lib/supabase";
+import { INDEXABLE_ROUTE_SEO, readPrerenderData } from "../lib/siteSeo";
 
 const AGE_OPTIONS = [
   { label: "All ages", value: "all" },
@@ -131,8 +134,12 @@ function getShelterName(dog) {
 }
 
 export default function Dogs() {
-  const [loading, setLoading] = useState(true);
-  const [dogs, setDogs] = useState([]);
+  const initialDogs = useMemo(
+    () => filterPublicDogs(readPrerenderData("dogs") || []).map(normalizeDog),
+    []
+  );
+  const [loading, setLoading] = useState(initialDogs.length === 0);
+  const [dogs, setDogs] = useState(initialDogs);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersRef = useRef(null);
 
@@ -300,11 +307,28 @@ export default function Dogs() {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
-        title="Browse Adoptable Dogs | Hooman Finder"
-        description="Browse adoptable shelter and rescue dogs and save favorites while you compare fit by home, lifestyle, energy, care needs, and source details."
+        title={INDEXABLE_ROUTE_SEO["/dogs"].title}
+        description={INDEXABLE_ROUTE_SEO["/dogs"].description}
         canonicalPath="/dogs"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Adoptable dogs available through Hooman Finder"
+      />
+      <StructuredData
+        value={{
+          "@context": "https://schema.org",
+          "@graph": [
+            breadcrumbJsonLd([
+              { label: "Home", to: "/" },
+              { label: "Dogs", to: "/dogs" },
+            ]),
+            {
+              "@type": "CollectionPage",
+              name: "Adoptable rescue dogs",
+              url: "https://hoomanfinder.com/dogs",
+              description: INDEXABLE_ROUTE_SEO["/dogs"].description,
+            },
+          ],
+        }}
       />
 
       <header className="sticky top-0 z-50 border-b border-[#C7D4BB]/60 bg-[#F5F1E9]/95 backdrop-blur">
@@ -357,17 +381,25 @@ export default function Dogs() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <Breadcrumbs
+          items={[
+            { label: "Home", to: "/" },
+            { label: "Dogs", to: "/dogs" },
+          ]}
+        />
         <section className="pb-1.5">
           <p className="text-[10.5px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
             Available dogs
           </p>
 
           <h1 className="mt-1.5 max-w-2xl font-['Fraunces',serif] text-[1.75rem] font-semibold leading-[1.05] text-[#183D35] sm:text-4xl">
-            Browse adoptable dogs.
+            Browse current adoptable rescue dogs.
           </h1>
 
           <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-[#6F6A66] sm:text-base sm:leading-6">
-            Save favorites or take the quiz for guided matches.
+            These current dogs are listed through shelters and rescues represented on
+            Hooman Finder. Open a profile for confirmed details and the official adoption link,
+            or take the quiz for guided matches.
           </p>
         </section>
 

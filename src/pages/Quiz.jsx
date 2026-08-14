@@ -18,6 +18,7 @@ import {
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
 import { trackQuizComplete, trackQuizStart } from "../lib/googleAnalytics";
+import { INDEXABLE_ROUTE_SEO } from "../lib/siteSeo";
 
 function ensureSessionId(existing) {
   if (existing) return existing;
@@ -126,15 +127,7 @@ export default function Quiz() {
 
   useEffect(() => {
     setActiveQuizSessionId(sessionId);
-
-    if (!sessionFromUrl || sessionFromUrl !== sessionId) {
-      const next = new URLSearchParams(searchParams);
-      next.set("session", sessionId);
-      next.set("mode", mode);
-      setSearchParams(next, { replace: true });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId, mode]);
+  }, [sessionId]);
 
   function scrollToElement(element) {
     if (!element || typeof element.scrollIntoView !== "function") return;
@@ -209,6 +202,16 @@ export default function Quiz() {
 
     setAnswersById(nextAnswers);
     if (isFirstAnswer) trackQuizStart(sessionId);
+
+    // Keep the stable /quiz landing URL indexable until the visitor actually
+    // begins a personalized session. From the first answer onward, the URL is
+    // session-specific and SEO marks it noindex.
+    if (!sessionFromUrl) {
+      const next = new URLSearchParams(searchParams);
+      next.set("session", sessionId);
+      next.set("mode", mode);
+      setSearchParams(next, { replace: true });
+    }
 
     try {
       setSaveError("");
@@ -330,12 +333,12 @@ export default function Quiz() {
   return (
     <div className="min-h-screen bg-[#f5f1e9] font-['Inter',sans-serif] text-[#183D35]">
       <SEO
-        title="Dog Adoption Matching Quiz | Hooman Finder"
-        description="Take Hooman Finder's dog adoption matching quiz to compare adoptable shelter and rescue dogs by home, routine, lifestyle fit, energy, and care preferences."
+        title={INDEXABLE_ROUTE_SEO["/quiz"].title}
+        description={INDEXABLE_ROUTE_SEO["/quiz"].description}
         canonicalPath="/quiz"
         ogImage="/home-hero-dogs.jpg"
         ogImageAlt="Shelter and rescue dogs looking for a good lifestyle match"
-        noindex={Boolean(sessionFromUrl)}
+        noindex={Boolean(sessionFromUrl) || hasAnyAnswers}
       />
       <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-3 pb-36 pt-1.5 sm:px-5 sm:pb-36 sm:pt-3">
         <header className="sticky top-0 z-30 -mx-3 border-b border-[#183D35]/10 bg-[#f5f1e9]/95 px-3 py-2 backdrop-blur sm:-mx-5 sm:px-5">
@@ -434,7 +437,9 @@ export default function Quiz() {
                 </p>
 
                 <h1 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-5xl">
-                  {pageTitle}
+                  {mode === QUIZ_MODES.DEALBREAKERS
+                    ? "Find an adoptable dog that fits your lifestyle"
+                    : pageTitle}
                 </h1>
 
                 <p className="mt-1.5 max-w-xl text-xs font-semibold leading-5 text-[#6f6a66] sm:text-sm">

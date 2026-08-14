@@ -17,8 +17,10 @@ test("homepage loads and navigates to the quiz", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("link", { name: "Take the Quiz", exact: true }).first().click();
 
-  await expect(page).toHaveURL(/\/quiz\?session=[^&]+&mode=dealbreakers/);
-  await expect(page.getByRole("heading", { name: "Start your match" })).toBeVisible();
+  await expect(page).toHaveURL(/\/quiz$/);
+  await expect(
+    page.getByRole("heading", { name: "Find an adoptable dog that fits your lifestyle" })
+  ).toBeVisible();
 });
 
 test("homepage navigates to browse dogs", async ({ page }) => {
@@ -26,7 +28,9 @@ test("homepage navigates to browse dogs", async ({ page }) => {
   await page.getByRole("link", { name: "Browse Dogs", exact: true }).first().click();
 
   await expect(page).toHaveURL(/\/dogs$/);
-  await expect(page.getByRole("heading", { name: "Browse adoptable dogs." })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Browse current adoptable rescue dogs." }),
+  ).toBeVisible();
   await expect(page.getByText("2 available dogs")).toBeVisible();
 });
 
