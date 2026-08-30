@@ -41,6 +41,8 @@ const API_MAX_ATTEMPTS = 3;
 const API_RETRY_DELAY_MS = 1000;
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 5;
+const DACC_SHELTERMANAGER_UNAVAILABLE_REASON =
+  "No longer present in the current DACC ShelterManager adoptable roster";
 
 const SPARSE_SOURCE_FIELDS = [
   "breed",
@@ -565,6 +567,22 @@ function buildExistingDogUpdate(dog, existingDog) {
     delete updateRow.shelter_id;
   }
 
+  // ShelterManager is the current-availability authority for DACC. Once two
+  // valid ShelterManager rosters have confirmed an exact shelter code absent,
+  // the upstream RescueGroups feed must not republish that row on its next
+  // sync. The DACC reconciliation pass clears the confirmed-absent timestamp
+  // and restores availability only after the exact code reappears there.
+  if (
+    String(dog.rescuegroups_org_id || existingDog.rescuegroups_org_id || "") ===
+      DACC_RESCUEGROUPS_ORG_ID &&
+    existingDog.dacc_sheltermanager_confirmed_absent_at
+  ) {
+    updateRow.adoptable = false;
+    updateRow.adoption_pending = false;
+    updateRow.availability_status = "unavailable";
+    updateRow.unavailable_reason = DACC_SHELTERMANAGER_UNAVAILABLE_REASON;
+  }
+
   updateRow.source_content_hash = computeSourceContentHash(
     mergeHashedSnapshot(existingDog, updateRow)
   );
@@ -826,7 +844,17 @@ async function upsertDogs(dogs) {
   // Includes every HASHED_FIELDS column (not just the ones this script writes)
   // so source_content_hash can be computed from the true final row state via
   // mergeHashedSnapshot below, not a partial view of it.
-  const existingDogSelect = `id, rescuegroups_id, external_id, ${HASHED_FIELDS.join(", ")}`;
+  const existingDogSelect = `
+    id,
+    rescuegroups_id,
+    rescuegroups_org_id,
+    external_id,
+    adoptable,
+    availability_status,
+    unavailable_reason,
+    dacc_sheltermanager_confirmed_absent_at,
+    ${HASHED_FIELDS.join(", ")}
+  `;
 
   const rescueGroupsIds = dogs.map((dog) => dog.rescuegroups_id);
   const { data: existingDogs, error: findError } = await supabase

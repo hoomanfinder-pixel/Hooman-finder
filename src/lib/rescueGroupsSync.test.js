@@ -134,6 +134,55 @@ test("normal existing-row updates remain intact and populated descriptions stay 
   assert.equal(Object.hasOwn(update, "description"), false);
 });
 
+test("RescueGroups cannot republish a DACC dog confirmed absent by ShelterManager", () => {
+  const update = buildExistingDogUpdate(
+    {
+      rescuegroups_id: "22745044",
+      rescuegroups_org_id: "8883",
+      adoptable: true,
+      adoption_pending: false,
+      availability_status: "available",
+      unavailable_reason: null,
+    },
+    existingDog({
+      rescuegroups_org_id: "8883",
+      dacc_sheltermanager_confirmed_absent_at: "2026-08-31T12:00:00.000Z",
+    })
+  );
+
+  assert.equal(update.adoptable, false);
+  assert.equal(update.adoption_pending, false);
+  assert.equal(update.availability_status, "unavailable");
+  assert.match(update.unavailable_reason, /ShelterManager adoptable roster/);
+});
+
+test("non-DACC availability and photo updates remain unchanged", () => {
+  const incoming = {
+    rescuegroups_id: "dog-1",
+    rescuegroups_org_id: "6172",
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "available",
+    photo_url: "https://cdn.rescuegroups.org/new-primary.jpg",
+    photo_urls: [
+      "https://cdn.rescuegroups.org/new-primary.jpg",
+      "https://cdn.rescuegroups.org/new-second.jpg",
+    ],
+  };
+  const update = buildExistingDogUpdate(
+    incoming,
+    existingDog({
+      rescuegroups_org_id: "6172",
+      dacc_sheltermanager_confirmed_absent_at: "2026-08-31T12:00:00.000Z",
+    })
+  );
+
+  assert.equal(update.adoptable, true);
+  assert.equal(update.availability_status, "available");
+  assert.equal(update.photo_url, incoming.photo_url);
+  assert.deepEqual(update.photo_urls, incoming.photo_urls);
+});
+
 test("all configured RescueGroups source failures reject the sync", async () => {
   const rescues = [rescue("Source A", "1"), rescue("Source B", "2")];
   let unavailableCalls = 0;

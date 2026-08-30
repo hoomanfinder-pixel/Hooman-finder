@@ -30,6 +30,12 @@ const RESCUEGROUPS_PAGE_LIMIT = 100;
 const RESCUEGROUPS_MAX_PAGES = 5;
 const NO_BIO_RETRY_MS = 3 * 24 * 60 * 60 * 1000;
 const RECOVERED_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+const DACC_ROSTER_ABSENCE_GRACE_MS = 24 * 60 * 60 * 1000;
+const SHELTERMANAGER_ROSTER_MIN_RATIO = 0.5;
+const MAX_SHELTERMANAGER_PHOTOS = 50;
+const MIN_VALID_IMAGE_BYTES = 32;
+const DACC_SHELTERMANAGER_UNAVAILABLE_REASON =
+  "No longer present in the current DACC ShelterManager adoptable roster";
 const ACTIVE_AVAILABILITY_STATUSES = new Set(["active", "available", "unknown"]);
 
 const CONFIRMED = process.argv.includes("--confirm");
@@ -414,6 +420,174 @@ function resolveShelterManagerMatch(rescueGroupsInfo, shelterManagerByCode) {
   return { outcome: "exact_code", shelterCode, animal: matches[0] };
 }
 
+function validateShelterManagerRoster(animals, options = {}) {
+  if (!Array.isArray(animals)) {
+    return { valid: false, reason: "ShelterManager roster is not an array." };
+  }
+  if (animals.length === 0) {
+    return { valid: false, reason: "ShelterManager roster is unexpectedly empty." };
+  }
+
+  const seenCodes = new Set();
+  const seenIds = new Set();
+  for (const animal of animals) {
+    const code = clean(animal?.SHELTERCODE).toLowerCase();
+    const id = clean(animal?.ID);
+    if (!code || !id) {
+      return { valid: false, reason: "ShelterManager roster contains a row without an ID or shelter code." };
+    }
+    if (seenCodes.has(code)) {
+      return { valid: false, reason: `ShelterManager roster contains duplicate shelter code ${clean(animal.SHELTERCODE)}.` };
+    }
+    if (seenIds.has(id)) {
+      return { valid: false, reason: `ShelterManager roster contains duplicate animal ID ${id}.` };
+    }
+    seenCodes.add(code);
+    seenIds.add(id);
+  }
+
+  const referenceCount = Number(options.referenceCount);
+  if (Number.isFinite(referenceCount) && referenceCount > 0) {
+    const minRatio = Number.isFinite(options.minRatio)
+      ? options.minRatio
+      : SHELTERMANAGER_ROSTER_MIN_RATIO;
+    const minimumExpected = Math.max(1, Math.ceil(referenceCount * minRatio));
+    if (animals.length < minimumExpected) {
+      return {
+        valid: false,
+        reason: `ShelterManager roster count ${animals.length} is suspiciously below ${minimumExpected} for a ${referenceCount}-dog RescueGroups reference roster.`,
+      };
+    }
+  }
+
+  return { valid: true, reason: null };
+}
+
+function buildDaccRosterReconciliationUpdate(dog, match, now = new Date()) {
+  const checkedAt = now instanceof Date ? now : new Date(now);
+  if (!Number.isFinite(checkedAt.getTime())) {
+    throw new Error("A valid reconciliation timestamp is required.");
+  }
+
+  if (match?.outcome === "exact_code") {
+    const update = {};
+    if (dog.dacc_sheltermanager_missing_since) {
+      update.dacc_sheltermanager_missing_since = null;
+    }
+    if (dog.dacc_sheltermanager_confirmed_absent_at) {
+      update.dacc_sheltermanager_confirmed_absent_at = null;
+      update.adoptable = true;
+      update.adoption_pending = false;
+      update.availability_status = "available";
+      update.unavailable_reason = null;
+    }
+    return { outcome: "present", update };
+  }
+
+  if (match?.outcome !== "no_match") {
+    return { outcome: "identity_unresolved", update: {} };
+  }
+
+  if (dog.dacc_sheltermanager_confirmed_absent_at) {
+    return { outcome: "confirmed_absent", update: {} };
+  }
+
+  const missingSince = parseTimestamp(dog.dacc_sheltermanager_missing_since);
+  if (missingSince === null) {
+    return {
+      outcome: "first_absence",
+      update: { dacc_sheltermanager_missing_since: checkedAt.toISOString() },
+    };
+  }
+
+  if (checkedAt.getTime() - missingSince < DACC_ROSTER_ABSENCE_GRACE_MS) {
+    return { outcome: "absence_grace_period", update: {} };
+  }
+
+  return {
+    outcome: "newly_confirmed_absent",
+    update: {
+      dacc_sheltermanager_confirmed_absent_at: checkedAt.toISOString(),
+      adoptable: false,
+      adoption_pending: false,
+      availability_status: "unavailable",
+      unavailable_reason: DACC_SHELTERMANAGER_UNAVAILABLE_REASON,
+    },
+  };
+}
+
+function shelterManagerImageUrl(animalId, sequence = 1) {
+  const params = new URLSearchParams({
+    account: SHELTERMANAGER_ACCOUNT,
+    method: "animal_image",
+    animalid: String(animalId),
+  });
+  if (sequence > 1) params.set("seq", String(sequence));
+  return `${SHELTERMANAGER_BASE_URL}?${params.toString()}`;
+}
+
+function dedupePhotoUrls(urls) {
+  return Array.from(new Set((Array.isArray(urls) ? urls : []).map(clean).filter(Boolean)));
+}
+
+function buildShelterManagerPhotoUrls(animal) {
+  const animalId = clean(animal?.ID);
+  const imageCount = Number(animal?.WEBSITEIMAGECOUNT);
+  if (!animalId) throw new Error("ShelterManager animal ID is missing.");
+  if (!Number.isInteger(imageCount) || imageCount < 1 || imageCount > MAX_SHELTERMANAGER_PHOTOS) {
+    throw new Error(`ShelterManager WEBSITEIMAGECOUNT is invalid for animal ${animalId}.`);
+  }
+
+  return dedupePhotoUrls(
+    Array.from({ length: imageCount }, (_unused, index) =>
+      shelterManagerImageUrl(animalId, index + 1)
+    )
+  );
+}
+
+function buildShelterManagerGalleryUpdate(dog, photoUrls) {
+  const gallery = dedupePhotoUrls(photoUrls);
+  if (gallery.length === 0) return {};
+
+  const currentGallery = dedupePhotoUrls(dog?.photo_urls);
+  const sameGallery =
+    currentGallery.length === gallery.length &&
+    currentGallery.every((url, index) => url === gallery[index]);
+  if (dog?.photo_url === gallery[0] && sameGallery) return {};
+
+  return { photo_url: gallery[0], photo_urls: gallery };
+}
+
+async function evaluateShelterManagerGallery(dog, animal, options = {}) {
+  let photoUrls;
+  try {
+    photoUrls = buildShelterManagerPhotoUrls(animal);
+  } catch (error) {
+    return { outcome: "photo_validation_failed", update: null, error };
+  }
+
+  const fetchImpl = options.fetchImpl || fetch;
+  try {
+    const response = await fetchImpl(photoUrls[0]);
+    const contentType = clean(response?.headers?.get?.("content-type")).toLowerCase();
+    if (!response?.ok || !contentType.startsWith("image/")) {
+      throw new Error(`ShelterManager primary photo response is invalid (${response?.status || "unknown"}).`);
+    }
+    const bytes = await response.arrayBuffer();
+    if (!bytes || bytes.byteLength < MIN_VALID_IMAGE_BYTES) {
+      throw new Error("ShelterManager primary photo response is empty or a placeholder.");
+    }
+  } catch (error) {
+    return { outcome: "photo_fetch_failed", update: null, error };
+  }
+
+  return {
+    outcome: "ready",
+    photoUrls,
+    update: buildShelterManagerGalleryUpdate(dog, photoUrls),
+  };
+}
+
 async function fetchDaccDogs(supabase) {
   const selectFields = (includeRecoveryTracking) => `
         id,
@@ -429,7 +603,9 @@ async function fetchDaccDogs(supabase) {
         adoption_url,
         created_at,
         source_updated_at,
-        ${includeRecoveryTracking ? "dacc_bio_recovery_status, dacc_bio_checked_at, dacc_bio_source_hash," : ""}
+        photo_url,
+        photo_urls,
+        ${includeRecoveryTracking ? "dacc_bio_recovery_status, dacc_bio_checked_at, dacc_bio_source_hash, dacc_sheltermanager_missing_since, dacc_sheltermanager_confirmed_absent_at," : ""}
         ai_enriched_at,
         ai_enrichment_version,
         ai_enriched_source_hash,
@@ -457,7 +633,7 @@ async function fetchDaccDogs(supabase) {
 
   let { data, error } = await buildQuery(true);
 
-  if (!CONFIRMED && error && /dacc_bio_/i.test(error.message || "")) {
+  if (!CONFIRMED && error && /dacc_(?:bio|sheltermanager)_/i.test(error.message || "")) {
     console.log("Recovery tracking migration is not applied; dry-run fields default to null.");
     ({ data, error } = await buildQuery(false));
     data = (data || []).map((dog) => ({
@@ -465,6 +641,8 @@ async function fetchDaccDogs(supabase) {
       dacc_bio_recovery_status: null,
       dacc_bio_checked_at: null,
       dacc_bio_source_hash: null,
+      dacc_sheltermanager_missing_since: null,
+      dacc_sheltermanager_confirmed_absent_at: null,
     }));
   }
   if (error) throw error;
@@ -670,6 +848,15 @@ async function main() {
   ]);
   const rescueGroupsById = rescueGroupsRosterById(rescueGroupsRoster);
 
+  const shelterManagerValidation = validateShelterManagerRoster(shelterManagerAnimals, {
+    referenceCount: rescueGroupsRoster.count,
+  });
+  if (!shelterManagerValidation.valid) {
+    throw new Error(
+      `DACC reconciliation aborted before any availability or gallery writes: ${shelterManagerValidation.reason}`
+    );
+  }
+
   const shelterManagerByCode = indexShelterManagerByCode(shelterManagerAnimals);
 
   const summary = {
@@ -691,6 +878,17 @@ async function main() {
     fetchFailed: 0,
     parseFailed: 0,
     manualConflicts: 0,
+    rosterPresent: 0,
+    rosterFirstAbsence: 0,
+    rosterGracePeriod: 0,
+    rosterConfirmedAbsent: 0,
+    rosterReappeared: 0,
+    rosterIdentityUnresolved: 0,
+    rosterProjectedUpdates: 0,
+    rosterWritten: 0,
+    galleriesReady: 0,
+    galleryProjectedUpdates: 0,
+    galleryFailures: 0,
     projectedDbUpdates: 0,
     projectedEvidenceUpdates: 0,
     projectedAiCandidates: 0,
@@ -698,6 +896,94 @@ async function main() {
     writeErrors: 0,
     written: 0,
   };
+
+  // Availability and galleries are reconciled for every DACC dog in the
+  // complete RescueGroups roster, independently of whether its bio happens
+  // to be due for recovery. Validation above happens before this pass so an
+  // incomplete, empty, duplicate-code, or suspicious roster cannot stale-mark
+  // even one dog.
+  for (const dog of dogs) {
+    if (!rescueGroupsRoster.authoritativeIds.has(String(dog.rescuegroups_id))) continue;
+
+    const rescueGroupsInfo = rescueGroupsById.get(String(dog.rescuegroups_id));
+    const hasStableShelterCode = Boolean(clean(rescueGroupsInfo?.rescueId));
+    const match = hasStableShelterCode
+      ? resolveShelterManagerMatch(rescueGroupsInfo, shelterManagerByCode)
+      : { outcome: "identity_unresolved", shelterCode: null, animal: null };
+    const rosterResult = buildDaccRosterReconciliationUpdate(dog, match, now);
+
+    if (rosterResult.outcome === "present") {
+      summary.rosterPresent += 1;
+      if (dog.dacc_sheltermanager_missing_since || dog.dacc_sheltermanager_confirmed_absent_at) {
+        summary.rosterReappeared += 1;
+      }
+    } else if (rosterResult.outcome === "first_absence") {
+      summary.rosterFirstAbsence += 1;
+    } else if (rosterResult.outcome === "absence_grace_period") {
+      summary.rosterGracePeriod += 1;
+    } else if (["newly_confirmed_absent", "confirmed_absent"].includes(rosterResult.outcome)) {
+      summary.rosterConfirmedAbsent += 1;
+    } else {
+      summary.rosterIdentityUnresolved += 1;
+    }
+
+    if (match.animal) {
+      summary.exactMatches += 1;
+      if (normalizeName(rescueGroupsInfo?.name) !== normalizeName(match.animal.ANIMALNAME)) {
+        summary.nameMismatches += 1;
+      }
+    }
+
+    let galleryResult = { outcome: "not_applicable", update: null };
+    if (match.outcome === "exact_code") {
+      galleryResult = await evaluateShelterManagerGallery(dog, match.animal);
+      if (galleryResult.outcome === "ready") summary.galleriesReady += 1;
+      else summary.galleryFailures += 1;
+    }
+
+    const combinedUpdate = {
+      ...rosterResult.update,
+      ...(galleryResult.update || {}),
+    };
+    const rosterFields = Object.keys(rosterResult.update).filter(
+      (key) => clean(rosterResult.update[key]) !== clean(dog[key])
+    );
+    const galleryFields = Object.keys(galleryResult.update || {}).filter(
+      (key) => clean(galleryResult.update[key]) !== clean(dog[key])
+    );
+    const plannedFields = Array.from(new Set([...rosterFields, ...galleryFields]));
+    if (rosterFields.length > 0) summary.rosterProjectedUpdates += 1;
+    if (galleryFields.length > 0) summary.galleryProjectedUpdates += 1;
+
+    console.log(
+      JSON.stringify({
+        dog: dog.name,
+        dogId: dog.id,
+        rescuegroupsId: String(dog.rescuegroups_id),
+        rescueId: match.shelterCode || null,
+        rosterOutcome: rosterResult.outcome,
+        shelterManagerId: match.animal?.ID || null,
+        galleryOutcome: galleryResult.outcome,
+        galleryPhotos: galleryResult.photoUrls?.length || 0,
+        reconciliationFields: plannedFields,
+      })
+    );
+
+    if (plannedFields.length === 0) continue;
+
+    if (CONFIRMED) {
+      const { error } = await supabase.from("dogs").update(combinedUpdate).eq("id", dog.id);
+      if (error) {
+        summary.writeErrors += 1;
+        console.error(`Could not reconcile ${dog.name}: ${error.message}`);
+        continue;
+      }
+      summary.rosterWritten += 1;
+    }
+
+    // Keep the following bio pass aligned with the projected/committed state.
+    Object.assign(dog, combinedUpdate);
+  }
 
   for (const dog of dogs) {
     const publiclyVisible = isPubliclyVisibleDog(dog);
@@ -723,12 +1009,6 @@ async function main() {
     const ambiguousCode = match.outcome === "ambiguous_code";
 
     if (ambiguousCode) summary.ambiguousMatches += 1;
-    if (animal) {
-      summary.exactMatches += 1;
-      if (normalizeName(rescueGroupsInfo?.name) !== normalizeName(animal.ANIMALNAME)) {
-        summary.nameMismatches += 1;
-      }
-    }
 
     const result = await evaluateDogUpdate(dog, { animal });
     const attemptUpdate = buildRecoveryAttemptUpdate(dog, result, checkedAt);
@@ -807,9 +1087,14 @@ async function main() {
   console.log("Summary:");
   console.log(JSON.stringify(summary, null, 2));
 
-  if (summary.writeErrors > 0 || summary.fetchFailed > 0 || summary.parseFailed > 0) {
+  if (
+    summary.writeErrors > 0 ||
+    summary.fetchFailed > 0 ||
+    summary.parseFailed > 0 ||
+    summary.galleryFailures > 0
+  ) {
     throw new Error(
-      `DACC recovery completed with failures (writes=${summary.writeErrors}, fetch=${summary.fetchFailed}, parse=${summary.parseFailed}).`
+      `DACC recovery completed with failures (writes=${summary.writeErrors}, fetch=${summary.fetchFailed}, parse=${summary.parseFailed}, galleries=${summary.galleryFailures}).`
     );
   }
 }
@@ -825,6 +1110,8 @@ if (require.main === module) {
 module.exports = {
   NO_BIO_RETRY_MS,
   RECOVERED_REFRESH_MS,
+  DACC_ROSTER_ABSENCE_GRACE_MS,
+  DACC_SHELTERMANAGER_UNAVAILABLE_REASON,
   isGenericDescription,
   hashAuthoritativeBio,
   extractBioFromAnimal,
@@ -841,6 +1128,13 @@ module.exports = {
   getRecoveryCandidateDecision,
   indexShelterManagerByCode,
   resolveShelterManagerMatch,
+  validateShelterManagerRoster,
+  buildDaccRosterReconciliationUpdate,
+  shelterManagerImageUrl,
+  dedupePhotoUrls,
+  buildShelterManagerPhotoUrls,
+  buildShelterManagerGalleryUpdate,
+  evaluateShelterManagerGallery,
   detailUrl,
   htmlToText,
   removeBoilerplate,

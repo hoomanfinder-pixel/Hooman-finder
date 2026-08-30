@@ -6,6 +6,8 @@ const require = createRequire(import.meta.url);
 const {
   NO_BIO_RETRY_MS,
   RECOVERED_REFRESH_MS,
+  DACC_ROSTER_ABSENCE_GRACE_MS,
+  DACC_SHELTERMANAGER_UNAVAILABLE_REASON,
   isGenericDescription,
   hashAuthoritativeBio,
   buildTraitUpdates,
@@ -17,6 +19,13 @@ const {
   getRecoveryCandidateDecision,
   indexShelterManagerByCode,
   resolveShelterManagerMatch,
+  validateShelterManagerRoster,
+  buildDaccRosterReconciliationUpdate,
+  shelterManagerImageUrl,
+  dedupePhotoUrls,
+  buildShelterManagerPhotoUrls,
+  buildShelterManagerGalleryUpdate,
+  evaluateShelterManagerGallery,
 } = require("../../scripts/enrich-dacc-bios.cjs");
 const {
   AI_ENRICHMENT_VERSION,
@@ -72,6 +81,10 @@ function baseDog(overrides = {}) {
     dacc_bio_recovery_status: null,
     dacc_bio_checked_at: null,
     dacc_bio_source_hash: null,
+    dacc_sheltermanager_missing_since: null,
+    dacc_sheltermanager_confirmed_absent_at: null,
+    photo_url: "https://cdn.rescuegroups.org/current.jpg",
+    photo_urls: ["https://cdn.rescuegroups.org/current.jpg"],
     ...overrides,
   };
 }
@@ -87,7 +100,17 @@ function shelterManagerAnimal(overrides = {}) {
     ALTERNATEBIO: "",
     WEBSITEMEDIANOTES: "",
     ANIMALCOMMENTS: "",
+    WEBSITEIMAGECOUNT: 3,
     ...overrides,
+  };
+}
+
+function validImageResponse(bytes = 128) {
+  return {
+    ok: true,
+    status: 200,
+    headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : null },
+    arrayBuffer: async () => new ArrayBuffer(bytes),
   };
 }
 
@@ -318,6 +341,127 @@ test("matching requires exact ShelterManager code and rejects name-only or dupli
   assert.equal(resolveShelterManagerMatch({ rescueId: "A100", name: "Different" }, index).outcome, "exact_code");
   assert.equal(resolveShelterManagerMatch({ rescueId: "A999", name: "Charlie" }, index).outcome, "no_match");
   assert.equal(resolveShelterManagerMatch({ rescueId: "A200", name: "Charlie" }, index).outcome, "ambiguous_code");
+});
+
+test("first valid ShelterManager absence records observation without unpublishing", () => {
+  const now = new Date("2026-08-30T12:00:00.000Z");
+  const result = buildDaccRosterReconciliationUpdate(
+    baseDog(),
+    { outcome: "no_match" },
+    now
+  );
+
+  assert.equal(result.outcome, "first_absence");
+  assert.deepEqual(result.update, {
+    dacc_sheltermanager_missing_since: now.toISOString(),
+  });
+  assert.equal(Object.hasOwn(result.update, "adoptable"), false);
+});
+
+test("second valid ShelterManager absence after at least 24 hours unpublishes without inventing an outcome", () => {
+  const first = "2026-08-30T12:00:00.000Z";
+  const now = new Date(Date.parse(first) + DACC_ROSTER_ABSENCE_GRACE_MS);
+  const result = buildDaccRosterReconciliationUpdate(
+    baseDog({ dacc_sheltermanager_missing_since: first }),
+    { outcome: "no_match" },
+    now
+  );
+
+  assert.equal(result.outcome, "newly_confirmed_absent");
+  assert.equal(result.update.adoptable, false);
+  assert.equal(result.update.availability_status, "unavailable");
+  assert.equal(result.update.unavailable_reason, DACC_SHELTERMANAGER_UNAVAILABLE_REASON);
+  assert.doesNotMatch(result.update.unavailable_reason, /adopted|transferred/i);
+});
+
+test("ShelterManager reappearance clears missing state and restores a confirmed-absent RescueGroups dog", () => {
+  const result = buildDaccRosterReconciliationUpdate(
+    baseDog({
+      adoptable: false,
+      availability_status: "unavailable",
+      unavailable_reason: DACC_SHELTERMANAGER_UNAVAILABLE_REASON,
+      dacc_sheltermanager_missing_since: "2026-08-29T12:00:00.000Z",
+      dacc_sheltermanager_confirmed_absent_at: "2026-08-30T12:00:00.000Z",
+    }),
+    { outcome: "exact_code", animal: shelterManagerAnimal() },
+    new Date("2026-08-31T12:00:00.000Z")
+  );
+
+  assert.equal(result.outcome, "present");
+  assert.equal(result.update.dacc_sheltermanager_missing_since, null);
+  assert.equal(result.update.dacc_sheltermanager_confirmed_absent_at, null);
+  assert.equal(result.update.adoptable, true);
+  assert.equal(result.update.availability_status, "available");
+  assert.equal(result.update.unavailable_reason, null);
+});
+
+test("invalid, empty, duplicate-code, and suspicious ShelterManager rosters are rejected before stale planning", () => {
+  const validAnimal = shelterManagerAnimal({ ID: 1, SHELTERCODE: "A100" });
+  const cases = [
+    null,
+    [],
+    [validAnimal, shelterManagerAnimal({ ID: 2, SHELTERCODE: "A100" })],
+    [validAnimal],
+  ];
+  let stalePlans = 0;
+
+  for (const animals of cases) {
+    const validation = validateShelterManagerRoster(animals, { referenceCount: 10 });
+    if (validation.valid) stalePlans += 1;
+    assert.equal(validation.valid, false);
+  }
+  assert.equal(stalePlans, 0);
+});
+
+test("DACC gallery URLs include every ShelterManager image in canonical sequence order", () => {
+  const animal = shelterManagerAnimal({ ID: 3468, WEBSITEIMAGECOUNT: 9 });
+  const urls = buildShelterManagerPhotoUrls(animal);
+
+  assert.equal(urls.length, 9);
+  assert.equal(urls[0], shelterManagerImageUrl(3468, 1));
+  assert.equal(urls[1], shelterManagerImageUrl(3468, 2));
+  assert.equal(urls[8], shelterManagerImageUrl(3468, 9));
+  assert.equal(new URL(urls[0]).searchParams.has("seq"), false);
+  assert.equal(new URL(urls[8]).searchParams.get("seq"), "9");
+});
+
+test("DACC gallery replacement preserves order and deduplicates URLs", () => {
+  const first = shelterManagerImageUrl(3468, 1);
+  const second = shelterManagerImageUrl(3468, 2);
+  const update = buildShelterManagerGalleryUpdate(baseDog(), [first, second, first, second]);
+
+  assert.deepEqual(dedupePhotoUrls([first, second, first]), [first, second]);
+  assert.equal(update.photo_url, first);
+  assert.deepEqual(update.photo_urls, [first, second]);
+  assert.equal(update.photo_urls.some((url) => url.includes("cdn.rescuegroups.org")), false);
+});
+
+test("ShelterManager photo failure preserves the existing RescueGroups gallery", async () => {
+  const dog = baseDog();
+  const result = await evaluateShelterManagerGallery(dog, shelterManagerAnimal(), {
+    fetchImpl: async () => {
+      throw new Error("ECONNRESET");
+    },
+  });
+
+  assert.equal(result.outcome, "photo_fetch_failed");
+  assert.equal(result.update, null);
+  assert.equal(dog.photo_url, "https://cdn.rescuegroups.org/current.jpg");
+  assert.deepEqual(dog.photo_urls, ["https://cdn.rescuegroups.org/current.jpg"]);
+});
+
+test("validated ShelterManager gallery replaces the RescueGroups gallery atomically", async () => {
+  const result = await evaluateShelterManagerGallery(baseDog(), shelterManagerAnimal({ ID: 3468 }), {
+    fetchImpl: async () => validImageResponse(),
+  });
+
+  assert.equal(result.outcome, "ready");
+  assert.equal(result.update.photo_url, shelterManagerImageUrl(3468, 1));
+  assert.deepEqual(result.update.photo_urls, [
+    shelterManagerImageUrl(3468, 1),
+    shelterManagerImageUrl(3468, 2),
+    shelterManagerImageUrl(3468, 3),
+  ]);
 });
 
 test("new recoverable DACC bio becomes naturally eligible for AI", async () => {
