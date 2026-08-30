@@ -61,6 +61,7 @@ const RESCUEGROUPS_SOURCES = [
     state: "MI",
     rescueGroupsOrgId: "9242",
     supabaseShelterId: "27aba566-a878-45b8-971c-0e42304dbfa9",
+    enabled: false,
   },
   {
     name: "Angels Among Us Pet Rescue",
@@ -92,7 +93,7 @@ const RESCUEGROUPS_SOURCES = [
   },
 ].map((source) => ({
   ...source,
-  enabled: true,
+  enabled: source.enabled ?? true,
   allowVerifiedEmptyRoster: false,
 }));
 
