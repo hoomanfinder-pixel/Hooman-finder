@@ -341,7 +341,7 @@ function buildShelterSnapshotHtml(shelter, dogs) {
   return [
     '<main data-shelter-profile-snapshot="true">',
     `<nav aria-label="Breadcrumb"><a href="/">Home</a> / <a href="/dogs">Dogs</a> / <span aria-current="page">${escapeHtml(metadata.name)}</span></nav>`,
-    `<h1>${escapeHtml(metadata.name)}</h1>`,
+    `<h1>${escapeHtml(metadata.name)} Dogs for Adoption</h1>`,
     metadata.location ? `<p>${escapeHtml(metadata.location)}</p>` : "",
     `<p>Browse ${dogs.length} current adoptable ${dogs.length === 1 ? "dog" : "dogs"} represented on Hooman Finder.</p>`,
     officialUrl.startsWith("http") ? `<p><a href="${escapeHtml(officialUrl)}" target="_blank" rel="noreferrer">Visit the official shelter or rescue website</a></p>` : "",

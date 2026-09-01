@@ -116,7 +116,7 @@ test("shelter responses have self-canonical metadata and crawlable dog links", a
     assert.equal(response.status, 200);
     assert.match(html, /<title>Detroit Dog Rescue Dogs for Adoption in Detroit, MI/);
     assert.match(html, /rel="canonical" href="https:\/\/hoomanfinder.com\/shelter\/shelter-123"/);
-    assert.match(html, /<h1>Detroit Dog Rescue<\/h1>/);
+    assert.match(html, /<h1>Detroit Dog Rescue Dogs for Adoption<\/h1>/);
     assert.match(html, /href="\/dog\/dog-123">Mabel<\/a>/);
   });
 });

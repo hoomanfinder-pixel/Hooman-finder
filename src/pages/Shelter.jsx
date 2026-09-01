@@ -169,7 +169,7 @@ export default function Shelter() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
-                {shelter.name || "Shelter"}
+                {shelter.name || "Shelter"} Dogs for Adoption
               </h1>
               {locationLine && (
                 <p className="mt-1 text-sm text-[#6F6A66]">{locationLine}</p>
