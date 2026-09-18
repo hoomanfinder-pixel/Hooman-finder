@@ -389,7 +389,7 @@ test("fresh bio-explicit compatibility remains matching-facing", () => {
   assert.equal(merged.bio_good_with_cats, "yes");
 });
 
-test("ordinary lifestyle traits retain normal carry-forward behavior", () => {
+test("ordinary lifestyle traits retain carry-forward while unsupported shedding is cleared", () => {
   const freshTraits = normalizeAiTraits(
     baseParsedTraits(),
     dogInput({ breed: null, size: null, age_years: null, age_text: null, description: "" })
@@ -403,13 +403,76 @@ test("ordinary lifestyle traits retain normal carry-forward behavior", () => {
   });
 
   assert.equal(merged.bio_energy_level, "high");
-  assert.equal(merged.bio_shedding_level, "low");
+  assert.equal(merged.bio_shedding_level, "unknown");
   assert.equal(merged.bio_grooming_level, "moderate");
   assert.equal(merged.bio_training_needs, "medium_high");
   assert.deepEqual(
     carriedForwardFields.sort(),
-    ["bio_energy_level", "bio_grooming_level", "bio_shedding_level", "bio_training_needs"].sort()
+    ["bio_energy_level", "bio_grooming_level", "bio_training_needs"].sort()
   );
+});
+
+test("shedding evidence hierarchy preserves source facts and explicit bio statements", () => {
+  const sourceHigh = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.99, "Model guess.") }),
+    dogInput({ breed: "Poodle (Standard)", shedding_level: "heavy" })
+  );
+  assert.deepEqual(
+    { value: sourceHigh.shedding_level.value, confidence: sourceHigh.shedding_level.confidence, basis: sourceHigh.shedding_level.evidence_basis },
+    { value: "high", confidence: 1, basis: "structured_source" }
+  );
+
+  const sourceLow = normalizeAiTraits(baseParsedTraits(), dogInput({ shedding_level: "minimal" }));
+  assert.equal(sourceLow.shedding_level.value, "low");
+  assert.equal(sourceLow.shedding_level.confidence, 1);
+
+  const bioLow = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("medium", 0.8, "General profile estimate.") }),
+    dogInput({ description: "The rescue reports that this dog is low-shedding." })
+  );
+  assert.equal(bioLow.shedding_level.value, "low");
+  assert.equal(bioLow.shedding_level.evidence_basis, "bio_explicit");
+  assert.ok(bioLow.shedding_level.confidence < sourceLow.shedding_level.confidence);
+});
+
+test("Poodles and Poodle mixes use cautious breed and coat evidence", () => {
+  const poodle = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("medium", 0.8, "General model estimate.") }),
+    dogInput({ breed: "Poodle (Standard) / Mixed", description: "The source identifies this dog as a Standard Poodle." })
+  );
+  assert.deepEqual(
+    { value: poodle.shedding_level.value, confidence: poodle.shedding_level.confidence, basis: poodle.shedding_level.evidence_basis },
+    { value: "low", confidence: 0.82, basis: "breed_coat_inference" }
+  );
+
+  const doodleUnknown = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("medium", 0.8, "Breed average.") }),
+    dogInput({ breed: "Labrador Retriever / Poodle / Mixed", description: "Friendly Labradoodle." })
+  );
+  assert.equal(doodleUnknown.shedding_level.value, "unknown");
+  assert.equal(doodleUnknown.shedding_level.confidence, 0);
+  assert.equal(doodleUnknown.shedding_level.evidence_basis, "breed_coat_inference");
+
+  const doodleCoat = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ breed: "Goldendoodle / Mixed", description: "The source describes a curly coat and regular grooming." })
+  );
+  assert.equal(doodleCoat.shedding_level.value, "low");
+  assert.equal(doodleCoat.shedding_level.confidence, 0.72);
+  assert.equal(doodleCoat.shedding_level.evidence_basis, "breed_coat_inference");
+});
+
+test("missing shedding evidence remains unknown", () => {
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("medium", 0, "") }),
+    dogInput({ breed: null, description: "Friendly companion." })
+  );
+  assert.deepEqual(normalized.shedding_level, {
+    value: "unknown",
+    confidence: 0,
+    evidence: "",
+    evidence_basis: "profile_inference",
+  });
 });
 
 test("daily enrichment eligibility covers new, outdated, and source-changed dogs only", () => {
@@ -430,6 +493,34 @@ test("daily enrichment eligibility covers new, outdated, and source-changed dogs
     "content_changed"
   );
   assert.equal(getEnrichmentEligibilityReason(current), null);
+  assert.equal(
+    getEnrichmentEligibilityReason({
+      ...current,
+      breed: "Mixed Breed",
+      shedding_level: null,
+      ai_enrichment_version: "dog-ai-traits-v10-provenance",
+    }),
+    null
+  );
+  assert.equal(
+    getEnrichmentEligibilityReason({
+      ...current,
+      breed: "Mixed Breed",
+      shedding_level: null,
+      source_content_hash: "changed-hash",
+      ai_enrichment_version: "dog-ai-traits-v10-provenance",
+    }),
+    "content_changed"
+  );
+  assert.equal(
+    getEnrichmentEligibilityReason({
+      ...current,
+      breed: "Labrador Retriever / Poodle / Mixed",
+      shedding_level: null,
+      ai_enrichment_version: "dog-ai-traits-v10-provenance",
+    }),
+    "version_outdated"
+  );
 });
 
 test("a DACC dog with a blank/generic description is not eligible via 'new' or 'version_outdated'", () => {

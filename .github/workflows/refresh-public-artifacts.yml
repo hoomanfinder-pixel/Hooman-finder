@@ -1,0 +1,42 @@
+name: Refresh Public Dog Artifacts
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/dogVisibility.js"
+      - "scripts/generate-dog-sitemap.cjs"
+      - ".github/workflows/refresh-public-artifacts.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-dog-artifacts
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Regenerate from the authoritative publication policy
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/generate-dog-sitemap.cjs
+      - name: Commit changed artifacts
+        run: |
+          if ! git diff --quiet -- public/sitemap.xml public/dog-sitemap.xml src/generated/platform-stats.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add public/sitemap.xml public/dog-sitemap.xml src/generated/platform-stats.json
+            git commit -m "Auto-update public dog artifacts [skip ci]"
+            git push
+          fi

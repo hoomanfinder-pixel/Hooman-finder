@@ -50,13 +50,20 @@ export function getTraitDisplay({ structuredValue, bioValue, evidenceBasis }) {
 
   if (normalizedBio !== "unknown") {
     const bioExplicit = evidenceBasis === "bio_explicit";
+    const breedCoatInference = evidenceBasis === "breed_coat_inference";
     return {
       value: displayBioTrait(normalizedBio),
-      source: bioExplicit ? "bio" : "profile_inference",
+      source: bioExplicit ? "bio" : breedCoatInference ? "breed_coat_inference" : "profile_inference",
       estimated: true,
-      note: bioExplicit ? "Interpreted from listing bio" : "AI profile estimate",
+      note: bioExplicit
+        ? "Interpreted from listing bio"
+        : breedCoatInference
+          ? "Estimated from breed and coat evidence"
+          : "AI profile estimate",
       title: bioExplicit
         ? "AI interpretation of dog-specific wording in the shelter or rescue bio. Confirm with the source."
+        : breedCoatInference
+          ? "Estimated from the source-listed breed and any dog-specific coat evidence. This remains an estimate."
         : "AI estimate based on broader profile context. This is not a known behavioral fact. Confirm with the shelter or rescue.",
     };
   }

@@ -153,6 +153,35 @@ test("structured evidence outweighs bio-explicit and profile inference", () => {
   assert.equal(byName.get("Profile").breakdown.evidenceQualityPct, 25);
 });
 
+test("shedding evidence keeps source, bio, breed-coat, and general inference tiers distinct", () => {
+  const answers = { size_preference: ["flexible"], shedding_preference: "minimal" };
+  const dogs = [
+    { name: "Structured", shedding_level: "low" },
+    { name: "Bio", bio_shedding_level: "low", ai_traits: { shedding_level: aiTrait("low", 1, "bio_explicit") } },
+    { name: "Breed coat", bio_shedding_level: "low", ai_traits: { shedding_level: aiTrait("low", 1, "breed_coat_inference") } },
+    { name: "Profile", bio_shedding_level: "low", ai_traits: { shedding_level: aiTrait("low", 1, "profile_inference") } },
+  ];
+  const byName = new Map(computeRankedMatches(dogs, answers).map((row) => [row.dog.name, row]));
+  assert.deepEqual(
+    ["Structured", "Bio", "Breed coat", "Profile"].map((name) => byName.get(name).breakdown.evidenceQualityPct),
+    [100, 65, 50, 25]
+  );
+});
+
+test("allergy matching uses low-shedding estimates without claiming hypoallergenic certainty", () => {
+  const answers = { size_preference: ["flexible"], allergy_sensitivity: "have_allergies" };
+  const [estimated] = computeRankedMatches([{
+    name: "Estimated low shedding",
+    bio_shedding_level: "low",
+    ai_traits: { shedding_level: aiTrait("low", 0.82, "breed_coat_inference") },
+  }], answers);
+  const allergy = estimated.breakdown.contributions.find((entry) => entry.questionId === "allergy_sensitivity");
+  assert.equal(allergy.source, "breed_coat_inference");
+  assert.ok(allergy.adjustedCompatibility > 0.5);
+  assert.ok(allergy.adjustedCompatibility < 0.9);
+  assert.match(allergy.explanation, /not a medical guarantee/i);
+});
+
 test("weak profile inferences cannot create confirmed-level evidence coverage", () => {
   const answers = { size_preference: ["flexible"], energy_preference: "low", noise_preference: "prefer_quiet" };
   const [profile] = computeRankedMatches([{

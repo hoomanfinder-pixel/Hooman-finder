@@ -61,6 +61,7 @@ const REASON_LABELS = {
 
 const DEFAULT_AI_CONFIDENCE = 0.35;
 const BIO_EXPLICIT_STRENGTH = 0.65;
+const BREED_COAT_INFERENCE_STRENGTH = 0.5;
 const PROFILE_INFERENCE_STRENGTH = 0.25;
 
 function clamp01(value) {
@@ -195,8 +196,17 @@ function aiEvidenceForField(dog, field) {
   if (dog?.needs_human_review === true || traits?.needs_human_review === true) {
     confidence = Math.min(confidence, 0.35);
   }
-  const source = trait?.evidence_basis === "bio_explicit" ? "bio_explicit" : "profile_inference";
-  const tierStrength = source === "bio_explicit" ? BIO_EXPLICIT_STRENGTH : PROFILE_INFERENCE_STRENGTH;
+  const basis = trait?.evidence_basis;
+  const source = basis === "bio_explicit"
+    ? "bio_explicit"
+    : basis === "breed_coat_inference"
+      ? "breed_coat_inference"
+      : "profile_inference";
+  const tierStrength = source === "bio_explicit"
+    ? BIO_EXPLICIT_STRENGTH
+    : source === "breed_coat_inference"
+      ? BREED_COAT_INFERENCE_STRENGTH
+      : PROFILE_INFERENCE_STRENGTH;
   return { source, confidence, strength: tierStrength * confidence, trait };
 }
 
@@ -441,7 +451,7 @@ function result(questionId, evidence, explanation, { requested = true } = {}) {
   return { questionId, weight, requested: true, evidence, contribution };
 }
 
-function scoreQuestion(questionId, answer, dog) {
+function scoreQuestion(questionId, answer, dog, answersById = {}) {
   if (isEmptyAnswer(answer) || isNoPreferenceValue(answer)) return result(questionId, null, "", { requested: false });
 
   switch (questionId) {
@@ -554,7 +564,30 @@ function scoreQuestion(questionId, answer, dog) {
         const raw = sensitivity === "mild_allergies" ? 0.5 : 0;
         return result(questionId, structuredCredit(raw), "Shelter listing does not identify this dog as hypoallergenic");
       }
-      return result(questionId, null, "");
+      const activeSheddingPreference =
+        !isEmptyAnswer(answersById?.shedding_preference) &&
+        !isNoPreferenceValue(answersById?.shedding_preference) &&
+        String(answersById?.shedding_preference).toLowerCase() !== "heavy_ok";
+      if (activeSheddingPreference) {
+        return result(questionId, null, "", { requested: false });
+      }
+      const allergyRaw = (value) => {
+        const shedding = normalizeShedding(value);
+        if (!shedding) return null;
+        if (sensitivity === "mild_allergies") return shedding === "low" ? 1 : shedding === "medium" ? 0.6 : 0.2;
+        return shedding === "low" ? 0.9 : shedding === "medium" ? 0.25 : 0;
+      };
+      const structured = normalizeShedding(dog?.shedding_level);
+      const evidence = structured
+        ? structuredCredit(allergyRaw(structured))
+        : adjustedAiCredit(dog, "shedding_level", allergyRaw(dog?.bio_shedding_level));
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? "Shelter-listed shedding level informs allergy-sensitive matching without guaranteeing an allergy-free response"
+          : "Estimated low-shedding evidence cautiously informs allergy-sensitive matching; it is not a medical guarantee"
+      );
     }
     case "shedding_preference": {
       if (String(answer).toLowerCase() === "heavy_ok") return result(questionId, null, "", { requested: false });
@@ -611,7 +644,7 @@ export function computeRankedMatches(dogs, answersById) {
   const answeredCount = meaningfulAnsweredCount(answersById);
 
   const rows = dogList.map((dog) => {
-    const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog));
+    const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog, answersById));
     const requested = questionResults.filter((entry) => entry.requested);
     const contributions = requested.map((entry) => entry.contribution).filter(Boolean);
 

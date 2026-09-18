@@ -33,7 +33,8 @@ const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
 const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v10-provenance";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v11-shedding-evidence";
+const PREVIOUS_ENRICHMENT_VERSION = "dog-ai-traits-v10-provenance";
 const DEFAULT_LIMIT = 10;
 const DEFAULT_MAX_BATCHES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -430,6 +431,55 @@ function resolveBreedShedding(breed) {
   return combineShedding(matches);
 }
 
+function poodleIdentity(breed) {
+  const raw = String(breed || "").toLowerCase();
+  const components = splitBreedComponents(raw);
+  const namesDoodle = /\b(?:goldendoodle|labradoodle|bernedoodle|aussiedoodle|sheepadoodle|cockapoo|cavapoo|maltipoo|schnoodle|doodle)\b/.test(raw);
+  const poodleComponents = components.filter((component) => component.includes("poodle"));
+
+  if (!namesDoodle && poodleComponents.length === 0) return null;
+
+  const nonPoodleComponents = components.filter((component) => !component.includes("poodle"));
+  return namesDoodle || nonPoodleComponents.length > 0 ? "poodle_mix" : "poodle";
+}
+
+function lowSheddingCoatEvidence(description) {
+  const text = String(description || "").toLowerCase();
+  const match = text.match(/\b(curly|wool(?:ly)?|fleece(?:-type)?|continuously growing)\s+(?:type\s+)?coat\b/);
+  return match?.[0] || null;
+}
+
+function resolvePoodleShedding(dogInput) {
+  const identity = poodleIdentity(dogInput?.breed);
+  if (!identity) return null;
+
+  if (identity === "poodle") {
+    return {
+      value: "low",
+      confidence: 0.82,
+      evidence_basis: "breed_coat_inference",
+      evidence: "Source breed identifies a Poodle; low shedding is a breed-based estimate, not a medical hypoallergenic guarantee.",
+    };
+  }
+
+  const coatEvidence = lowSheddingCoatEvidence(dogInput?.description);
+  if (coatEvidence) {
+    return {
+      value: "low",
+      confidence: 0.72,
+      evidence_basis: "breed_coat_inference",
+      evidence: `Source identifies a Poodle mix and describes a ${coatEvidence}; low shedding remains an estimate because mixed coats vary.`,
+    };
+  }
+
+  return {
+    value: "unknown",
+    confidence: 0,
+    evidence_basis: "breed_coat_inference",
+    evidence: "Source identifies a Poodle mix without dog-specific shedding or low-shedding coat evidence; mixed coats vary, so shedding remains unknown.",
+  };
+}
+
 // Some imports (observed on DACC listings) append an explicit coat-length
 // annotation directly onto the breed string, e.g. "Pit Bull Terrier / Mixed
 // (medium coat)". That's dog-specific source data and should outrank a
@@ -697,7 +747,7 @@ Other rules:
 - Use "true" for first-time friendliness only when beginner/easy language is explicit or evidence is very strong, with no major red flags. If needs_human_review should be true, avoid "true" and be cautious with "likely".
 - Estimate energy_level from activity_level/energy_level first when present, then from bio language. Do not leave energy unknown when there is clear activity or temperament evidence.
 - Puppies and young dogs should usually be at least medium unless the bio says calm. Working, herding, sporting, hound, shepherd, lab, husky, and active breeds should usually be medium_high or high unless the bio says otherwise. Seniors should usually be low or medium_low unless the bio says energetic.
-- Estimate shedding cautiously from breed/coat. Poodle/Bichon-type coats may be low unless mixed/unclear. Husky, German Shepherd, Golden Retriever, Labrador, Akita, and similar breeds are likely higher shedding. Short-coated breeds like Pit Bull Terrier, Boxer, Chihuahua, and Beagle are often low to medium. Unknown mixed breed should stay unknown unless breed or coat gives enough signal.
+- Estimate shedding cautiously from breed/coat. A source-identified Poodle can support an estimated low-shedding value unless the source contradicts it. A Poodle mix/Doodle must stay unknown unless dog-specific coat or shedding evidence supports a value; never treat a Doodle as guaranteed non-shedding or hypoallergenic. Husky, German Shepherd, Golden Retriever, Labrador, Akita, and similar breeds are likely higher shedding. Unknown mixed breed should stay unknown unless breed or coat gives enough signal. Missing evidence must stay unknown rather than defaulting to medium.
 - Estimate barking_level cautiously and mostly from direct bio language (vocal, talkative, alert barker, watchdog, quiet, rarely barks). Do not guess barking_level from breed alone; leave unknown when the bio gives no vocalization evidence.
 - Estimate grooming_level from breed/coat type in the same cautious way as shedding. Poodle/Bichon/Maltese/Shih Tzu/Yorkie-type coats usually need high grooming despite low shedding. Double-coated breeds (Husky, German Shepherd, Golden Retriever, Akita, Great Pyrenees, Samoyed, Newfoundland, Bernese) usually need moderate grooming. Short-coated breeds (Pit Bull Terrier, Boxer, Chihuahua, Doberman, Greyhound) usually need low grooming. Leave unknown for unclear mixed breeds with no coat description.
 - Estimate exercise_needs from energy, age, breed, and bio language.
@@ -768,7 +818,8 @@ function normalizeTraitValue(value, fallbackValue = "unknown") {
 }
 
 function normalizeEvidenceBasis(value) {
-  return value === "bio_explicit" ? "bio_explicit" : "profile_inference";
+  if (["structured_source", "bio_explicit", "breed_coat_inference"].includes(value)) return value;
+  return "profile_inference";
 }
 
 function normalizeTraitObject(obj, fallbackValue = "unknown") {
@@ -832,11 +883,18 @@ function normalizeSheddingTraitObject(obj, fallbackValue = "unknown") {
     return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
+  const evidence = typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "";
+  const confidence = normalizeConfidence(obj.confidence);
+  const value = normalizeSheddingValue(obj.value, fallbackValue);
+  if (value !== "unknown" && (!evidence.trim() || confidence <= 0)) {
+    return { value: "unknown", confidence: 0, evidence: "", evidence_basis: "profile_inference" };
+  }
+
   return {
     ...obj,
-    value: normalizeSheddingValue(obj.value, fallbackValue),
-    confidence: normalizeConfidence(obj.confidence),
-    evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+    value,
+    confidence,
+    evidence,
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
   };
 }
@@ -1698,18 +1756,41 @@ function normalizeAiTraits(parsed, dogInput) {
   const breedText = String(dogInput.breed || "").toLowerCase();
   const mixedOrUnclearBreed = /\bmix|mixed|unknown\b/.test(breedText);
 
-  if (dogInput.current_shedding_level) {
-    setShedding(dogInput.current_shedding_level, 0.84, `Existing structured shedding level is ${dogInput.current_shedding_level}.`);
-  }
-
-  if (
-    includesAny(["low shedding", "low-shedding", "minimal shedding", "doesn't shed much", "does not shed much"])
+  const existingShedding = normalizeSheddingValue(dogInput.current_shedding_level);
+  if (existingShedding !== "unknown") {
+    setShedding(
+      existingShedding,
+      1,
+      `Existing structured shedding level is ${existingShedding}.`,
+      true,
+      "structured_source"
+    );
+  } else if (
+    includesAny([
+      "low shedding",
+      "low-shedding",
+      "minimal shedding",
+      "non-shedding",
+      "non shedding",
+      "doesn't shed",
+      "does not shed",
+    ])
   ) {
-    setShedding("low", 0.86, "Bio directly describes low shedding.", true, "bio_explicit");
+    setShedding("low", 0.94, "Bio directly describes low shedding.", true, "bio_explicit");
   } else if (
     includesAny(["high shedding", "heavy shedding", "sheds a lot", "double coat", "blowing coat"])
   ) {
-    setShedding("high", 0.86, "Bio directly describes high shedding or a double coat.", true, "bio_explicit");
+    setShedding("high", 0.94, "Bio directly describes high shedding or a double coat.", true, "bio_explicit");
+  } else if (includesAny(["moderate shedding", "average shedding", "sheds moderately"])) {
+    setShedding("medium", 0.92, "Bio directly describes moderate shedding.", true, "bio_explicit");
+  } else if (resolvePoodleShedding(dogInput)) {
+    const poodleShedding = resolvePoodleShedding(dogInput);
+    normalized.shedding_level = {
+      value: poodleShedding.value,
+      confidence: poodleShedding.confidence,
+      evidence: poodleShedding.evidence,
+      evidence_basis: poodleShedding.evidence_basis,
+    };
   } else if (normalizeSheddingValue(normalized.shedding_level?.value) === "unknown") {
     // Deliberately NOT using explicitCoatLength() here: coat length alone does not
     // reliably predict shedding amount (e.g. Labrador Retrievers, German Shepherds,
@@ -1721,7 +1802,7 @@ function normalizeAiTraits(parsed, dogInput) {
     // above for how multiple named breeds / breed groups are combined.
     const breedShedding = resolveBreedShedding(dogInput.breed);
     if (breedShedding) {
-      setShedding(breedShedding.value, breedShedding.confidence, breedShedding.evidence);
+      setShedding(breedShedding.value, breedShedding.confidence, breedShedding.evidence, false, "breed_coat_inference");
     }
   }
 
@@ -2610,9 +2691,8 @@ function normalizeAiTraits(parsed, dogInput) {
     );
   }
 
-  const existingShedding = normalizeSheddingValue(dogInput.current_shedding_level);
   if (existingShedding !== "unknown") {
-    setShedding(existingShedding, 0.9, `Existing structured shedding level is ${existingShedding}.`, true);
+    setShedding(existingShedding, 1, `Existing structured shedding level is ${existingShedding}.`, true, "structured_source");
   }
 
   if (dogInput.current_barking_level) {
@@ -2957,12 +3037,6 @@ function mergeExistingBioColumns(nextColumns, dog) {
       merged[key] = existing;
       carriedForwardFields.push(key);
     }
-  }
-
-  const existingShedding = normalizeSheddingValue(dog?.bio_shedding_level);
-  if (merged.bio_shedding_level === "unknown" && existingShedding !== "unknown") {
-    merged.bio_shedding_level = existingShedding;
-    carriedForwardFields.push("bio_shedding_level");
   }
 
   const existingBarking = normalizeBarkingValue(dog?.bio_barking_level);
@@ -3399,7 +3473,16 @@ function isAwaitingDaccBioRecovery(dog) {
 // only a genuine hash mismatch counts.
 function computeRawEligibilityReason(dog) {
   if (!dog?.ai_enriched_at) return "new";
-  if (dog?.ai_enrichment_version !== AI_ENRICHMENT_VERSION) return "version_outdated";
+  if (dog?.ai_enrichment_version !== AI_ENRICHMENT_VERSION) {
+    if (dog?.ai_enrichment_version === PREVIOUS_ENRICHMENT_VERSION) {
+      const needsSheddingRefresh =
+        normalizeSheddingValue(dog?.shedding_level) === "unknown" &&
+        Boolean(poodleIdentity(dog?.breed));
+      if (needsSheddingRefresh) return "version_outdated";
+    } else {
+      return "version_outdated";
+    }
+  }
 
   const currentHash = dog?.source_content_hash ?? null;
   if (currentHash !== null && currentHash !== (dog?.ai_enriched_source_hash ?? null)) {
@@ -3704,6 +3787,8 @@ module.exports = {
   callOpenAI,
   safeParseJson,
   normalizeAiTraits,
+  poodleIdentity,
+  resolvePoodleShedding,
   inferExpectedAdultSizeForPuppy,
   buildBioColumns,
   mergeExistingBioColumns,

@@ -152,11 +152,14 @@ async function fetchDogRows(supabase) {
   return rows;
 }
 
+async function selectPublicDogs(rows, options) {
+  const { filterPublicDogs } = await import("../src/lib/dogVisibility.js");
+  return filterPublicDogs(rows, options)
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+}
+
 async function main() {
-  const [{ filterPublicDogs }, { getDogSourceName }] = await Promise.all([
-    import("../src/lib/dogVisibility.js"),
-    import("../src/lib/dogSource.js"),
-  ]);
+  const { getDogSourceName } = await import("../src/lib/dogSource.js");
   const { supabase, keyType } = createSupabaseClient();
   const rows = await fetchDogRows(supabase);
   const { data: shelters, error: shelterError } = await supabase
@@ -168,8 +171,7 @@ async function main() {
     ...dog,
     shelters: shelterById.get(dog.shelter_id) || null,
   }));
-  const dogs = filterPublicDogs(joinedRows)
-    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  const dogs = await selectPublicDogs(joinedRows);
   const staticEntries = STATIC_ROUTES.map((route) => ({
     loc: `${SITE_URL}${route.path}`,
     changefreq: route.changefreq,
@@ -206,7 +208,15 @@ async function main() {
   console.log(`Fetched ${rows.length} candidate dogs; included ${dogs.length} public dog URLs.`);
 }
 
-main().catch((error) => {
-  console.error(`Could not generate dog sitemap: ${error.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`Could not generate dog sitemap: ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildXml,
+  dogEntries,
+  selectPublicDogs,
+};

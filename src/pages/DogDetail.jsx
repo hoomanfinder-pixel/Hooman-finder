@@ -190,11 +190,18 @@ function displaySheddingValue(value) {
 
 function estimatedTraitMetadata(evidenceBasis) {
   const bioExplicit = evidenceBasis === "bio_explicit";
+  const breedCoatInference = evidenceBasis === "breed_coat_inference";
   return {
-    source: bioExplicit ? "bio" : "profile_inference",
-    note: bioExplicit ? "Interpreted from listing bio" : "AI profile estimate",
+    source: bioExplicit ? "bio" : breedCoatInference ? "breed_coat_inference" : "profile_inference",
+    note: bioExplicit
+      ? "Interpreted from listing bio"
+      : breedCoatInference
+        ? "Estimated from breed and coat evidence"
+        : "AI profile estimate",
     title: bioExplicit
       ? "AI interpretation of dog-specific wording in the shelter or rescue bio. Confirm with the source."
+      : breedCoatInference
+        ? "Estimated from the source-listed breed and any dog-specific coat evidence. Coat inheritance varies, especially in mixes, and this is not a hypoallergenic guarantee."
       : "AI estimate based on broader profile context. This is not a known behavioral fact. Confirm with the shelter or rescue.",
   };
 }
