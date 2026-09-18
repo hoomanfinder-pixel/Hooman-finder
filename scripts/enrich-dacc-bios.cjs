@@ -601,6 +601,10 @@ async function fetchDaccDogs(supabase) {
         external_id,
         source_url,
         adoption_url,
+        placement_state,
+        last_checked_at,
+        imported_status,
+        ingestion_source_id,
         created_at,
         source_updated_at,
         photo_url,
@@ -615,7 +619,15 @@ async function fetchDaccDogs(supabase) {
         bio_good_with_kids,
         bio_potty_trained,
         bio_first_time_friendly,
-        ${HASHED_FIELDS.join(",\n        ")}
+        ${HASHED_FIELDS.join(",\n        ")},
+        ingestion_sources (
+          id,
+          source_type,
+          external_org_id,
+          enabled,
+          publication_eligible,
+          last_successful_sync_at
+        )
       `;
 
   const buildQuery = (includeRecoveryTracking) => {

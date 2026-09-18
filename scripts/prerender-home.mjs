@@ -84,7 +84,7 @@ async function loadCatalogData() {
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const [{ data: dogRows, error: dogError }, { data: shelters, error: shelterError }] =
       await Promise.all([
-        supabase.from("dogs").select("*, shelters(id,name,city,state,website,apply_url,logo_url)")
+        supabase.from("dogs").select("*, shelters(id,name,city,state,website,apply_url,logo_url), ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)")
           .eq("adoptable", true)
           .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"])

@@ -10,11 +10,11 @@ const {
   buildBioColumns,
   getEnrichmentEligibilityReason,
   hasMeaningfulChange,
-  isPubliclyVisibleDog,
   mergeExistingBioColumns,
   normalizeAiTraits,
   parseBoundedPositiveInteger,
 } = require("../../scripts/enrich-dogs-ai.cjs");
+import { isPubliclyVisibleDog } from "./dogVisibility.js";
 const {
   HASHED_FIELDS,
   computeSourceContentHash,
@@ -516,6 +516,15 @@ test("daily enrichment visibility excludes unavailable and untrusted dogs", () =
     availability_status: "available",
     urgency_level: "Standard",
     rescuegroups_id: "123",
+    rescuegroups_org_id: "6172",
+    external_id: "123",
+    source: "rescuegroups",
+    placement_state: "MI",
+    photo_url: "https://images.example.org/dog.jpg",
+    adoption_url: "https://adopt.example.org/dog",
+    ingestion_source_id: "source-6172",
+    ingestion_sources: { source_type: "rescuegroups", external_org_id: "6172", enabled: true, publication_eligible: true },
+    last_checked_at: new Date().toISOString(),
   };
 
   assert.equal(isPubliclyVisibleDog(visible), true);

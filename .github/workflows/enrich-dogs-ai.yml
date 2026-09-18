@@ -1,0 +1,44 @@
+name: Enrich Dog Profiles with AI
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      enabled:
+        description: Run enrichment
+        required: true
+        type: boolean
+        default: true
+      max_dogs:
+        description: Maximum dogs to enrich in this run (1-100)
+        required: true
+        type: number
+        default: 25
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-dog-enrichment
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    if: vars.AI_ENRICHMENT_ENABLED != 'false' && (github.event_name != 'workflow_dispatch' || inputs.enabled)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Enrich a bounded number of eligible dogs
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          AI_ENRICHMENT_ENABLED: "true"
+          MAX_DOGS: ${{ github.event_name == 'workflow_dispatch' && inputs.max_dogs || 25 }}
+        run: node scripts/enrich-dogs-ai.cjs --limit="$MAX_DOGS"

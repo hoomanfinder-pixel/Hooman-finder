@@ -7,6 +7,17 @@ const fixtureImage = (label, color, { width = 800, height = 600 } = {}) =>
     </svg>
   `)}`;
 
+const fixturePhoto = (label, color = "#F3C982") =>
+  `https://images.example.org/e2e/${encodeURIComponent(label)}.svg?color=${encodeURIComponent(color)}`;
+
+const ingestionSourceFixture = {
+  id: "e2e-source-1",
+  source_type: "rescuegroups",
+  external_org_id: "e2e-org-1",
+  enabled: true,
+  publication_eligible: true,
+};
+
 export const shelterFixture = {
   id: "e2e-shelter-1",
   name: "Great Lakes Dog Rescue",
@@ -28,7 +39,7 @@ export const dogFixtures = [
     size: "Medium",
     energy_level: "Moderate",
     description: "Maple is a friendly, adaptable dog who enjoys walks and quiet evenings.",
-    photo_url: fixtureImage("Maple", "#F3C982"),
+    photo_url: fixturePhoto("Maple", "#F3C982"),
     photo_urls: [],
     adoptable: true,
     adoption_pending: false,
@@ -38,6 +49,9 @@ export const dogFixtures = [
     external_id: "e2e-maple",
     rescuegroups_id: "e2e-maple",
     rescuegroups_org_id: "e2e-org-1",
+    ingestion_source_id: ingestionSourceFixture.id,
+    ingestion_sources: ingestionSourceFixture,
+    last_checked_at: new Date().toISOString(),
     source_url: "https://greatlakesdogrescue.example.org/dogs/maple",
     adoption_url: "https://greatlakesdogrescue.example.org/dogs/maple/apply",
     shelter_name: shelterFixture.name,
@@ -60,7 +74,7 @@ export const dogFixtures = [
     size: "Large",
     energy_level: "Low",
     description: "River is a calm senior who prefers a relaxed daily routine.",
-    photo_url: fixtureImage("River", "#C7D4BB"),
+    photo_url: fixturePhoto("River", "#C7D4BB"),
     photo_urls: [],
     adoptable: true,
     adoption_pending: false,
@@ -70,6 +84,9 @@ export const dogFixtures = [
     external_id: "e2e-river",
     rescuegroups_id: "e2e-river",
     rescuegroups_org_id: "e2e-org-1",
+    ingestion_source_id: ingestionSourceFixture.id,
+    ingestion_sources: ingestionSourceFixture,
+    last_checked_at: new Date().toISOString(),
     source_url: "https://greatlakesdogrescue.example.org/dogs/river",
     adoption_url: "https://greatlakesdogrescue.example.org/dogs/river/apply",
     shelter_name: shelterFixture.name,
@@ -94,7 +111,7 @@ const scenarioDog = ({ id, name, color, ...overrides }) => ({
   size: "Medium",
   energy_level: "Moderate",
   description: `${name} has deterministic compatibility details for local end-to-end testing.`,
-  photo_url: fixtureImage(name, color),
+  photo_url: fixturePhoto(name, color),
   photo_urls: [],
   adoptable: true,
   adoption_pending: false,
@@ -104,6 +121,9 @@ const scenarioDog = ({ id, name, color, ...overrides }) => ({
   external_id: id,
   rescuegroups_id: id,
   rescuegroups_org_id: shelterFixture.rescuegroups_org_id,
+  ingestion_source_id: ingestionSourceFixture.id,
+  ingestion_sources: ingestionSourceFixture,
+  last_checked_at: new Date().toISOString(),
   source_url: `https://greatlakesdogrescue.example.org/dogs/${id}`,
   adoption_url: `https://greatlakesdogrescue.example.org/dogs/${id}/apply`,
   shelter_name: shelterFixture.name,
@@ -138,8 +158,6 @@ export const childCompatibilityDogs = [
     name: "Scout",
     color: "#B9D7EA",
     good_with_kids: null,
-    source_url: "http://",
-    adoption_url: "https://",
     shelter_website: "http://",
     shelters: malformedLinkShelter,
   }),

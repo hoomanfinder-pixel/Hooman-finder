@@ -100,6 +100,15 @@ test("shelter responses have self-canonical metadata and crawlable dog links", a
     availability_status: "available",
     urgency_level: "Standard",
     rescuegroups_id: "rg-123",
+    rescuegroups_org_id: "6172",
+    external_id: "rg-123",
+    source: "rescuegroups",
+    placement_state: "MI",
+    photo_url: "https://images.example.org/mabel.jpg",
+    adoption_url: "https://adopt.example.org/mabel",
+    ingestion_source_id: "source-6172",
+    ingestion_sources: { source_type: "rescuegroups", external_org_id: "6172", enabled: true, publication_eligible: true },
+    last_checked_at: new Date().toISOString(),
   };
 
   await withFetch(async (input) => {

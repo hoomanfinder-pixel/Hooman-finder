@@ -1,4 +1,5 @@
 import { isPubliclyVisibleDog } from "./src/lib/dogVisibility.js";
+import { buildRescueGroupsTrackerHtml } from "./src/lib/rescueGroupsTracker.js";
 import {
   buildDogProfileMetadata,
   getConfirmedDogProfile,
@@ -32,7 +33,12 @@ const DOG_SELECT = [
   "rescuegroups_org_id",
   "source",
   "external_id",
+  "ingestion_source_id",
+  "tracker_image_url",
+  "last_checked_at",
+  "imported_status",
   "shelters(id,name,city,state,apply_url,website)",
+  "ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)",
 ].join(",");
 
 export const config = {
@@ -107,6 +113,7 @@ export function buildDogSnapshotHtml(dog) {
   const adoptionLink = profile.adoptionUrl
     ? `<p><a href="${escapeHtml(profile.adoptionUrl)}" target="_blank" rel="noreferrer">${escapeHtml(profile.adoptionLabel || "View official adoption listing")}</a></p>`
     : "";
+  const tracker = buildRescueGroupsTrackerHtml(dog, escapeHtml);
 
   return [
     '<main data-dog-profile-snapshot="true">',
@@ -120,6 +127,7 @@ export function buildDogSnapshotHtml(dog) {
     shelter,
     bio,
     adoptionLink,
+    tracker,
     "</article>",
     "</main>",
   ].filter(Boolean).join("");

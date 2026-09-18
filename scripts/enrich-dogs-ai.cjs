@@ -29,71 +29,9 @@
 //   node scripts/enrich-dogs-ai.cjs --limit=5 --dry-run   (calls OpenAI, prints results, writes nothing)
 //   node scripts/enrich-dogs-ai.cjs --drain --limit=25 --max-batches=20 --max-attempts=3
 
-const { getDogAvailabilitySignal } = require("./dog-availability.cjs");
 const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
 const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
-
-// Mirrors src/lib/dogVisibility.js isPubliclyVisibleDog (same logic already
-// shipped in scripts/generate-dog-sitemap.cjs) — enrichment must only ever
-// touch dogs that are actually public on the site, not just "adoptable".
-const ACTIVE_STATUSES = new Set(["active", "available", "unknown"]);
-const VERIFIED_CONFIDENCE = new Set(["current", "trusted", "verified"]);
-const TRUSTED_EXTERNAL_ID_SOURCES = new Set(["rescuegroups"]);
-const TRUSTED_LISTING_HOSTS = [
-  "rescuegroups.org",
-  "petfinder.com",
-  "adoptapet.com",
-  "shelterluv.com",
-  "petango.com",
-];
-
-function cleanVisibilityValue(value) {
-  return value === null || value === undefined ? "" : String(value).trim();
-}
-
-function lowerVisibilityValue(value) {
-  return cleanVisibilityValue(value).toLowerCase();
-}
-
-function hasReliableListingUrl(value) {
-  const url = cleanVisibilityValue(value);
-  if (!url.startsWith("https://")) return false;
-  try {
-    const { hostname } = new URL(url);
-    return TRUSTED_LISTING_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`));
-  } catch {
-    return false;
-  }
-}
-
-function hasRescueGroupsIdentity(dog) {
-  return Boolean(cleanVisibilityValue(dog?.rescuegroups_id) || cleanVisibilityValue(dog?.rescuegroups_org_id));
-}
-
-function hasTrustedSyncedSource(dog) {
-  return (
-    hasRescueGroupsIdentity(dog) ||
-    (TRUSTED_EXTERNAL_ID_SOURCES.has(lowerVisibilityValue(dog?.source)) && Boolean(cleanVisibilityValue(dog?.external_id)))
-  );
-}
-
-function hasVerifiedListingSource(dog) {
-  const confidence = lowerVisibilityValue(dog?.source_confidence);
-  const verified =
-    dog?.verified === true || dog?.availability_verified === true || VERIFIED_CONFIDENCE.has(confidence);
-  return verified && (hasReliableListingUrl(dog?.source_url) || hasReliableListingUrl(dog?.adoption_url));
-}
-
-function isPubliclyVisibleDog(dog) {
-  if (!dog) return false;
-  if (dog.adoptable !== true) return false;
-  if (dog.adoption_pending === true) return false;
-  if (lowerVisibilityValue(dog.urgency_level) === "adopted") return false;
-  if (!ACTIVE_STATUSES.has(lowerVisibilityValue(dog.availability_status))) return false;
-  if (getDogAvailabilitySignal(dog)) return false;
-  return hasTrustedSyncedSource(dog) || hasVerifiedListingSource(dog);
-}
 
 const AI_ENRICHMENT_VERSION = "dog-ai-traits-v10-provenance";
 const DEFAULT_LIMIT = 10;
@@ -112,6 +50,8 @@ const ALONE_HOURS_LABELS = new Set(["1-2", "3-4", "5-6", "7-8", "unknown"]);
 
 let supabase = null;
 let openAiApiKey = "";
+let activeAiRunId = null;
+const runTokenUsage = { input: 0, output: 0, total: 0 };
 
 function initializeRuntime() {
   require("dotenv").config({ path: ".env.local" });
@@ -3092,6 +3032,10 @@ async function callOpenAI(prompt) {
       );
     }
 
+    runTokenUsage.input += Number(json.usage?.prompt_tokens || 0);
+    runTokenUsage.output += Number(json.usage?.completion_tokens || 0);
+    runTokenUsage.total += Number(json.usage?.total_tokens || 0);
+
     return json.choices?.[0]?.message?.content || "";
   } finally {
     clearTimeout(timeout);
@@ -3348,42 +3292,58 @@ const ENRICHMENT_DOG_SELECT = `
       external_id,
       source_url,
       adoption_url,
+      placement_state,
+      photo_url,
+      last_checked_at,
+      imported_status,
+      ingestion_source_id,
       shelters (
         name
+      ),
+      ingestion_sources (
+        id,
+        source_type,
+        external_org_id,
+        enabled,
+        publication_eligible,
+        last_successful_sync_at
       )
     `;
 
-async function fetchDogs({ limit, force, dogId }) {
-  let query = supabase
-    .from("dogs")
-    .select(ENRICHMENT_DOG_SELECT)
-    .eq("adoptable", true)
-    .or("adoption_pending.is.null,adoption_pending.eq.false")
-    .in("availability_status", ["available", "active", "unknown"])
-    .neq("urgency_level", "Adopted")
-    .order("created_at", { ascending: false })
-    // Explicit safety-net cap, decoupled from the CLI --limit (business
-    // parameter, e.g. 40/day) applied after eligibility filtering below.
-    // Without an explicit limit here, this query is subject to PostgREST's
-    // own default row cap (commonly 1000) and would silently truncate the
-    // eligibility scan before the JS filtering below ever sees the rest.
-    // 2000 is comfortably above current + realistic near-term dataset size;
-    // revisit with real pagination if the dogs table ever approaches it.
-    .limit(2000);
-
-  if (dogId) {
-    query = query.eq("id", dogId);
+async function collectPaginatedDogs(fetchPage, { pageSize = 1000, maxPages = 100 } = {}) {
+  const rows = [];
+  for (let page = 0; page < maxPages; page += 1) {
+    const batch = await fetchPage(page * pageSize, page * pageSize + pageSize - 1);
+    rows.push(...batch);
+    if (batch.length < pageSize) return rows;
   }
+  throw new Error(`Dog eligibility scan exceeded ${maxPages} pages of ${pageSize}; raise the explicit bound after review.`);
+}
 
-  const { data, error } = await query;
+async function fetchDogs({ limit, force, dogId }) {
+  const data = await collectPaginatedDogs(async (from, to) => {
+    let query = supabase
+      .from("dogs")
+      .select(ENRICHMENT_DOG_SELECT)
+      .eq("adoptable", true)
+      .or("adoption_pending.is.null,adoption_pending.eq.false")
+      .in("availability_status", ["available", "active", "unknown"])
+      .neq("urgency_level", "Adopted")
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (dogId) query = query.eq("id", dogId);
+    const { data: batch, error } = await query;
+    if (error) throw error;
+    return Array.isArray(batch) ? batch : [];
+  });
 
-  if (error) throw error;
+  const { isPubliclyVisibleDog } = await import("../src/lib/dogVisibility.js");
 
   // The SQL filters above are a coarse pre-filter (adoptable/pending/status/
   // urgency); isPubliclyVisibleDog is the authoritative check that also
   // requires a trusted synced source or a verified listing, matching what
   // actually renders on the live site.
-  const visible = Array.isArray(data) ? data.filter(isPubliclyVisibleDog) : [];
+  const visible = data.filter(isPubliclyVisibleDog);
 
   if (force || dogId) {
     return visible.slice(0, limit);
@@ -3571,7 +3531,44 @@ async function processDogBatch(
   return { stats, noDataDogs, exhaustedFailures };
 }
 
+async function startAiRun(maxDogs) {
+  const { data, error } = await supabase
+    .from("ai_enrichment_runs")
+    .insert({ model: MODEL, max_dogs: maxDogs, status: "running" })
+    .select("id")
+    .single();
+  if (error) throw new Error(`Could not create AI enrichment run log: ${error.message}`);
+  activeAiRunId = data.id;
+}
+
+async function finishAiRun(stats, { status = "success", error = null } = {}) {
+  if (!activeAiRunId || !supabase) return;
+  const payload = {
+    finished_at: new Date().toISOString(),
+    status,
+    attempted_count: Number(stats?.attempted || 0),
+    succeeded_count: Number(stats?.updated || 0),
+    skipped_count: Number((stats?.skippedNoChange || 0) + (stats?.skippedNoData || 0)),
+    failed_count: Number(stats?.failed || (error ? 1 : 0)),
+    input_tokens: runTokenUsage.input,
+    output_tokens: runTokenUsage.output,
+    total_tokens: runTokenUsage.total,
+    error_summary: error ? String(error.message || error).slice(0, 2000) : null,
+  };
+  const { error: updateError } = await supabase
+    .from("ai_enrichment_runs")
+    .update(payload)
+    .eq("id", activeAiRunId);
+  if (updateError) console.error(`Could not finalize AI enrichment run log: ${updateError.message}`);
+  activeAiRunId = null;
+}
+
 async function main() {
+  require("dotenv").config({ path: ".env.local" });
+  if (String(process.env.AI_ENRICHMENT_ENABLED || "true").toLowerCase() === "false") {
+    console.log("AI enrichment is disabled by AI_ENRICHMENT_ENABLED=false.");
+    return;
+  }
   initializeRuntime();
 
   const limit = parseBoundedPositiveInteger(getArg("limit", DEFAULT_LIMIT), DEFAULT_LIMIT, {
@@ -3602,6 +3599,9 @@ async function main() {
     throw new Error("--drain cannot be combined with --force, --dry-run, or --dog-id.");
   }
 
+  const maxDogsThisRun = drain ? limit * maxBatches : limit;
+  if (!dryRun) await startAiRun(maxDogsThisRun);
+
   console.log("========================================");
   console.log("AI dog trait enrichment");
   console.log(`Model: ${MODEL}`);
@@ -3622,11 +3622,17 @@ async function main() {
     const dogs = await fetchDogs({ limit, force, dogId });
     if (!dogs.length) {
       console.log("No dogs found to enrich.");
+      if (!dryRun) await finishAiRun(emptyRunStats());
       return;
     }
 
     console.log(`Found ${dogs.length} dog(s) to enrich.`);
-    await processDogBatch(dogs, { dryRun });
+    const result = await processDogBatch(dogs, { dryRun });
+    if (!dryRun) {
+      await finishAiRun(result.stats, {
+        status: result.stats.failed > 0 ? "partial" : "success",
+      });
+    }
     return;
   }
 
@@ -3678,10 +3684,12 @@ async function main() {
 
   console.log(`\nEligible enrichment queue cleared after ${batchesRun} batch(es).`);
   printRunStats(totals, { heading: "AI enrichment queue drain complete" });
+  await finishAiRun(totals, { status: totals.failed > 0 ? "partial" : "success" });
 }
 
 if (require.main === module) {
-  main().catch((error) => {
+  main().catch(async (error) => {
+    await finishAiRun(null, { status: "failed", error });
     console.error("Fatal error:", error);
     process.exit(1);
   });
@@ -3700,10 +3708,10 @@ module.exports = {
   buildBioColumns,
   mergeExistingBioColumns,
   hasMeaningfulChange,
-  isPubliclyVisibleDog,
   getEnrichmentEligibilityReason,
   parseBoundedPositiveInteger,
   bioFieldLabel,
   ENRICHMENT_DOG_SELECT,
   AI_ENRICHMENT_VERSION,
+  collectPaginatedDogs,
 };

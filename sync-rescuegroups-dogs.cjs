@@ -475,6 +475,8 @@ function mapAnimalToDogRow(animal, included, rescue) {
   const row = {
     source: "rescuegroups",
     external_id: externalId,
+    ingestion_source_id: rescue.ingestionSourceId || null,
+    ingestion_sources: rescue.ingestionSourceState || null,
 
     rescuegroups_id: externalId,
     rescuegroups_org_id: orgId,
@@ -490,6 +492,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
 
     photo_url: photoUrl,
     photo_urls: photoUrls,
+    tracker_image_url: clean(attrs.trackerimageUrl || attrs.trackerImageUrl),
 
     adoptable: availability.adoptable,
     adoption_pending: availability.adoptionPending,
@@ -699,6 +702,7 @@ function buildRequestBody(rescue) {
           "imageUrl",
           "photoUrl",
           "pictureThumbnailUrl",
+          "trackerimageUrl",
         ],
         pictures: [
           "urlSecureFullsize",
@@ -782,7 +786,7 @@ async function fetchOnePageForRescue(rescue, pageNumber, options = {}) {
 }
 
 function getDogPublicationFilterReason(dog) {
-  if (!dog?.rescuegroups_id) return "missing authoritative animal ID";
+  if (!dog?.rescuegroups_id || !dog?.external_id) return "missing authoritative animal ID";
   if (!dog?.name || /^unnamed dog$/i.test(dog.name.trim())) return "missing name";
   if (/^(?:application|pre-approval)$/i.test(dog.name.trim())) {
     return "placeholder-like name";
@@ -811,12 +815,17 @@ async function fetchDogsForRescue(rescue) {
     allowVerifiedEmptyRoster: rescue.allowVerifiedEmptyRoster === true,
   });
 
+  const { getRescueGroupsPublicationIneligibilityReason } = await import(
+    "./src/lib/dogVisibility.js"
+  );
   const allMappedDogs = roster.animals
     .map((animal) => mapAnimalToDogRow(animal, roster.included, rescue))
     .filter((dog) => rescueMatchesDog(dog, rescue))
     .map((dog) => ({
       ...dog,
-      _publicationFilterReason: getDogPublicationFilterReason(dog),
+      _publicationFilterReason:
+        getDogPublicationFilterReason(dog) ||
+        getRescueGroupsPublicationIneligibilityReason(dog),
     }));
 
   console.log(
@@ -898,6 +907,7 @@ async function upsertDogs(dogs) {
     const publicationFilterReason = dog._publicationFilterReason || null;
     const cleanDog = { ...dog };
     delete cleanDog._publicationFilterReason;
+    delete cleanDog.ingestion_sources;
 
     try {
       if (existingDog) {
@@ -988,6 +998,81 @@ async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) 
   return { staleMarked: staleDogs.length };
 }
 
+async function loadManagedRescues(configuredRescues) {
+  const { data, error } = await supabase
+    .from("ingestion_sources")
+    .select("id,source_type,external_org_id,shelter_id,display_name,enabled,publication_eligible,last_successful_sync_at,disabled_reason")
+    .eq("source_type", "rescuegroups");
+  if (error) throw new Error(`Could not load ingestion source controls: ${error.message}`);
+
+  const byOrg = new Map((data || []).map((row) => [String(row.external_org_id), row]));
+  return configuredRescues.map((rescue) => {
+    const registry = byOrg.get(String(rescue.rescueGroupsOrgId));
+    if (!registry) {
+      throw new Error(`Configured source ${rescue.name} (${rescue.rescueGroupsOrgId}) has no ingestion_sources row.`);
+    }
+    return {
+      ...rescue,
+      // The database registry is the operational kill switch. Static defaults
+      // seed safe first-run state but must not prevent an audited re-enable.
+      enabled: registry.enabled === true,
+      publicationEligible: registry.publication_eligible === true,
+      ingestionSourceId: registry.id,
+      ingestionSourceState: registry,
+      disabledReason: registry.disabled_reason || rescue.disabledReason || null,
+    };
+  });
+}
+
+async function startIngestionRun(rescue) {
+  const now = new Date().toISOString();
+  const { error: sourceError } = await supabase
+    .from("ingestion_sources")
+    .update({ last_sync_attempt_at: now, last_sync_status: "running", last_error: null, updated_at: now })
+    .eq("id", rescue.ingestionSourceId);
+  if (sourceError) throw new Error(`Could not mark ${rescue.name} sync running: ${sourceError.message}`);
+
+  const { data, error } = await supabase
+    .from("ingestion_runs")
+    .insert({ ingestion_source_id: rescue.ingestionSourceId, status: "running", started_at: now })
+    .select("id")
+    .single();
+  if (error) throw new Error(`Could not create ingestion run for ${rescue.name}: ${error.message}`);
+  return data.id;
+}
+
+async function finishIngestionRun(rescue, runId, outcome) {
+  const now = new Date().toISOString();
+  const failed = outcome.error ? 1 : Number(outcome.upsertResult?.failed || 0);
+  const status = outcome.error ? "failed" : failed > 0 ? "partial" : "success";
+  const errorSummary = outcome.error ? describeError(outcome.error).slice(0, 2000) : null;
+  const runUpdate = {
+    finished_at: now,
+    status,
+    fetched_count: Number(outcome.roster?.count || 0),
+    inserted_count: Number(outcome.upsertResult?.inserted || 0),
+    updated_count: Number(outcome.upsertResult?.updated || 0),
+    filtered_count: Number(outcome.upsertResult?.filtered || 0),
+    stale_marked_count: Number(outcome.staleResult?.staleMarked || 0),
+    failed_count: failed,
+    error_summary: errorSummary,
+  };
+  const { error: runError } = await supabase.from("ingestion_runs").update(runUpdate).eq("id", runId);
+  if (runError) console.error(`Could not finalize ingestion run ${runId}: ${runError.message}`);
+
+  const sourceUpdate = {
+    last_sync_status: status,
+    last_error: errorSummary,
+    updated_at: now,
+    ...(status === "success" ? { last_successful_sync_at: now } : {}),
+  };
+  const { error: sourceError } = await supabase
+    .from("ingestion_sources")
+    .update(sourceUpdate)
+    .eq("id", rescue.ingestionSourceId);
+  if (sourceError) console.error(`Could not finalize source ${rescue.name}: ${sourceError.message}`);
+}
+
 async function syncConfiguredRescues({
   rescues,
   fetchDogs = fetchDogsForRescue,
@@ -995,16 +1080,25 @@ async function syncConfiguredRescues({
   upsert = upsertDogs,
   markUnavailable = markMissingDogsUnavailableForRescue,
   logger = console,
+  onRunStart = null,
+  onRunFinish = null,
 }) {
   let totalUpserted = 0;
   const failures = [];
 
   for (const rescue of rescues) {
+    let runId = null;
     try {
+      if (rescue.enabled === false) {
+        logger.log(`Skipping disabled source ${rescue.name}: ${rescue.disabledReason || "disabled by source control"}.`);
+        continue;
+      }
       if (!rescue.supabaseShelterId && !rescue.rescueGroupsOrgId) {
         logger.log(`Skipping ${rescue.name}: missing shelter and RescueGroups org IDs.`);
         continue;
       }
+
+      if (onRunStart) runId = await onRunStart(rescue);
 
       const result = await reconcileCompleteRoster({
         source: rescue,
@@ -1040,7 +1134,9 @@ async function syncConfiguredRescues({
       const syncResult = result.upsertResult;
 
       totalUpserted += syncResult.inserted + syncResult.updated;
+      if (onRunFinish) await onRunFinish(rescue, runId, result);
     } catch (error) {
+      if (onRunFinish && runId) await onRunFinish(rescue, runId, { error });
       failures.push({ rescue, error });
       logger.error(`Error syncing ${rescue.name}: ${describeError(error)}`);
     }
@@ -1063,11 +1159,15 @@ async function main() {
 
   console.log("Starting Hooman Finder RescueGroups sync...");
 
-  const enabledRescues = RESCUES.filter((rescue) => rescue.enabled !== false);
+  const managedRescues = await loadManagedRescues(RESCUES);
+  const enabledCount = managedRescues.filter((rescue) => rescue.enabled !== false).length;
+  console.log(`Enabled rescues: ${enabledCount}; disabled: ${managedRescues.length - enabledCount}`);
 
-  console.log(`Enabled rescues: ${enabledRescues.length}`);
-
-  const { totalUpserted } = await syncConfiguredRescues({ rescues: enabledRescues });
+  const { totalUpserted } = await syncConfiguredRescues({
+    rescues: managedRescues,
+    onRunStart: startIngestionRun,
+    onRunFinish: finishIngestionRun,
+  });
 
   console.log("");
   console.log(`Sync complete. Total dogs inserted/updated: ${totalUpserted}`);
@@ -1090,5 +1190,6 @@ module.exports = {
   isRetryableRescueGroupsError,
   mapAnimalToDogRow,
   markMissingDogsUnavailableForRescue,
+  loadManagedRescues,
   syncConfiguredRescues,
 };

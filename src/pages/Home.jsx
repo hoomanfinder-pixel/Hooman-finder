@@ -305,6 +305,14 @@ export default function Home() {
               website,
               apply_url,
               logo_url
+            ),
+            ingestion_sources (
+              id,
+              source_type,
+              external_org_id,
+              enabled,
+              publication_eligible,
+              last_successful_sync_at
             )
           `,
           limit: 48,

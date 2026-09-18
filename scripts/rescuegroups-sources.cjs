@@ -91,6 +91,15 @@ const RESCUEGROUPS_SOURCES = [
     rescueGroupsOrgId: "1445",
     supabaseShelterId: "7bf9d983-da7a-45a4-b7b0-fd8824bc1f5b",
   },
+  {
+    name: "Last Day Dog Rescue",
+    city: "Livonia",
+    state: "MI",
+    rescueGroupsOrgId: "3182",
+    supabaseShelterId: "8e2fec86-bbb7-4fa7-a879-6ffa831ab7f4",
+    enabled: false,
+    disabledReason: "Legacy source is quarantined until a controlled complete-roster validation",
+  },
 ].map((source) => ({
   ...source,
   enabled: source.enabled ?? true,

@@ -44,8 +44,8 @@ jobs:
       - name: Run DACC ShelterManager bio enrichment
         # Only runs once the primary sync above has succeeded (default GitHub
         # Actions step ordering). continue-on-error is intentional: a
-        # ShelterManager outage must not block AI enrichment or the sitemap
-        # step for every other shelter — the script itself never blanks or
+        # ShelterManager outage must not block the sitemap step for every
+        # other shelter — the script itself never blanks or
         # overwrites an existing description on failure, so degrading
         # gracefully here is safe. See scripts/enrich-dacc-bios.cjs.
         if: steps.rescuegroups_sync.outcome == 'success'
@@ -55,24 +55,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESCUEGROUPS_API_KEY: ${{ secrets.RESCUEGROUPS_API_KEY }}
         run: node scripts/enrich-dacc-bios.cjs --confirm
-
-      - name: Run AI dog trait enrichment
-        if: steps.rescuegroups_sync.outcome == 'success'
-        env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        # Drain only the script's existing eligible public/adoptable queue in
-        # bounded batches. The script retries an individual failed dog at most
-        # three times, stops after 20 batches, and exits non-zero rather than
-        # silently leaving a repeatedly failing queue behind.
-        run: >-
-          node scripts/enrich-dogs-ai.cjs
-          --drain
-          --limit=25
-          --max-batches=20
-          --max-attempts=3
-          --retry-delay-ms=5000
 
       - name: Regenerate dog sitemap
         if: always()

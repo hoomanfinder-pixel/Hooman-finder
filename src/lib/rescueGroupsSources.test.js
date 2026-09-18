@@ -7,19 +7,17 @@ const {
   RESCUEGROUPS_SOURCES,
 } = require("../../scripts/rescuegroups-sources.cjs");
 
-test("registry normalization preserves an explicitly disabled source", () => {
-  const disabledSource = RESCUEGROUPS_SOURCES.find(
-    (source) => source.rescueGroupsOrgId === "9242"
+test("registry normalization preserves explicitly disabled sources", () => {
+  const disabledSources = RESCUEGROUPS_SOURCES.filter(
+    (source) => source.enabled === false
   );
-  const otherSources = RESCUEGROUPS_SOURCES.filter(
-    (source) => source.rescueGroupsOrgId !== "9242"
+  const enabledSources = RESCUEGROUPS_SOURCES.filter(
+    (source) => source.enabled === true
   );
 
-  assert.equal(
-    disabledSource?.name,
-    "The Life of Fostering Furbabies Animal Rescue"
+  assert.deepEqual(
+    disabledSources.map((source) => source.rescueGroupsOrgId).sort(),
+    ["3182", "9242"]
   );
-  assert.equal(disabledSource.enabled, false);
-  assert.equal(otherSources.length, 12);
-  assert.equal(otherSources.every((source) => source.enabled === true), true);
+  assert.equal(enabledSources.length, 12);
 });

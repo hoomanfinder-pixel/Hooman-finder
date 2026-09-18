@@ -27,7 +27,7 @@ async function fetchAllDogs() {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("dogs")
-      .select("*")
+      .select("*, ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)")
       .range(from, from + pageSize - 1);
     if (error) throw error;
     rows.push(...(data || []));

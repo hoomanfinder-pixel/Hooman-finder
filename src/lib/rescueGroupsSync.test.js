@@ -218,6 +218,21 @@ test("all configured RescueGroups source failures reject the sync", async () => 
   assert.equal(unavailableCalls, 0);
 });
 
+test("a disabled organization is not fetched, upserted, or stale-marked", async () => {
+  const calls = { fetch: 0, upsert: 0, stale: 0 };
+  const result = await syncConfiguredRescues({
+    rescues: [{ ...rescue("Disabled Source", "9242"), enabled: false, disabledReason: "operator kill switch" }],
+    fetchDogs: async () => { calls.fetch += 1; return []; },
+    attachShelters: async () => {},
+    upsert: async () => { calls.upsert += 1; return { inserted: 0, updated: 0, failed: 0 }; },
+    markUnavailable: async () => { calls.stale += 1; },
+    logger: silentLogger,
+  });
+
+  assert.deepEqual(calls, { fetch: 0, upsert: 0, stale: 0 });
+  assert.equal(result.totalUpserted, 0);
+});
+
 test("a transient RescueGroups fetch failure is retried and can succeed", async () => {
   let attempts = 0;
   const waits = [];

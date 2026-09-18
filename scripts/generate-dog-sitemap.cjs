@@ -135,7 +135,7 @@ async function fetchDogRows(supabase) {
     const to = from + PAGE_SIZE - 1;
     const { data, error } = await supabase
       .from("dogs")
-      .select("*")
+      .select("*, ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)")
       .eq("adoptable", true)
       .in("availability_status", ["available", "active", "unknown"])
       .order("created_at", { ascending: false, nullsFirst: false })

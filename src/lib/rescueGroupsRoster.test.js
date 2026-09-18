@@ -79,11 +79,51 @@ test("multi-page roster uses URL pagination and reconciles every unique ID", asy
 });
 
 test("fetch failure and invalid JSON abort completeness", async () => {
-  await assert.rejects(fetchRoster(async () => { throw new TypeError("fetch failed"); }), /fetch failed/);
+  await assert.rejects(fetchRoster(async () => { throw new TypeError("fetch failed"); }, {
+    maxAttempts: 2,
+    retryDelayMs: 0,
+    sleep: async () => {},
+    logger: { warn() {} },
+  }), /fetch failed/);
   await assert.rejects(
     fetchRoster(async () => response(null, { jsonError: new SyntaxError("bad json") })),
     IncompleteRosterError
   );
+});
+
+test("complete-roster path retries 429 and transient network failures with bounded backoff", async () => {
+  let calls = 0;
+  const waits = [];
+  const roster = await fetchRoster(async () => {
+    calls += 1;
+    if (calls === 1) return response({ error: "busy" }, { ok: false, status: 429 });
+    if (calls === 2) throw new TypeError("temporary network failure");
+    return response(pageJson({ ids: ["1"] }));
+  }, {
+    maxAttempts: 3,
+    retryDelayMs: 25,
+    sleep: async (ms) => waits.push(ms),
+    logger: { warn() {} },
+  });
+
+  assert.equal(roster.complete, true);
+  assert.equal(calls, 3);
+  assert.deepEqual(waits, [25, 50]);
+});
+
+test("exhausted retries never reach stale marking", async () => {
+  let staleCalls = 0;
+  await assert.rejects(reconcileCompleteRoster({
+    source: { name: "Retry Source" },
+    fetchRoster: () => fetchRoster(
+      async () => response({ error: "down" }, { ok: false, status: 503 }),
+      { maxAttempts: 2, retryDelayMs: 0, sleep: async () => {}, logger: { warn() {} } }
+    ),
+    mapRoster: async () => ({ rows: [] }),
+    upsert: async () => ({ failed: 0 }),
+    markUnavailable: async () => { staleCalls += 1; },
+  }), /503/);
+  assert.equal(staleCalls, 0);
 });
 
 test("missing or invalid metadata aborts completeness", async () => {

@@ -9,6 +9,7 @@ import Breadcrumbs, { StructuredData } from "../components/Breadcrumbs";
 import { breadcrumbJsonLd } from "../lib/structuredData";
 import { computeRankedMatches } from "../lib/matchingLogic";
 import { isPubliclyVisibleDog } from "../lib/dogVisibility";
+import RescueGroupsTracker from "../components/RescueGroupsTracker";
 import { buildDogProfileMetadata, normalizeDogLocation } from "../lib/dogProfileSeo";
 import { trackAdoptionLinkClick } from "../lib/googleAnalytics";
 import {
@@ -380,6 +381,14 @@ export default function DogDetail() {
             city,
             state,
             rescuegroups_org_id
+          ),
+          ingestion_sources (
+            id,
+            source_type,
+            external_org_id,
+            enabled,
+            publication_eligible,
+            last_successful_sync_at
           )
         `)
         .eq("id", id)
@@ -652,6 +661,7 @@ export default function DogDetail() {
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
       {seo}
+      <RescueGroupsTracker dog={dog} />
       {matchInfoOpen && hasQuizMatch
         ? createPortal(
             <div

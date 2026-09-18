@@ -19,6 +19,14 @@ const DOG_SELECT = `
     logo_url,
     city,
     state
+  ),
+  ingestion_sources (
+    id,
+    source_type,
+    external_org_id,
+    enabled,
+    publication_eligible,
+    last_successful_sync_at
   )
 `;
 

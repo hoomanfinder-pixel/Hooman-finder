@@ -56,7 +56,7 @@ export default function Shelter() {
         // Fetch dogs for this shelter
         const dogsRes = await supabase
           .from("dogs")
-          .select("*, shelters ( id, name, city, state, apply_url, website, logo_url )")
+          .select("*, shelters ( id, name, city, state, apply_url, website, logo_url ), ingestion_sources ( id, source_type, external_org_id, enabled, publication_eligible, last_successful_sync_at )")
           .eq("shelter_id", id)
           .eq("adoptable", true)
           .or("adoption_pending.is.null,adoption_pending.eq.false")

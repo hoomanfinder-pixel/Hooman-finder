@@ -114,9 +114,10 @@ test.describe("young children compatibility safety", () => {
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expectDecodedImage(page.getByRole("img", { name: /Scout, adoptable/i }).first());
     await expectNoBareProtocolLinks(page);
-    await expect(
-      page.getByRole("link", { name: "Application link unavailable" })
-    ).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("link", { name: "View official listing" })).toHaveAttribute(
+      "href",
+      /greatlakesdogrescue\.example\.org\/dogs\/e2e-child-unknown\/apply/
+    );
   });
 });
 

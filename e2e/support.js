@@ -4,6 +4,14 @@ import { dogFixtures, shelterFixture } from "./fixtures/dogs.js";
 async function mockSupabase(page, dogs) {
   const quizResponseRequests = [];
 
+  await page.route("https://images.example.org/e2e/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600"><rect width="100%" height="100%" fill="#F3C982" /></svg>',
+    });
+  });
+
   await page.route("**/rest/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());

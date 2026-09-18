@@ -1,6 +1,8 @@
 const DEFAULT_PAGE_LIMIT = 100;
 const DEFAULT_MAX_PAGES = 5;
 const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_DELAY_MS = 1000;
 
 class IncompleteRosterError extends Error {
   constructor(message, details = {}) {
@@ -42,6 +44,51 @@ async function fetchWithTimeout(url, options, timeoutMs, fetchImpl) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function isRetryable(error) {
+  return error?.name === "AbortError" || error instanceof TypeError ||
+    error?.status === 408 || error?.status === 429 || Number(error?.status) >= 500;
+}
+
+async function fetchRosterPage({
+  url,
+  options,
+  timeoutMs,
+  fetchImpl,
+  maxAttempts,
+  retryDelayMs,
+  sleep,
+  logger,
+  orgId,
+  page,
+}) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetchWithTimeout(url, options, timeoutMs, fetchImpl);
+      if (!response.ok) {
+        const body = await response.text();
+        const error = new IncompleteRosterError(
+          `RescueGroups request failed for org ${orgId}, page ${page}: ${response.status} ${body.slice(0, 500)}`
+        );
+        error.status = response.status;
+        throw error;
+      }
+      return response;
+    } catch (error) {
+      if (attempt >= maxAttempts || !isRetryable(error)) throw error;
+      const delayMs = Math.min(retryDelayMs * (2 ** (attempt - 1)), 10000);
+      logger.warn(
+        `RescueGroups org ${orgId} page ${page} attempt ${attempt}/${maxAttempts} failed (${error.message}); retrying in ${delayMs}ms.`
+      );
+      await sleep(delayMs);
+    }
+  }
+  throw new IncompleteRosterError(`RescueGroups retries exhausted for org ${orgId}, page ${page}.`);
 }
 
 function requireInteger(value, label, { minimum = 0 } = {}) {
@@ -115,6 +162,10 @@ async function fetchCompleteRescueGroupsRoster({
   maxPages = DEFAULT_MAX_PAGES,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   allowVerifiedEmptyRoster = false,
+  maxAttempts = DEFAULT_MAX_ATTEMPTS,
+  retryDelayMs = DEFAULT_RETRY_DELAY_MS,
+  sleep = wait,
+  logger = console,
 }) {
   if (!cleanId(orgId)) throw new Error("A RescueGroups organization ID is required.");
   if (!apiKey) throw new Error("A RescueGroups API key is required.");
@@ -133,9 +184,9 @@ async function fetchCompleteRescueGroupsRoster({
       );
     }
 
-    const response = await fetchWithTimeout(
-      pagedUrl(apiUrl, page, pageLimit),
-      {
+    const response = await fetchRosterPage({
+      url: pagedUrl(apiUrl, page, pageLimit),
+      options: {
         method: "POST",
         headers: {
           Authorization: apiKey,
@@ -144,15 +195,14 @@ async function fetchCompleteRescueGroupsRoster({
         body: JSON.stringify(buildRequestBody({ orgId: String(orgId), page, pageLimit })),
       },
       timeoutMs,
-      fetchImpl
-    );
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new IncompleteRosterError(
-        `RescueGroups request failed for org ${orgId}, page ${page}: ${response.status} ${body.slice(0, 500)}`
-      );
-    }
+      fetchImpl,
+      maxAttempts,
+      retryDelayMs,
+      sleep,
+      logger,
+      orgId,
+      page,
+    });
 
     let json;
     try {
@@ -263,7 +313,9 @@ function planStaleDogs(existingDogs, orgId, authoritativeIds) {
 
 module.exports = {
   DEFAULT_MAX_PAGES,
+  DEFAULT_MAX_ATTEMPTS,
   DEFAULT_PAGE_LIMIT,
+  DEFAULT_RETRY_DELAY_MS,
   IncompleteRosterError,
   fetchCompleteRescueGroupsRoster,
   getAnimalOrgIds,

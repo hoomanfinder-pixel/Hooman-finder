@@ -41,6 +41,17 @@ const PUBLIC_DOG = {
   urgency_level: "Standard",
   availability_status: "available",
   rescuegroups_id: "12345",
+  rescuegroups_org_id: "6172",
+  external_id: "12345",
+  source: "rescuegroups",
+  ingestion_source_id: "source-6172",
+  ingestion_sources: {
+    source_type: "rescuegroups",
+    external_org_id: "6172",
+    enabled: true,
+    publication_eligible: true,
+  },
+  last_checked_at: new Date().toISOString(),
   ai_traits: {
     energy_level: "high",
   },
