@@ -7,6 +7,7 @@ const {
   buildExistingDogUpdate,
   fetchOnePageForRescue,
   mapAnimalToDogRow,
+  mergeManagedRescues,
   syncConfiguredRescues,
 } = require("../../sync-rescuegroups-dogs.cjs");
 
@@ -110,6 +111,46 @@ test("explicit false compatibility values survive mapping and existing-row updat
   assert.equal(update.good_with_dogs, false);
   assert.equal(update.good_with_cats, false);
   assert.equal(update.good_with_kids, false);
+});
+
+test("organization adoption URL is a safe fallback when an animal has no listing URL", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-org-fallback",
+      attributes: { name: "Scout", locationState: "CA" },
+      relationships: { orgs: { data: [{ type: "orgs", id: "159" }] } },
+    },
+    [{
+      type: "orgs",
+      id: "159",
+      attributes: { name: "Example Rescue", url: "https://example.org/adopt" },
+    }],
+    rescue("Example Rescue", "159")
+  );
+
+  assert.equal(mapped.adoption_url, "https://example.org/adopt");
+});
+
+test("database registry adds dynamic sources and remains the source kill switch", () => {
+  const managed = mergeManagedRescues(
+    [{ name: "Legacy Static Source", rescueGroupsOrgId: "1", state: "MI" }],
+    [
+      { id: "source-1", external_org_id: "1", shelter_id: "shelter-1", display_name: "Legacy Static Source", enabled: false, publication_eligible: false, disabled_reason: "paused" },
+      { id: "source-2", external_org_id: "2", shelter_id: "shelter-2", display_name: "Dynamic Pilot Source", enabled: true, publication_eligible: true },
+    ],
+    [
+      { id: "shelter-1", city: "Detroit", state: "MI" },
+      { id: "shelter-2", city: "Austin", state: "TX", website: "https://example.org" },
+    ]
+  );
+
+  assert.equal(managed.length, 2);
+  assert.equal(managed[0].enabled, false);
+  assert.equal(managed[0].disabledReason, "paused");
+  assert.equal(managed[1].name, "Dynamic Pilot Source");
+  assert.equal(managed[1].state, "TX");
+  assert.equal(managed[1].rescueGroupsOrgId, "2");
+  assert.equal(managed[1].supabaseShelterId, "shelter-2");
 });
 
 test("normal existing-row updates remain intact and populated descriptions stay frozen", () => {

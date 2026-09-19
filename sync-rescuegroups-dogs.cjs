@@ -322,8 +322,10 @@ function addSourceField(
   row[databaseField] = value;
 }
 
-function getAdoptionUrl(animal, orgId) {
+function getAdoptionUrl(animal, orgOrId) {
   const attrs = animal?.attributes || {};
+  const orgId = typeof orgOrId === "object" ? orgOrId?.id : orgOrId;
+  const orgAttrs = typeof orgOrId === "object" ? orgOrId?.attributes || {} : {};
   return resolveRescueGroupsAdoptionUrl({
     orgId,
     candidates: [
@@ -332,16 +334,20 @@ function getAdoptionUrl(animal, orgId) {
       attrs.animalUrl,
       attrs.adoptionUrl,
       attrs.link,
+      orgAttrs.adoptionUrl,
+      orgAttrs.url,
+      orgAttrs.website,
     ],
   });
 }
 
-function getPublicListingUrl(animal, orgId) {
+function getPublicListingUrl(animal, org) {
+  const orgId = org?.id || org;
   if (String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID) {
     return DACC_ADOPT_URL;
   }
 
-  return getAdoptionUrl(animal, orgId);
+  return getAdoptionUrl(animal, org);
 }
 
 function getBreed(attrs) {
@@ -453,7 +459,7 @@ function mapAnimalToDogRow(animal, included, rescue) {
     cleanText(attrs.descriptionText) ||
     cleanText(attrs.descriptionHtml) ||
     cleanText(attrs.description);
-  const adoptionUrl = getPublicListingUrl(animal, orgId);
+  const adoptionUrl = getPublicListingUrl(animal, org || orgId);
   const photoUrls = getPhotoUrls(animal, included);
   const photoUrl = photoUrls[0] || null;
   const now = new Date().toISOString();
@@ -998,30 +1004,55 @@ async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) 
   return { staleMarked: staleDogs.length };
 }
 
-async function loadManagedRescues(configuredRescues) {
-  const { data, error } = await supabase
+function mergeManagedRescues(configuredRescues, registryRows, shelters) {
+  const configuredByOrg = new Map(
+    (configuredRescues || []).map((source) => [String(source.rescueGroupsOrgId), source])
+  );
+  const sheltersById = new Map((shelters || []).map((shelter) => [String(shelter.id), shelter]));
+
+  return (registryRows || []).map((registry) => {
+    const configured = configuredByOrg.get(String(registry.external_org_id)) || {};
+    const shelter = registry.shelter_id
+      ? sheltersById.get(String(registry.shelter_id)) || {}
+      : {};
+    return {
+      ...configured,
+      name: registry.display_name || configured.name || shelter.name,
+      city: configured.city ?? shelter.city ?? null,
+      state: configured.state ?? shelter.state ?? null,
+      website: configured.website ?? shelter.website ?? null,
+      applyUrl: configured.applyUrl ?? shelter.apply_url ?? null,
+      rescueGroupsOrgId: String(registry.external_org_id),
+      supabaseShelterId: registry.shelter_id || configured.supabaseShelterId || null,
+      allowVerifiedEmptyRoster: configured.allowVerifiedEmptyRoster === true,
+      enabled: registry.enabled === true,
+      publicationEligible: registry.publication_eligible === true,
+      ingestionSourceId: registry.id,
+      ingestionSourceState: registry,
+      disabledReason: registry.disabled_reason || configured.disabledReason || null,
+    };
+  });
+}
+
+async function loadManagedRescues(configuredRescues, client = supabase) {
+  const { data, error } = await client
     .from("ingestion_sources")
     .select("id,source_type,external_org_id,shelter_id,display_name,enabled,publication_eligible,last_successful_sync_at,disabled_reason")
     .eq("source_type", "rescuegroups");
   if (error) throw new Error(`Could not load ingestion source controls: ${error.message}`);
 
-  const byOrg = new Map((data || []).map((row) => [String(row.external_org_id), row]));
-  return configuredRescues.map((rescue) => {
-    const registry = byOrg.get(String(rescue.rescueGroupsOrgId));
-    if (!registry) {
-      throw new Error(`Configured source ${rescue.name} (${rescue.rescueGroupsOrgId}) has no ingestion_sources row.`);
-    }
-    return {
-      ...rescue,
-      // The database registry is the operational kill switch. Static defaults
-      // seed safe first-run state but must not prevent an audited re-enable.
-      enabled: registry.enabled === true,
-      publicationEligible: registry.publication_eligible === true,
-      ingestionSourceId: registry.id,
-      ingestionSourceState: registry,
-      disabledReason: registry.disabled_reason || rescue.disabledReason || null,
-    };
-  });
+  const shelterIds = [...new Set((data || []).map((row) => row.shelter_id).filter(Boolean))];
+  let shelters = [];
+  if (shelterIds.length > 0) {
+    const { data: shelterRows, error: shelterError } = await client
+      .from("shelters")
+      .select("id,name,city,state,website,apply_url")
+      .in("id", shelterIds);
+    if (shelterError) throw new Error(`Could not load ingestion source shelters: ${shelterError.message}`);
+    shelters = shelterRows || [];
+  }
+
+  return mergeManagedRescues(configuredRescues, data || [], shelters);
 }
 
 async function startIngestionRun(rescue) {
@@ -1159,7 +1190,19 @@ async function main() {
 
   console.log("Starting Hooman Finder RescueGroups sync...");
 
-  const managedRescues = await loadManagedRescues(RESCUES);
+  let managedRescues = await loadManagedRescues(RESCUES);
+  const orgIdsArgument = process.argv.find((value) => value.startsWith("--org-ids="));
+  if (orgIdsArgument) {
+    const requestedIds = new Set(
+      orgIdsArgument.slice("--org-ids=".length).split(",").map((value) => value.trim()).filter(Boolean)
+    );
+    const foundIds = new Set(managedRescues.map((source) => String(source.rescueGroupsOrgId)));
+    const missingIds = [...requestedIds].filter((id) => !foundIds.has(id));
+    if (missingIds.length > 0) {
+      throw new Error(`Requested RescueGroups organizations are not registered: ${missingIds.join(", ")}`);
+    }
+    managedRescues = managedRescues.filter((source) => requestedIds.has(String(source.rescueGroupsOrgId)));
+  }
   const enabledCount = managedRescues.filter((rescue) => rescue.enabled !== false).length;
   console.log(`Enabled rescues: ${enabledCount}; disabled: ${managedRescues.length - enabledCount}`);
 
@@ -1190,6 +1233,7 @@ module.exports = {
   isRetryableRescueGroupsError,
   mapAnimalToDogRow,
   markMissingDogsUnavailableForRescue,
+  mergeManagedRescues,
   loadManagedRescues,
   syncConfiguredRescues,
 };

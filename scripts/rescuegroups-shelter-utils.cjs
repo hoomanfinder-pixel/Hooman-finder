@@ -23,6 +23,10 @@ function normalizeName(value) {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function normalizePlace(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function isDaccOrg(orgId) {
   return String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID;
 }
@@ -77,7 +81,7 @@ async function findShelterById(supabase, shelterId) {
   return data?.[0] || null;
 }
 
-async function findShelterByName(supabase, name) {
+async function findShelterByName(supabase, name, state, city) {
   const normalizedName = normalizeName(name);
   if (!normalizedName) return null;
 
@@ -91,24 +95,45 @@ async function findShelterByName(supabase, name) {
     throw new Error(`Could not look up shelter by name ${name}: ${exactError.message}`);
   }
 
-  const exactMatch = (exactMatches || []).find(
+  let nameMatches = (exactMatches || []).filter(
     (shelter) => normalizeName(shelter.name) === normalizedName
   );
 
-  if (exactMatch) return exactMatch;
+  if (nameMatches.length === 0) {
+    const { data: shelters, error: listError } = await supabase
+      .from("shelters")
+      .select(SHELTER_SELECT)
+      .limit(1000);
 
-  const { data: shelters, error: listError } = await supabase
-    .from("shelters")
-    .select(SHELTER_SELECT)
-    .limit(1000);
+    if (listError) {
+      throw new Error(`Could not list shelters for normalized name match: ${listError.message}`);
+    }
 
-  if (listError) {
-    throw new Error(`Could not list shelters for normalized name match: ${listError.message}`);
+    nameMatches = (shelters || []).filter(
+      (shelter) => normalizeName(shelter.name) === normalizedName
+    );
   }
 
-  return (
-    (shelters || []).find((shelter) => normalizeName(shelter.name) === normalizedName) ||
-    null
+  const normalizedState = normalizePlace(state);
+  const normalizedCity = normalizePlace(city);
+  let geographicMatches = nameMatches;
+
+  if (normalizedState) {
+    geographicMatches = geographicMatches.filter(
+      (shelter) => normalizePlace(shelter.state) === normalizedState
+    );
+  }
+  if (normalizedCity) {
+    geographicMatches = geographicMatches.filter(
+      (shelter) => normalizePlace(shelter.city) === normalizedCity
+    );
+  }
+
+  if (geographicMatches.length === 1) return geographicMatches[0];
+  if (geographicMatches.length === 0) return null;
+
+  throw new Error(
+    `Ambiguous shelter match for ${name}${state ? ` in ${state}` : ""}${city ? ` / ${city}` : ""}: ${geographicMatches.length} records.`
   );
 }
 
@@ -176,9 +201,18 @@ async function ensureShelterForSource(supabase, sourceInput) {
   const existingShelter =
     (await findShelterById(supabase, source.shelter_id)) ||
     (await findShelterByOrgId(supabase, source.rescuegroups_org_id)) ||
-    (await findShelterByName(supabase, source.name));
+    (await findShelterByName(supabase, source.name, source.state, source.city));
 
   if (existingShelter?.id) {
+    if (
+      source.rescuegroups_org_id &&
+      existingShelter.rescuegroups_org_id &&
+      String(existingShelter.rescuegroups_org_id) !== String(source.rescuegroups_org_id)
+    ) {
+      throw new Error(
+        `Shelter ${existingShelter.id} is already linked to RescueGroups organization ${existingShelter.rescuegroups_org_id}, not ${source.rescuegroups_org_id}.`
+      );
+    }
     const update = buildShelterUpdate(existingShelter, source);
 
     if (Object.keys(update).length > 0) {
@@ -216,7 +250,9 @@ async function attachShelterIdsToDogs(supabase, dogs) {
     const cacheKey =
       source.shelter_id ||
       source.rescuegroups_org_id ||
-      (source.name ? `name:${normalizeName(source.name)}` : null);
+      (source.name
+        ? `name:${normalizeName(source.name)}:${normalizePlace(source.state)}:${normalizePlace(source.city)}`
+        : null);
 
     if (!cacheKey) continue;
 
@@ -240,4 +276,5 @@ module.exports = {
   DACC_WEBSITE,
   attachShelterIdsToDogs,
   ensureShelterForSource,
+  findShelterByName,
 };

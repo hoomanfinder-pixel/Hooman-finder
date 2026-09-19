@@ -81,7 +81,10 @@ test("disabled source kill switch hides all linked dogs without deleting them", 
 });
 
 test("animal-specific RescueGroups tracker renders in server detail only for valid RG rows", () => {
-  const dog = eligibleDog({ tracker_image_url: "https://tracker.rescuegroups.org/pet/123.gif" });
+  const dog = eligibleDog({
+    tracker_image_url: "https://tracker.rescuegroups.org/pet/123.gif",
+    last_checked_at: new Date().toISOString(),
+  });
   assert.equal(getRescueGroupsTrackerUrl(dog), "https://tracker.rescuegroups.org/pet/123.gif");
   assert.match(buildRescueGroupsTrackerHtml(dog), /data-rescuegroups-tracker="true"/);
 
