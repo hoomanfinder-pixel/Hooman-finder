@@ -131,6 +131,16 @@ test("organization adoption URL is a safe fallback when an animal has no listing
   assert.equal(mapped.adoption_url, "https://example.org/adopt");
 });
 
+test("source state codes are persisted in canonical uppercase form", () => {
+  const mapped = mapAnimalToDogRow(
+    { id: "dog-state", attributes: { name: "Scout", locationState: "Ca" } },
+    [],
+    rescue("Example Rescue", "159")
+  );
+
+  assert.equal(mapped.placement_state, "CA");
+});
+
 test("database registry adds dynamic sources and remains the source kill switch", () => {
   const managed = mergeManagedRescues(
     [{ name: "Legacy Static Source", rescueGroupsOrgId: "1", state: "MI" }],

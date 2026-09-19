@@ -465,7 +465,9 @@ function mapAnimalToDogRow(animal, included, rescue) {
   const now = new Date().toISOString();
 
   const city = attrs.locationCity || orgAttrs.city || rescue.city || null;
-  const state = attrs.locationState || orgAttrs.state || rescue.state || "MI";
+  const state = String(
+    attrs.locationState || orgAttrs.state || rescue.state || "MI"
+  ).trim().toUpperCase();
 
   const status = getStatusForAnimal(animal, included);
   const statusText = [status?.attributes?.name, status?.attributes?.description]
