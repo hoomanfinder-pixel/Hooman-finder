@@ -144,6 +144,7 @@ export default function Dogs() {
   const filtersRef = useRef(null);
 
   const [rescueFilter, setRescueFilter] = useState("all");
+  const [stateFilter, setStateFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
   const [sizeFilter, setSizeFilter] = useState("all");
   const [energyFilter, setEnergyFilter] = useState("all");
@@ -232,6 +233,15 @@ export default function Dogs() {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [dogs]);
 
+  const stateOptions = useMemo(() => {
+    const counts = new Map();
+    dogs.forEach((dog) => {
+      const state = String(dog.placement_state || "").trim().toUpperCase();
+      if (state) counts.set(state, (counts.get(state) || 0) + 1);
+    });
+    return [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [dogs]);
+
   const filteredDogs = useMemo(() => {
     return dogs
       .filter((dog) => {
@@ -241,6 +251,11 @@ export default function Dogs() {
           const shelterId = getShelterId(dog);
           if (shelterId !== rescueFilter) return false;
         }
+
+        if (
+          stateFilter !== "all" &&
+          String(dog.placement_state || "").trim().toUpperCase() !== stateFilter
+        ) return false;
 
         if (ageFilter !== "all") {
           const bucket = normalizeAgeBucket(dog.age_years, dog.age_text);
@@ -266,6 +281,7 @@ export default function Dogs() {
   }, [
     dogs,
     rescueFilter,
+    stateFilter,
     ageFilter,
     sizeFilter,
     energyFilter,
@@ -278,6 +294,7 @@ export default function Dogs() {
 
   const activeFilterCount = [
     rescueFilter !== "all",
+    stateFilter !== "all",
     ageFilter !== "all",
     sizeFilter !== "all",
     energyFilter !== "all",
@@ -290,6 +307,7 @@ export default function Dogs() {
 
   function resetFilters() {
     setRescueFilter("all");
+    setStateFilter("all");
     setAgeFilter("all");
     setSizeFilter("all");
     setEnergyFilter("all");
@@ -435,7 +453,7 @@ export default function Dogs() {
               </button>
             </div>
 
-            <div className="mt-4 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="mt-4 grid min-w-0 grid-cols-2 gap-3 md:grid-cols-5">
               <label className="col-span-2 min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66] md:col-span-1">
                 Shelter or rescue
                 <select
@@ -447,6 +465,22 @@ export default function Dogs() {
                   {rescueOptions.map((rescue) => (
                     <option key={rescue.id} value={rescue.id}>
                       {rescue.name} ({rescue.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="min-w-0 text-xs font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
+                State
+                <select
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                  className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#C7D4BB] bg-[#F5F1E9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
+                >
+                  <option value="all">All states</option>
+                  {stateOptions.map(([state, count]) => (
+                    <option key={state} value={state}>
+                      {state} ({count})
                     </option>
                   ))}
                 </select>
