@@ -796,7 +796,8 @@ async function fetchOnePageForRescue(rescue, pageNumber, options = {}) {
 function getDogPublicationFilterReason(dog) {
   if (!dog?.rescuegroups_id || !dog?.external_id) return "missing authoritative animal ID";
   if (!dog?.name || /^unnamed dog$/i.test(dog.name.trim())) return "missing name";
-  if (/^(?:application|pre-approval)$/i.test(dog.name.trim())) {
+  const normalizedName = dog.name.trim().replace(/[!?.]+$/g, "").trim();
+  if (/^(?:application|pre-approval|get pre-approved|fosters? needed|more dogs? soon)$/i.test(normalizedName)) {
     return "placeholder-like name";
   }
   if (!dog.photo_url) return "missing photo";
@@ -806,6 +807,17 @@ function getDogPublicationFilterReason(dog) {
     return `availability status is ${dog.availability_status || "missing"}`;
   }
   return null;
+}
+
+function applyPublicationFilterToExistingUpdate(updateRow, reason) {
+  if (!reason) return updateRow;
+  return {
+    ...updateRow,
+    adoptable: false,
+    adoption_pending: false,
+    availability_status: "unavailable",
+    unavailable_reason: `Publication filter: ${reason}`,
+  };
 }
 
 async function fetchDogsForRescue(rescue) {
@@ -922,7 +934,10 @@ async function upsertDogs(dogs) {
         // Computed from the row as it will actually end up after sparse source
         // values and preserved fields are omitted, so a dropped value never
         // causes a false "content changed" signal downstream.
-        const updateRow = buildExistingDogUpdate(cleanDog, existingDog);
+        const updateRow = applyPublicationFilterToExistingUpdate(
+          buildExistingDogUpdate(cleanDog, existingDog),
+          publicationFilterReason
+        );
 
         const { error } = await supabase
           .from("dogs")
@@ -1226,6 +1241,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  applyPublicationFilterToExistingUpdate,
   buildExistingDogUpdate,
   describeError,
   fetchOnePageForRescue,

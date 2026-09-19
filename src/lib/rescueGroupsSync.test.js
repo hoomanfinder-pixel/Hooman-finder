@@ -4,8 +4,10 @@ import test from "node:test";
 
 const require = createRequire(import.meta.url);
 const {
+  applyPublicationFilterToExistingUpdate,
   buildExistingDogUpdate,
   fetchOnePageForRescue,
+  getDogPublicationFilterReason,
   mapAnimalToDogRow,
   mergeManagedRescues,
   syncConfiguredRescues,
@@ -139,6 +141,33 @@ test("source state codes are persisted in canonical uppercase form", () => {
   );
 
   assert.equal(mapped.placement_state, "CA");
+});
+
+test("obvious non-animal roster placeholders are rejected", () => {
+  const base = {
+    rescuegroups_id: "dog-placeholder",
+    external_id: "dog-placeholder",
+    photo_url: "https://images.example.org/dog.jpg",
+    adoptable: true,
+    adoption_pending: false,
+    availability_status: "available",
+  };
+
+  for (const name of ["FOSTERS NEEDED!", "More Dogs Soon", "Get pre-approved"]) {
+    assert.equal(getDogPublicationFilterReason({ ...base, name }), "placeholder-like name");
+  }
+  assert.equal(getDogPublicationFilterReason({ ...base, name: "Foster" }), null);
+});
+
+test("an existing dog that newly fails publication filtering is made nonpublic", () => {
+  const update = applyPublicationFilterToExistingUpdate(
+    { adoptable: true, adoption_pending: false, availability_status: "available" },
+    "placeholder-like name"
+  );
+
+  assert.equal(update.adoptable, false);
+  assert.equal(update.availability_status, "unavailable");
+  assert.match(update.unavailable_reason, /placeholder-like name/);
 });
 
 test("database registry adds dynamic sources and remains the source kill switch", () => {
