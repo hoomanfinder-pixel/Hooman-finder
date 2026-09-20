@@ -1,8 +1,8 @@
 name: Enrich Dog Profiles with AI
 
 on:
-  schedule:
-    - cron: "0 13 * * *"
+  # Scheduled enrichment is intentionally paused during the seven-run
+  # RescueGroups ingestion pilot and can be reconsidered after it completes.
   workflow_dispatch:
     inputs:
       enabled:
