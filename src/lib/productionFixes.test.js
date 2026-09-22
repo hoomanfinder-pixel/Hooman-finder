@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MATCH_WEIGHTS, computeRankedMatches } from "./matchingLogic.js";
+import { MATCH_WEIGHTS, computeRankedMatches, getConfirmedIncompatibilities } from "./matchingLogic.js";
 import { ALL_QUESTIONS, canonicalizeAllergySensitivity } from "./quizQuestions.js";
 import { normalizeExternalUrl } from "./urlSafety.js";
 
@@ -94,24 +94,92 @@ test("the refined scoreable set excludes weekend activity and unsupported questi
   }
 });
 
-test("confirmed child incompatibility retains its warning and 49 percent cap", () => {
+test("confirmed child incompatibility removes the dog from eligible results", () => {
   const dog = { ...richStructuredDog, name: "Toto", good_with_kids: false };
-  const [result] = computeRankedMatches([dog], fullSupportedAnswers);
-  assert.equal(result.scorePct, 49);
-  assert.deepEqual(result.breakdown.compatibilityCautions, [
-    "This dog is listed as not compatible with children, but your household includes children.",
+  assert.deepEqual(computeRankedMatches([dog], fullSupportedAnswers), []);
+  assert.deepEqual(getConfirmedIncompatibilities(dog, fullSupportedAnswers).map(({ code }) => code), [
+    "confirmed_child_incompatibility",
   ]);
 });
 
-test("confirmed dog and cat negatives warn while unknown does not become a match", () => {
+test("confirmed dog, cat, and small-animal incompatibilities remove dogs while unknown stays eligible", () => {
   const answers = { size_preference: ["flexible"], pets_in_home: ["dogs", "cats"] };
-  const [negative] = computeRankedMatches([{ name: "Confirmed no", good_with_dogs: false, good_with_cats: false }], answers);
+  const negative = { name: "Confirmed no", good_with_dogs: false, good_with_cats: false };
   const [unknown] = computeRankedMatches([{ name: "Unknown" }], answers);
-  assert.ok(negative.scorePct <= 49);
-  assert.equal(negative.breakdown.compatibilityCautions.length, 2);
+  assert.deepEqual(computeRankedMatches([negative], answers), []);
+  assert.deepEqual(getConfirmedIncompatibilities(negative, answers).map(({ code }) => code), [
+    "confirmed_dog_incompatibility",
+    "confirmed_cat_incompatibility",
+  ]);
   assert.equal(unknown.scorePct, null);
   assert.equal(unknown.breakdown.emptyReason, "no_dog_evidence");
   assert.deepEqual(unknown.breakdown.compatibilityCautions, []);
+
+  const smallAnimalAnswers = { size_preference: ["flexible"], pets_in_home: ["small_pets"] };
+  const smallAnimalConflict = { name: "No small animals", good_with_small_animals: false };
+  const legacySmallAnimalConflict = { name: "Legacy no small animals", good_with_small_pets: false };
+  assert.deepEqual(computeRankedMatches([smallAnimalConflict], smallAnimalAnswers), []);
+  assert.deepEqual(getConfirmedIncompatibilities(smallAnimalConflict, smallAnimalAnswers).map(({ code }) => code), [
+    "confirmed_small_animal_incompatibility",
+  ]);
+  assert.deepEqual(computeRankedMatches([legacySmallAnimalConflict], smallAnimalAnswers), []);
+  assert.deepEqual(getConfirmedIncompatibilities(legacySmallAnimalConflict, smallAnimalAnswers).map(({ code }) => code), [
+    "confirmed_small_animal_incompatibility",
+  ]);
+});
+
+test("AI estimates neither override contradictory confirmed facts nor create exclusions", () => {
+  const answers = { size_preference: ["flexible"], pets_in_home: ["cats"] };
+  const confirmedNoAiYes = {
+    name: "Confirmed no",
+    good_with_cats: false,
+    bio_good_with_cats: "yes",
+    ai_traits: { good_with_cats: aiTrait("true", 1, "bio_explicit") },
+  };
+  const confirmedYesAiNo = {
+    name: "Confirmed yes",
+    good_with_cats: true,
+    bio_good_with_cats: "no",
+    ai_traits: { good_with_cats: aiTrait("false", 1, "bio_explicit") },
+  };
+  const aiOnlyNo = {
+    name: "AI only no",
+    bio_good_with_cats: "no",
+    ai_traits: { good_with_cats: aiTrait("false", 1, "bio_explicit") },
+  };
+
+  assert.deepEqual(computeRankedMatches([confirmedNoAiYes], answers), []);
+  assert.deepEqual(computeRankedMatches([confirmedYesAiNo], answers).map((row) => row.dog.name), ["Confirmed yes"]);
+  assert.deepEqual(computeRankedMatches([aiOnlyNo], answers).map((row) => row.dog.name), ["AI only no"]);
+});
+
+test("confirmed compatible dogs remain eligible", () => {
+  const dog = {
+    name: "Confirmed compatible",
+    good_with_kids: true,
+    good_with_dogs: true,
+    good_with_cats: true,
+    good_with_small_animals: true,
+    yard_required: false,
+  };
+  const answers = {
+    size_preference: ["flexible"],
+    kids_in_home: ["under_3"],
+    pets_in_home: ["dogs", "cats", "small_pets"],
+    yard: "no",
+  };
+  assert.deepEqual(getConfirmedIncompatibilities(dog, answers), []);
+  assert.deepEqual(computeRankedMatches([dog], answers).map((row) => row.dog.name), ["Confirmed compatible"]);
+});
+
+test("unrelated preference mismatches remain scored instead of excluded", () => {
+  const dog = { name: "Large active dog", size: "Large", energy_level: "High" };
+  const answers = { size_preference: ["small"], energy_preference: "low" };
+  const [result] = computeRankedMatches([dog], answers);
+  assert.equal(result.dog.name, "Large active dog");
+  assert.equal(getConfirmedIncompatibilities(dog, answers).length, 0);
+  assert.equal(result.breakdown.tradeoffContributions.length, 2);
+  assert.ok(result.scorePct < 50);
 });
 
 test("many unknowns produce a cautious score rather than a sparse 100", () => {
@@ -210,7 +278,7 @@ test("flexible answers add neither points nor requested evidence", () => {
   assert.deepEqual(result.breakdown.contributions, []);
 });
 
-test("AI behavioral negatives never create hard warnings or a confirmed cap", () => {
+test("AI behavioral negatives never create hard exclusions", () => {
   const answers = { size_preference: ["flexible"], kids_in_home: ["under_3"] };
   for (const evidenceBasis of ["bio_explicit", "profile_inference"]) {
     const [result] = computeRankedMatches([{
@@ -224,23 +292,46 @@ test("AI behavioral negatives never create hard warnings or a confirmed cap", ()
   }
 });
 
-test("confirmed kids dogs cats and yard conflicts remain hard cautions", () => {
+test("confirmed kids, dogs, cats, and small animals are centralized exclusions", () => {
   const answers = {
     size_preference: ["flexible"],
     kids_in_home: ["under_3"],
-    pets_in_home: ["dogs", "cats"],
+    pets_in_home: ["dogs", "cats", "small_pets"],
     yard: "no",
   };
-  const [result] = computeRankedMatches([{
+  const dog = {
     name: "Confirmed conflicts",
     good_with_kids: false,
     good_with_dogs: false,
     good_with_cats: false,
+    good_with_small_animals: false,
     yard_required: true,
     fence_needs: "3 foot",
-  }], answers);
-  assert.ok(result.scorePct <= 49);
-  assert.equal(result.breakdown.compatibilityCautions.length, 4);
+  };
+  assert.deepEqual(computeRankedMatches([dog], answers), []);
+  assert.deepEqual(getConfirmedIncompatibilities(dog, answers).map(({ code }) => code), [
+    "confirmed_child_incompatibility",
+    "confirmed_dog_incompatibility",
+    "confirmed_cat_incompatibility",
+    "confirmed_small_animal_incompatibility",
+  ]);
+});
+
+test("yard and fence requirements caution and score but never hard-exclude", () => {
+  const answers = { size_preference: ["small"], yard: "no" };
+  for (const dog of [
+    { name: "Yard required", size: "Small", yard_required: true },
+    { name: "Fence required", size: "Small", fence_needs: "6 foot" },
+  ]) {
+    assert.deepEqual(getConfirmedIncompatibilities(dog, answers), []);
+    const [result] = computeRankedMatches([dog], answers);
+    assert.equal(result.dog.name, dog.name);
+    assert.ok(result.scorePct <= 49);
+    assert.equal(result.breakdown.compatibilityCautions.length, 1);
+    const yardContribution = result.breakdown.contributions.find(({ questionId }) => questionId === "yard");
+    assert.equal(yardContribution.rawCompatibility, 0);
+    assert.equal(yardContribution.source, "structured");
+  }
 });
 
 test("deeper supported quiz questions change ranking", () => {

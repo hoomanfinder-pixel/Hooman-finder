@@ -11,7 +11,7 @@
 // answers are also neutral: they do not give every dog points or coverage.
 
 const MIN_ANSWERED_FOR_REAL_MATCH = 2;
-const CONFIRMED_COMPATIBILITY_CONFLICT_CAP = 49;
+const YARD_REQUIREMENT_CAUTION_CAP = 49;
 const LIMITED_INFORMATION_COVERAGE_PCT = 60;
 
 const DISPLAY_COVERAGE_FLOOR = 0.6;
@@ -600,24 +600,54 @@ function scoreQuestion(questionId, answer, dog, answersById = {}) {
   }
 }
 
-function confirmedCompatibilityCautions(dog, answers) {
-  const cautions = [];
+export function getConfirmedIncompatibilities(dog, answers) {
+  const incompatibilities = [];
   const kids = normalizeAnswerList(answers?.kids_in_home);
   const needsKids = kids.some((value) => value !== "no_children");
   const dogKids = dog?.good_with_kids ?? dog?.kids_ok ?? dog?.kid_friendly ?? dog?.goodWithKids;
-  if (needsKids && falsy(dogKids)) cautions.push("This dog is listed as not compatible with children, but your household includes children.");
+  if (needsKids && falsy(dogKids)) {
+    incompatibilities.push({
+      code: "confirmed_child_incompatibility",
+      questionId: "kids_in_home",
+      message: "This dog is listed as not compatible with children, but your household includes children.",
+    });
+  }
 
   const pets = normalizeAnswerList(answers?.pets_in_home);
   const dogDogs = dog?.good_with_dogs ?? dog?.dogs_ok ?? dog?.goodWithDogs;
   const dogCats = dog?.good_with_cats ?? dog?.cats_ok ?? dog?.goodWithCats;
-  if (pets.includes("dogs") && falsy(dogDogs)) cautions.push("This dog is listed as not compatible with other dogs, but your home includes a dog.");
-  if (pets.includes("cats") && falsy(dogCats)) cautions.push("This dog is listed as not compatible with cats, but your home includes a cat.");
-
-  const yardType = confirmedYardRequirementType(dog);
-  if (String(answers?.yard ?? "").toLowerCase() === "no" && yardType) {
-    cautions.push(yardType === "fenced_yard" ? "This dog is listed as requiring a fenced yard, but your quiz says you do not have yard access." : "This dog is listed as requiring a yard or outdoor space, but your quiz says you do not have yard access.");
+  const dogSmallAnimals = dog?.good_with_small_animals ?? dog?.good_with_small_pets;
+  if (pets.includes("dogs") && falsy(dogDogs)) {
+    incompatibilities.push({
+      code: "confirmed_dog_incompatibility",
+      questionId: "pets_in_home",
+      message: "This dog is listed as not compatible with other dogs, but your home includes a dog.",
+    });
   }
-  return cautions;
+  if (pets.includes("cats") && falsy(dogCats)) {
+    incompatibilities.push({
+      code: "confirmed_cat_incompatibility",
+      questionId: "pets_in_home",
+      message: "This dog is listed as not compatible with cats, but your home includes a cat.",
+    });
+  }
+  if ((pets.includes("small_pets") || pets.includes("small_animals")) && falsy(dogSmallAnimals)) {
+    incompatibilities.push({
+      code: "confirmed_small_animal_incompatibility",
+      questionId: "pets_in_home",
+      message: "This dog is listed as not compatible with small animals, but your home includes small animals.",
+    });
+  }
+
+  return incompatibilities;
+}
+
+function confirmedYardRequirementCautions(dog, answers) {
+  const yardType = confirmedYardRequirementType(dog);
+  if (String(answers?.yard ?? "").toLowerCase() !== "no" || !yardType) return [];
+  return [yardType === "fenced_yard"
+    ? "This dog is listed as requiring a fenced yard, but your quiz says you do not have yard access."
+    : "This dog is listed as requiring a yard or outdoor space, but your quiz says you do not have yard access."];
 }
 
 function meaningfulAnsweredCount(answers) {
@@ -643,7 +673,9 @@ export function computeRankedMatches(dogs, answersById) {
   const dogList = Array.isArray(dogs) ? dogs : [];
   const answeredCount = meaningfulAnsweredCount(answersById);
 
-  const rows = dogList.map((dog) => {
+  const rows = dogList
+    .filter((dog) => getConfirmedIncompatibilities(dog, answersById).length === 0)
+    .map((dog) => {
     const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog, answersById));
     const requested = questionResults.filter((entry) => entry.requested);
     const contributions = requested.map((entry) => entry.contribution).filter(Boolean);
@@ -667,9 +699,9 @@ export function computeRankedMatches(dogs, answersById) {
     const coverageAdjustedPct = meaningfulScoreAvailable
       ? Math.round(rawCompatibility * (DISPLAY_COVERAGE_FLOOR + DISPLAY_COVERAGE_WEIGHT * coverageComponent) * 100)
       : null;
-    const compatibilityCautions = confirmedCompatibilityCautions(dog, answersById);
+    const compatibilityCautions = confirmedYardRequirementCautions(dog, answersById);
     const scorePct = coverageAdjustedPct !== null && compatibilityCautions.length
-      ? Math.min(coverageAdjustedPct, CONFIRMED_COMPATIBILITY_CONFLICT_CAP)
+      ? Math.min(coverageAdjustedPct, YARD_REQUIREMENT_CAUTION_CAP)
       : coverageAdjustedPct;
 
     const evidencePresencePct = evidencePresence === null ? null : Math.round(evidencePresence * 100);
@@ -730,7 +762,7 @@ export function computeRankedMatches(dogs, answersById) {
                 : null,
       },
     };
-  });
+    });
 
   rows.sort((a, b) => {
     const aPct = Number.isFinite(Number(a.scorePct)) ? Number(a.scorePct) : -1;
