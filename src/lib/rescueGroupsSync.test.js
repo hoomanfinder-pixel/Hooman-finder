@@ -6,6 +6,7 @@ const require = createRequire(import.meta.url);
 const {
   applyPublicationFilterToExistingUpdate,
   buildExistingDogUpdate,
+  buildRequestBody,
   fetchOnePageForRescue,
   getDogPublicationFilterReason,
   mapAnimalToDogRow,
@@ -80,7 +81,6 @@ test("real changed source values still update normally", () => {
     gender: "Female",
     size: "Medium",
     shelter_website: "https://rescue.example.org",
-    placement_city: "Lansing",
     source_updated_at: "2026-08-09T12:00:00.000Z",
   };
 
@@ -92,6 +92,164 @@ test("real changed source values still update normally", () => {
   for (const [field, value] of Object.entries(changedValues)) {
     assert.deepEqual(update[field], value);
   }
+});
+
+test("animal location is retained separately and organization city is not treated as dog placement", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-location",
+      attributes: { name: "Scout" },
+      relationships: {
+        orgs: { data: [{ type: "orgs", id: "159" }] },
+        locations: { data: [{ type: "locations", id: "loc-1" }] },
+      },
+    },
+    [
+      { type: "orgs", id: "159", attributes: { city: "Headquarters", state: "CA" } },
+      { type: "locations", id: "loc-1", attributes: { city: "Foster City", state: "ca", postalcode: "94404", lat: 37.56, lon: -122.27 } },
+    ],
+    { ...rescue("Example Rescue", "159"), state: "CA" }
+  );
+
+  assert.equal(mapped.source_location_city, "Foster City");
+  assert.equal(mapped.source_location_state, "CA");
+  assert.equal(mapped.source_location_id, "loc-1");
+  assert.equal(mapped.source_location_provenance, "rescuegroups:animal.locations");
+  assert.equal(mapped.placement_city, null);
+  assert.equal(mapped.placement_state, "CA");
+});
+
+test("multiple animal locations are not flattened by arbitrary relationship ordering", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-multiple",
+      attributes: { name: "Scout" },
+      relationships: { locations: { data: [
+        { type: "locations", id: "loc-2" },
+        { type: "locations", id: "loc-1" },
+      ] } },
+    },
+    [
+      { type: "locations", id: "loc-1", attributes: { city: "One" } },
+      { type: "locations", id: "loc-2", attributes: { city: "Two" } },
+    ],
+    { ...rescue("Example Rescue", "159"), state: "CA" }
+  );
+
+  assert.equal(mapped.source_location_id, null);
+  assert.equal(mapped.source_location_city, null);
+  assert.equal(mapped.source_location_provenance, "rescuegroups:animal.locations:multiple");
+  assert.equal(mapped._sourceLocationStatus, "multiple");
+});
+
+test("missing or incomplete location responses preserve existing source geography", () => {
+  for (const animal of [
+    { id: "missing", attributes: { name: "Missing" } },
+    { id: "incomplete", attributes: { name: "Incomplete" }, relationships: { locations: { data: [{ type: "locations", id: "not-included" }] } } },
+  ]) {
+    const mapped = mapAnimalToDogRow(animal, [], { ...rescue("Example Rescue", "159"), state: "CA" });
+    const update = buildExistingDogUpdate(mapped, existingDog({
+      source_location_id: "old-location",
+      source_location_city: "Old City",
+    }));
+    assert.equal(mapped._sourceLocationStatus, "incomplete");
+    assert.equal(Object.hasOwn(update, "source_location_id"), false);
+    assert.equal(Object.hasOwn(update, "source_location_city"), false);
+    assert.equal(Object.hasOwn(update, "source_location_checked_at"), false);
+  }
+});
+
+test("an explicit location removal clears stale source geography", () => {
+  const mapped = mapAnimalToDogRow(
+    { id: "removed", attributes: { name: "Removed" }, relationships: { locations: { data: [] } } },
+    [],
+    { ...rescue("Example Rescue", "159"), state: "CA" }
+  );
+  const update = buildExistingDogUpdate(mapped, existingDog());
+
+  assert.equal(update.source_location_id, null);
+  assert.equal(update.source_location_city, null);
+  assert.equal(update.source_location_provenance, "rescuegroups:animal.locations:absent");
+  assert.ok(update.source_location_checked_at);
+});
+
+test("a complete response that omits a requested null location clears stale source geography", () => {
+  const mapped = mapAnimalToDogRow(
+    { id: "removed-by-omission", attributes: { name: "Removed" } },
+    [],
+    { ...rescue("Example Rescue", "159"), state: "CA" },
+    { locationRelationshipRequested: true }
+  );
+  const update = buildExistingDogUpdate(mapped, existingDog());
+
+  assert.equal(mapped._sourceLocationStatus, "absent");
+  assert.equal(update.source_location_id, null);
+  assert.equal(update.source_location_provenance, "rescuegroups:animal.locations:absent");
+});
+
+test("a changed or conflicting animal location updates source evidence but not legacy display placement", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "changed",
+      attributes: { name: "Changed" },
+      relationships: { locations: { data: [{ type: "locations", id: "new" }] } },
+    },
+    [{ type: "locations", id: "new", attributes: { name: "Lake County", city: "Tampa", state: "FL" } }],
+    { ...rescue("Example Rescue", "159"), city: "Orlando", state: "FL" }
+  );
+  const update = buildExistingDogUpdate(mapped, existingDog({ placement_city: "Orlando", placement_state: "FL" }));
+
+  assert.equal(update.source_location_id, "new");
+  assert.equal(update.source_location_name, "Lake County");
+  assert.equal(update.source_location_city, "Tampa");
+  assert.equal(Object.hasOwn(update, "placement_city"), false);
+  assert.equal(Object.hasOwn(update, "placement_state"), false);
+});
+
+test("existing publication placement and availability behavior stays unchanged", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "existing-public",
+      attributes: { name: "Scout" },
+      relationships: { locations: { data: [{ type: "locations", id: "location" }] } },
+    },
+    [{ type: "locations", id: "location", attributes: { city: "New City", state: "TX" } }],
+    { ...rescue("Example Rescue", "159"), state: "TX" }
+  );
+  const update = buildExistingDogUpdate(mapped, existingDog({
+    placement_city: "Legacy City",
+    placement_state: "TX",
+    placement_location: "Legacy City, TX",
+  }));
+
+  assert.equal(Object.hasOwn(update, "placement_city"), false);
+  assert.equal(Object.hasOwn(update, "placement_state"), false);
+  assert.equal(Object.hasOwn(update, "placement_location"), false);
+  assert.equal(update.placement_type, "Shelter");
+  assert.equal(update.adoptable, true);
+  assert.equal(update.availability_status, "available");
+});
+
+test("location collection is privacy-minimized and excluded from AI content hashing", () => {
+  const request = buildRequestBody(rescue("Example Rescue", "159"));
+  assert.ok(request.data.include.includes("locations"));
+  assert.deepEqual(request.data.fields.locations, [
+    "name", "city", "state", "postalcode", "lat", "lon", "coordinates",
+  ]);
+  for (const privateField of ["street", "phone", "phoneExt", "email"]) {
+    assert.equal(request.data.fields.locations.includes(privateField), false);
+  }
+  assert.equal(request.data.include.includes("fosters"), false);
+
+  const before = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-hash", _sourceLocationStatus: "resolved", source_location_city: "New City" },
+    existingDog({ source_content_hash: "ignored" })
+  ).source_content_hash;
+  const after = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-hash", _sourceLocationStatus: "resolved", source_location_city: "Other City" },
+    existingDog({ source_content_hash: "ignored" })
+  ).source_content_hash;
+  assert.equal(before, after);
 });
 
 test("explicit false compatibility values survive mapping and existing-row updates", () => {
@@ -133,14 +291,15 @@ test("organization adoption URL is a safe fallback when an animal has no listing
   assert.equal(mapped.adoption_url, "https://example.org/adopt");
 });
 
-test("source state codes are persisted in canonical uppercase form", () => {
+test("configured publication state codes are persisted in canonical uppercase form", () => {
   const mapped = mapAnimalToDogRow(
-    { id: "dog-state", attributes: { name: "Scout", locationState: "Ca" } },
+    { id: "dog-state", attributes: { name: "Scout", locationState: "Ny" } },
     [],
-    rescue("Example Rescue", "159")
+    { ...rescue("Example Rescue", "159"), state: "Ca" }
   );
 
   assert.equal(mapped.placement_state, "CA");
+  assert.equal(mapped.placement_city, null);
 });
 
 test("obvious non-animal roster placeholders are rejected", () => {

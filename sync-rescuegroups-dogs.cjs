@@ -28,6 +28,11 @@ const {
   computeSourceContentHash,
   mergeHashedSnapshot,
 } = require("./scripts/dog-enrichment-hash.cjs");
+const {
+  LOCATION_FIELDS,
+  preserveSourceLocationOnIncomplete,
+  resolveAnimalLocation,
+} = require("./scripts/rescuegroups-location.cjs");
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -442,7 +447,7 @@ function rescueMatchesDog(dog, rescue) {
   return rescueNameMatches(dog.shelter_name, rescue.name);
 }
 
-function mapAnimalToDogRow(animal, included, rescue) {
+function mapAnimalToDogRow(animal, included, rescue, options = {}) {
   const attrs = animal.attributes || {};
   const org = getOrgForAnimal(animal, included);
   const orgAttrs = org?.attributes || {};
@@ -463,11 +468,18 @@ function mapAnimalToDogRow(animal, included, rescue) {
   const photoUrls = getPhotoUrls(animal, included);
   const photoUrl = photoUrls[0] || null;
   const now = new Date().toISOString();
+  const sourceLocation = resolveAnimalLocation(animal, included, {
+    checkedAt: now,
+    relationshipRequested: options.locationRelationshipRequested === true,
+  });
 
-  const city = attrs.locationCity || orgAttrs.city || rescue.city || null;
-  const state = String(
-    attrs.locationState || orgAttrs.state || rescue.state || "MI"
-  ).trim().toUpperCase();
+  // placement_* remains the legacy publication/display location. Do not
+  // replace it with an animal relationship whose adoption/foster semantics
+  // RescueGroups does not document, and do not invent an organization city as
+  // the dog's city. Existing rows preserve their legacy display fields below;
+  // new rows retain only the configured organization state needed by current
+  // publication controls until a display-location policy is separately proven.
+  const state = String(rescue.state || orgAttrs.state || "").trim().toUpperCase() || null;
 
   const status = getStatusForAnimal(animal, included);
   const statusText = [status?.attributes?.name, status?.attributes?.description]
@@ -517,9 +529,9 @@ function mapAnimalToDogRow(animal, included, rescue) {
     shelter_id: rescue.supabaseShelterId,
 
     placement_type: "Shelter",
-    placement_city: city,
+    placement_city: null,
     placement_state: state,
-    placement_location: city && state ? `${city}, ${state}` : state,
+    placement_location: state,
 
     availability_status: availability.availabilityStatus,
     unavailable_reason: availability.unavailableReason,
@@ -532,6 +544,9 @@ function mapAnimalToDogRow(animal, included, rescue) {
 
     last_checked_at: now,
     last_seen_at: now,
+
+    ...sourceLocation.values,
+    _sourceLocationStatus: sourceLocation.status,
   };
 
   addSourceField(row, attrs, "isDogsOk", "good_with_dogs");
@@ -557,6 +572,18 @@ function mapAnimalToDogRow(animal, included, rescue) {
 
 function buildExistingDogUpdate(dog, existingDog) {
   const updateRow = { ...dog };
+
+  // Existing display placement is intentionally not rewritten as part of the
+  // source-geography migration. The new source_location_* fields carry the
+  // explicit RescueGroups provenance instead.
+  delete updateRow.placement_city;
+  delete updateRow.placement_state;
+  delete updateRow.placement_location;
+
+  if (updateRow._sourceLocationStatus === "incomplete") {
+    preserveSourceLocationOnIncomplete(updateRow);
+  }
+  delete updateRow._sourceLocationStatus;
 
   for (const field of SPARSE_SOURCE_FIELDS) {
     if (!hasMeaningfulSourceValue(updateRow[field])) {
@@ -725,9 +752,10 @@ function buildRequestBody(rescue) {
           "url",
         ],
         orgs: ["name", "city", "state", "url", "website"],
+        locations: LOCATION_FIELDS,
         statuses: ["name", "description"],
       },
-      include: ["pictures", "orgs", "statuses"],
+      include: ["pictures", "orgs", "statuses", "locations"],
     },
   };
 }
@@ -839,7 +867,9 @@ async function fetchDogsForRescue(rescue) {
     "./src/lib/dogVisibility.js"
   );
   const allMappedDogs = roster.animals
-    .map((animal) => mapAnimalToDogRow(animal, roster.included, rescue))
+    .map((animal) => mapAnimalToDogRow(animal, roster.included, rescue, {
+      locationRelationshipRequested: true,
+    }))
     .filter((dog) => rescueMatchesDog(dog, rescue))
     .map((dog) => ({
       ...dog,
@@ -953,6 +983,7 @@ async function upsertDogs(dogs) {
         filtered += 1;
         console.log(`Not inserting ${dog.name}: ${publicationFilterReason}.`);
       } else {
+        delete cleanDog._sourceLocationStatus;
         const dogWithHash = {
           ...cleanDog,
           source_content_hash: computeSourceContentHash(cleanDog),
@@ -1243,6 +1274,7 @@ if (require.main === module) {
 module.exports = {
   applyPublicationFilterToExistingUpdate,
   buildExistingDogUpdate,
+  buildRequestBody,
   describeError,
   fetchOnePageForRescue,
   fetchDogsForRescue,
