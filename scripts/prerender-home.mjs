@@ -82,18 +82,28 @@ async function loadCatalogData() {
 
   try {
     const supabase = createClient(url, key, { auth: { persistSession: false } });
-    const [{ data: dogRows, error: dogError }, { data: shelters, error: shelterError }] =
-      await Promise.all([
-        supabase.from("dogs").select("*, shelters(id,name,city,state,website,apply_url,logo_url), ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)")
+    const fetchDogRows = async () => {
+      const rows = [];
+      const pageSize = 1000;
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await supabase.from("dogs")
+          .select("*, shelters(id,name,city,state,website,apply_url,logo_url), ingestion_sources(id,source_type,external_org_id,enabled,publication_eligible,last_successful_sync_at)")
           .eq("adoptable", true)
           .or("adoption_pending.is.null,adoption_pending.eq.false")
           .in("availability_status", ["available", "active", "unknown"])
-          .order("created_at", { ascending: false }),
-        supabase.from("shelters").select("*"),
-      ]);
-    if (dogError) throw dogError;
+          .order("created_at", { ascending: false })
+          .range(from, from + pageSize - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < pageSize) return rows;
+      }
+    };
+    const [dogRows, { data: shelters, error: shelterError }] = await Promise.all([
+      fetchDogRows(),
+      supabase.from("shelters").select("*"),
+    ]);
     if (shelterError) throw shelterError;
-    return { dogs: filterPublicDogs(dogRows || []), shelters: shelters || [] };
+    return { dogs: filterPublicDogs(dogRows), shelters: shelters || [] };
   } catch (error) {
     console.warn(`Catalog prerender data unavailable: ${error.message}`);
     return { dogs: [], shelters: [] };
