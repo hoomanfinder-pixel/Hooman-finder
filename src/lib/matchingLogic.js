@@ -445,6 +445,9 @@ function result(questionId, evidence, explanation, { requested = true } = {}) {
     source: evidence.source,
     confidence: evidence.confidence,
     evidenceStrength: evidence.evidenceStrength,
+    coverageFraction: evidence.requestedParts
+      ? evidence.knownParts / evidence.requestedParts
+      : 1,
     explanation,
     positive: evidence.adjustedCompatibility > 0.5,
   };
@@ -681,9 +684,18 @@ export function computeRankedMatches(dogs, answersById) {
     const contributions = requested.map((entry) => entry.contribution).filter(Boolean);
 
     const requestedWeight = requested.reduce((sum, entry) => sum + entry.weight, 0);
-    const knownWeight = contributions.reduce((sum, entry) => sum + entry.weight, 0);
-    const earned = contributions.reduce((sum, entry) => sum + entry.weight * entry.adjustedCompatibility, 0);
-    const qualityWeightedEvidence = contributions.reduce((sum, entry) => sum + entry.weight * entry.evidenceStrength, 0);
+    const knownWeight = contributions.reduce(
+      (sum, entry) => sum + entry.weight * entry.coverageFraction,
+      0
+    );
+    const earned = contributions.reduce(
+      (sum, entry) => sum + entry.weight * entry.coverageFraction * entry.adjustedCompatibility,
+      0
+    );
+    const qualityWeightedEvidence = contributions.reduce(
+      (sum, entry) => sum + entry.weight * entry.coverageFraction * entry.evidenceStrength,
+      0
+    );
 
     const hasEnoughQuizInfo = answeredCount >= MIN_ANSWERED_FOR_REAL_MATCH;
     const meaningfulScoreAvailable = hasEnoughQuizInfo && requestedWeight > 0 && knownWeight > 0;

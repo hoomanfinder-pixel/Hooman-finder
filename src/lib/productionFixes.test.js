@@ -128,6 +128,57 @@ test("confirmed dog, cat, and small-animal incompatibilities remove dogs while u
   ]);
 });
 
+test("multi-pet evidence coverage is proportional to documented requested species", () => {
+  const answers = {
+    size_preference: ["flexible"],
+    pets_in_home: ["dogs", "cats", "small_pets"],
+  };
+  const dogs = [
+    { name: "One known", good_with_dogs: true },
+    { name: "Two known", good_with_dogs: true, good_with_cats: true },
+    {
+      name: "All known",
+      good_with_dogs: true,
+      good_with_cats: true,
+      good_with_small_animals: true,
+    },
+  ];
+  const byName = new Map(
+    computeRankedMatches(dogs, answers).map((row) => [row.dog.name, row])
+  );
+
+  assert.equal(byName.get("One known").breakdown.evidenceRequestedWeight, 3);
+  assert.equal(byName.get("One known").breakdown.evidenceCoveredWeight, 1);
+  assert.equal(byName.get("One known").breakdown.evidencePresencePct, 33);
+  assert.equal(byName.get("Two known").breakdown.evidenceCoveredWeight, 2);
+  assert.equal(byName.get("Two known").breakdown.evidencePresencePct, 67);
+  assert.equal(byName.get("All known").breakdown.evidenceCoveredWeight, 3);
+  assert.equal(byName.get("All known").breakdown.evidencePresencePct, 100);
+  assert.deepEqual(
+    ["One known", "Two known", "All known"].map(
+      (name) => byName.get(name).breakdown.rawCompatibilityPct
+    ),
+    [100, 100, 100]
+  );
+  assert.ok(byName.get("One known").scorePct < byName.get("Two known").scorePct);
+  assert.ok(byName.get("Two known").scorePct < byName.get("All known").scorePct);
+});
+
+test("unknown multi-pet compatibility remains unknown rather than positive or negative", () => {
+  const answers = {
+    size_preference: ["flexible"],
+    pets_in_home: ["dogs", "cats", "small_pets"],
+  };
+  const [row] = computeRankedMatches([{ name: "Unknown pets" }], answers);
+
+  assert.equal(row.scorePct, null);
+  assert.equal(row.breakdown.evidenceRequestedWeight, 3);
+  assert.equal(row.breakdown.evidenceCoveredWeight, 0);
+  assert.equal(row.breakdown.emptyReason, "no_dog_evidence");
+  assert.deepEqual(row.breakdown.contributions, []);
+  assert.deepEqual(row.breakdown.compatibilityCautions, []);
+});
+
 test("AI estimates neither override contradictory confirmed facts nor create exclusions", () => {
   const answers = { size_preference: ["flexible"], pets_in_home: ["cats"] };
   const confirmedNoAiYes = {

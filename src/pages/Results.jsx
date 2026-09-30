@@ -13,9 +13,9 @@ import {
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
-import { filterPublicDogs } from "../lib/dogVisibility";
 import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
 import { trackQuizComplete, trackResultsView } from "../lib/googleAnalytics";
+import { fetchAllPublicDogs } from "../lib/publicDogsQuery";
 import { supabase } from "../lib/supabase";
 import { getCompletionCounts, QUIZ_MODES } from "../lib/quizQuestions";
 
@@ -168,15 +168,9 @@ export default function Results() {
 
         const { answersById: loadedAnswers } = await loadQuizResponses(sessionId);
 
-        const { data, error } = await supabase
-          .from("dogs")
-          .select(DOG_SELECT)
-          .eq("adoptable", true)
-          .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .in("availability_status", ["available", "active", "unknown"])
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
+        const publicDogs = await fetchAllPublicDogs(supabase, {
+          select: DOG_SELECT,
+        });
         if (!mounted) return;
 
         const safeAnswers = loadedAnswers || {};
@@ -186,7 +180,7 @@ export default function Results() {
         );
 
         setAnswersById(safeAnswers);
-        setDogs(filterPublicDogs(data));
+        setDogs(publicDogs);
 
         if (
           essentialCompletion.total > 0 &&
