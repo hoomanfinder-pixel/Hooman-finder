@@ -46,12 +46,29 @@ test("keeps untested compatibility unknown and conditional language conditional"
 });
 
 test("does not turn older-children-only evidence into universal child compatibility", () => {
-  const extraction = extractBiographyEvidence({ description: "A calm home with older children only." });
-  assert.equal(extraction.fields.children.value, "older_children_only");
-  assert.equal(extraction.fields.children.blockedReason, "unsupported_age_specific_child_mapping");
-  const applied = applyBiographyEvidenceForSimulation({ description: "A calm home with older children only." }, extraction);
-  assert.equal(applied.applied.includes("children"), false);
-  assert.equal(applied.dog.bio_good_with_kids, undefined);
+  for (const description of [
+    "A calm home with older children only.",
+    "A calm home with older children or no children.",
+    "A calm home with older, mature children or no children at all.",
+    "She needs a home with no young children.",
+    "Teenagers only, please.",
+  ]) {
+    const extraction = extractBiographyEvidence({ description });
+    assert.equal(extraction.fields.children.status, "accepted", description);
+    assert.equal(extraction.fields.children.value, "older_children_only", description);
+    assert.equal(extraction.fields.children.blockedReason, "unsupported_age_specific_child_mapping", description);
+    const applied = applyBiographyEvidenceForSimulation({ description }, extraction);
+    assert.equal(applied.applied.includes("children"), false, description);
+    assert.equal(applied.dog.bio_good_with_kids, undefined, description);
+  }
+});
+
+test("distinguishes universal, positive, and unknown child statements", () => {
+  assert.equal(field("This dog needs a home with no children.", "children").value, "no");
+  assert.equal(field("This dog is good with children.", "children").value, "yes");
+  const untested = field("This dog is untested with children.", "children");
+  assert.equal(untested.status, "ambiguous");
+  assert.equal(untested.value, null);
 });
 
 test("structured evidence outranks contradictory biography evidence", () => {

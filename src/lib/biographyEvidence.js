@@ -68,13 +68,13 @@ export const BIOGRAPHY_EVIDENCE_POLICY = {
   },
   children: {
     accepted: [
-      pattern("kids_negative", /\b(?:no (?:kids|children)(?! (?:under|younger than|below))|not good with (?:kids|children)|cannot live with (?:kids|children)|adult[- ]only home)\b/gi, "no", 0.95, "Biography explicitly rules out children."),
-      pattern("kids_age_restricted", /\b(?:older|teenage) (?:kids|children) only\b|\b(?:kids|children) (?:ages? )?(?:1[0-9]|[6-9])\+\b|\bno (?:kids|children) (?:under|younger than|below) (?:1[0-9]|[1-9])\b/gi, "older_children_only", 0.92, "Biography explicitly limits compatibility to older children; the current binary matcher must not treat this as universal child compatibility."),
+      pattern("kids_negative", /\b(?:(?<!or )no (?:kids|children)(?! (?:under|younger than|below))|not good with (?:kids|children)|cannot live with (?:kids|children)|adult[- ]only home)\b/gi, "no", 0.95, "Biography explicitly rules out children."),
+      pattern("kids_age_restricted", /\b(?:(?:older|teenage)(?:,? mature)? (?:kids|children)(?: only| or no (?:kids|children)(?: at all)?)|teenagers? only|no young (?:kids|children)|(?:kids|children) (?:ages? )?(?:1[0-9]|[6-9])\+|no (?:kids|children) (?:under|younger than|below) (?:1[0-9]|[1-9]))\b/gi, "older_children_only", 0.92, "Biography explicitly limits compatibility to older children; the current binary matcher must not treat this as universal child compatibility."),
       pattern("kids_conditional", /\b(?:may|might|could) do well with (?:respectful |older )?(?:kids|children)|\b(?:kids|children) with (?:slow|proper) introductions?\b/gi, "may_do_well", 0.78, "Biography gives conditional child-compatibility evidence."),
       pattern("kids_positive", /(?<!not )\b(?:good with|loves|lived with|does well with|gets along with) (?:young |older )?(?:kids|children)\b|\bkid[- ]friendly\b/gi, "yes", 0.92, "Biography explicitly describes positive experience with children."),
     ],
     ambiguous: [
-      pattern("kids_untested", /\b(?:not|never|hasn't|has not) (?:been )?tested with (?:kids|children)\b|\bunknown with (?:kids|children)\b/gi, null, 0, "Untested or unknown child compatibility must remain unknown."),
+      pattern("kids_untested", /\b(?:(?:not|never|hasn't|has not) (?:been )?tested|untested) with (?:kids|children)\b|\bunknown with (?:kids|children)\b/gi, null, 0, "Untested or unknown child compatibility must remain unknown."),
       pattern("kids_family", /\b(?:family dog|great for a family|perfect family dog)\b/gi, null, 0, "Family language is not child-specific evidence."),
     ],
   },

@@ -282,6 +282,184 @@ test("profile-derived lifestyle estimates remain profile_inference", () => {
   assert.equal(normalized.grooming_level.evidence_basis, "profile_inference");
 });
 
+test("alone time stays unknown without direct alone-time evidence", () => {
+  for (const description of [
+    "A calm senior who is house trained and loves naps.",
+    "A crate-trained independent dog with low energy.",
+    "An easygoing young dog who settles well in the home.",
+  ]) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({
+        can_be_left_alone: trait("true", 0.9, "General profile inference."),
+        max_alone_hours_estimate: trait(6, 0.9, "General profile inference."),
+      }),
+      dogInput({ breed: "Shiba Inu", age_years: 9, energy_level: "Low", description })
+    );
+    assert.equal(normalized.can_be_left_alone.value, "unknown", description);
+    assert.equal(normalized.max_alone_hours_estimate.value, null, description);
+  }
+});
+
+test("direct alone-time statements remain usable", () => {
+  const hours = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "Her foster says she can be left alone for 4 to 6 hours and settles comfortably.",
+  }));
+  assert.equal(hours.max_alone_hours_estimate.value, 6);
+  assert.equal(hours.max_alone_hours_estimate.evidence_basis, "bio_explicit");
+
+  const distress = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "He panics when left alone and cannot be left alone for long.",
+  }));
+  assert.equal(distress.can_be_left_alone.value, "false");
+  assert.equal(distress.max_alone_hours_estimate.value, 2);
+  assert.equal(distress.max_alone_hours_estimate.evidence_basis, "bio_explicit");
+});
+
+test("apartment suitability requires direct housing evidence", () => {
+  for (const description of [
+    "A fenced yard is preferred.",
+    "A high-energy large dog who needs room to run.",
+    "A proud homebody who does not enjoy walks.",
+  ]) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ apartment_friendly: trait("false", 0.9, "Profile inference.") }),
+      dogInput({ breed: "Great Dane", size: "Large", yard_required: true, description })
+    );
+    assert.equal(normalized.apartment_friendly.value, "unknown", description);
+  }
+
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "She is apartment friendly." })).apartment_friendly.value,
+    "true"
+  );
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "She requires a house; no apartments." })).apartment_friendly.value,
+    "false"
+  );
+});
+
+test("child compatibility requires child-specific evidence and preserves age restrictions", () => {
+  for (const description of [
+    "Gentle with everyone.",
+    "A sweet, friendly and loving family dog.",
+  ]) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ good_with_kids: trait("likely", 0.9, "Generic temperament.") }),
+      dogInput({ description })
+    );
+    assert.equal(normalized.good_with_kids.value, "unknown", description);
+  }
+
+  for (const description of [
+    "Older children only.",
+    "Older children or no children.",
+    "No young children.",
+    "Teenagers only.",
+  ]) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ good_with_kids: trait("false", 0.9, "Collapsed age restriction.", "bio_explicit") }),
+      dogInput({ description })
+    );
+    assert.equal(normalized.good_with_kids.value, "unknown", description);
+    assert.equal(normalized.good_with_kids.evidence_basis, "bio_explicit", description);
+  }
+
+  const untested = normalizeAiTraits(
+    baseParsedTraits({ good_with_kids: trait("likely", 0.8, "Children were mentioned.") }),
+    dogInput({ description: "She has not been tested with children." })
+  );
+  assert.equal(untested.good_with_kids.value, "unknown");
+});
+
+test("first-time-owner suitability requires explicit wording", () => {
+  for (const description of [
+    "A friendly, trained and calm dog.",
+    "An easygoing low-maintenance senior.",
+    "A sweet young family dog.",
+  ]) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ first_time_friendly: trait("likely", 0.9, "Broad profile synthesis.") }),
+      dogInput({ description })
+    );
+    assert.equal(normalized.first_time_friendly.value, "unknown", description);
+  }
+
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "A great first dog for a first-time owner." })).first_time_friendly.value,
+    "true"
+  );
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "Needs an experienced owner; not for a first-time owner." })).first_time_friendly.value,
+    "false"
+  );
+});
+
+test("breed cannot support protected lifestyle or compatibility traits", () => {
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({
+      max_alone_hours_estimate: trait(6, 0.8, "Independent breed."),
+      apartment_friendly: trait("false", 0.8, "Large breed."),
+      good_with_kids: trait("true", 0.8, "Family breed."),
+      good_with_dogs: trait("true", 0.8, "Social breed."),
+      good_with_cats: trait("false", 0.8, "Prey-drive breed."),
+      good_with_small_animals: trait("false", 0.8, "Prey-drive breed."),
+      first_time_friendly: trait("true", 0.8, "Beginner breed."),
+    }),
+    dogInput({ breed: "Shiba Inu", description: "A beautiful dog looking for a home." })
+  );
+
+  assert.equal(normalized.max_alone_hours_estimate.value, null);
+  assert.equal(normalized.apartment_friendly.value, "unknown");
+  assert.equal(normalized.good_with_kids.value, "unknown");
+  assert.equal(normalized.good_with_dogs.value, "unknown");
+  assert.equal(normalized.good_with_cats.value, "unknown");
+  assert.equal(normalized.good_with_small_animals.value, "unknown");
+  assert.equal(normalized.first_time_friendly.value, "unknown");
+});
+
+test("mirrored structured facts retain structured-source provenance", () => {
+  const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({
+    energy_level: "Moderate",
+    exercise_needs: "High",
+    obedience_training: "Needs Training",
+    barking_level: "Quiet",
+    grooming_level: "Low",
+    yard_required: true,
+    owner_experience: "Experienced owner required",
+    good_with_kids: true,
+    potty_trained: false,
+    max_alone_hours: 4,
+  }));
+
+  for (const key of [
+    "energy_level",
+    "exercise_needs",
+    "training_needs",
+    "barking_level",
+    "grooming_level",
+    "needs_yard",
+    "first_time_friendly",
+    "good_with_kids",
+    "potty_trained",
+    "max_alone_hours_estimate",
+  ]) {
+    assert.equal(normalized[key].evidence_basis, "structured_source", key);
+  }
+});
+
+test("unsupported prior alone-time values are not carried forward", () => {
+  const fresh = buildBioColumns(normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "A calm house-trained senior.",
+  })), null);
+  const { merged, carriedForwardFields } = mergeExistingBioColumns(fresh, {
+    bio_max_alone_hours: 6,
+    bio_max_alone_hours_label: "5-6",
+  });
+  assert.equal(merged.bio_max_alone_hours, null);
+  assert.equal(merged.bio_max_alone_hours_label, "unknown");
+  assert.equal(carriedForwardFields.includes("bio_max_alone_hours"), false);
+});
+
 test("unsupported safety-sensitive compatibility claims remain unknown", () => {
   const unsupported = trait(
     "true",
@@ -500,7 +678,7 @@ test("daily enrichment eligibility covers new, outdated, and source-changed dogs
       shedding_level: null,
       ai_enrichment_version: "dog-ai-traits-v10-provenance",
     }),
-    null
+    "version_outdated"
   );
   assert.equal(
     getEnrichmentEligibilityReason({
@@ -510,7 +688,7 @@ test("daily enrichment eligibility covers new, outdated, and source-changed dogs
       source_content_hash: "changed-hash",
       ai_enrichment_version: "dog-ai-traits-v10-provenance",
     }),
-    "content_changed"
+    "version_outdated"
   );
   assert.equal(
     getEnrichmentEligibilityReason({
