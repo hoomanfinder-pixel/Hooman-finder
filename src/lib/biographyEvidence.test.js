@@ -6,7 +6,7 @@ import {
   applyBiographyEvidenceForSimulation,
   extractBiographyEvidence,
 } from "./biographyEvidence.js";
-import { computeRankedMatches, getConfirmedIncompatibilities } from "./matchingLogic.js";
+import { bioCompatibilityRaw, computeRankedMatches, getConfirmedIncompatibilities } from "./matchingLogic.js";
 
 function field(description, key, extra = {}) {
   return extractBiographyEvidence({ description, ...extra }).fields[key];
@@ -56,11 +56,87 @@ test("does not turn older-children-only evidence into universal child compatibil
     const extraction = extractBiographyEvidence({ description });
     assert.equal(extraction.fields.children.status, "accepted", description);
     assert.equal(extraction.fields.children.value, "older_children_only", description);
-    assert.equal(extraction.fields.children.blockedReason, "unsupported_age_specific_child_mapping", description);
+    assert.equal(extraction.fields.children.blockedReason, null, description);
     const applied = applyBiographyEvidenceForSimulation({ description }, extraction);
-    assert.equal(applied.applied.includes("children"), false, description);
-    assert.equal(applied.dog.bio_good_with_kids, undefined, description);
+    assert.equal(applied.applied.includes("children"), true, description);
+    assert.equal(applied.dog.bio_good_with_kids, "older_children_only", description);
   }
+});
+
+test("preserves nuanced conditional compatibility across dogs cats and children", () => {
+  const cases = [
+    ["dogs", "She is dog selective.", "selective"],
+    ["dogs", "Slow introductions are required with other dogs.", "selective"],
+    ["dogs", "She could live with a compatible low-energy dog.", "selective"],
+    ["dogs", "Best as the only dog, but she has lived with dogs before.", "only_dog"],
+    ["dogs", "He may do well with another dog.", "may_do_well"],
+    ["cats", "Unknown with cats, but she may do well after slow introductions.", "may_do_well"],
+    ["cats", "She may live with dog-savvy cats after proper introductions.", "may_do_well"],
+    ["cats", "She has not been tested with cats.", null],
+    ["children", "Older children only.", "older_children_only"],
+    ["children", "Older children or no children.", "older_children_only"],
+    ["children", "She may do well with respectful children.", "may_do_well"],
+    ["children", "She is untested with children.", null],
+  ];
+
+  for (const [dimension, description, expected] of cases) {
+    const decision = field(description, dimension);
+    assert.equal(decision.value, expected, description);
+    assert.notEqual(decision.value, expected === null ? "yes" : "no", description);
+  }
+});
+
+test("Abby's dog-selective wording remains selective soft evidence", () => {
+  const description = "While she is dog selective and takes time to warm up to new canine friends (she prefers low-energy dogs), she can do well in a home with a patient introduction process—or as the only dog.";
+  const extraction = extractBiographyEvidence({ description });
+  assert.equal(extraction.fields.dogs.value, "selective");
+  const { dog } = applyBiographyEvidenceForSimulation({ description }, extraction);
+  assert.equal(dog.bio_good_with_dogs, "selective");
+  assert.equal(dog.ai_traits.good_with_dogs.value, "selective");
+  assert.deepEqual(getConfirmedIncompatibilities(dog, { pets_in_home: ["dogs"] }), []);
+});
+
+test("only-dog recommendations with explicit compatible alternatives remain selective", () => {
+  const cases = [
+    ["He would be best as the only dog, at least until training is complete.", "only_dog"],
+    ["She should be the only dog in the house.", "only_dog"],
+    ["He loves to play with other dogs, but prefers to be the only dog to live with you.", "only_dog"],
+    ["He can be the only dog, or share with another small mature respectful dog.", "selective"],
+    ["She would ideally prefer to be an only dog, but could share with the right canine companion.", "selective"],
+    ["She would do best as the only pet, though with slow introductions she can live with another dog.", "selective"],
+  ];
+  for (const [description, expected] of cases) {
+    assert.equal(field(description, "dogs").value, expected, description);
+  }
+});
+
+test("contradictory cat behavior and cat-housing exclusion stays ambiguous", () => {
+  const decision = field("Cats: Good with cats, but he is allergic to them. Cats are a hard pass.", "cats");
+  assert.equal(decision.status, "ambiguous");
+  assert.equal(decision.value, null);
+});
+
+test("matching assigns proportional soft compatibility without changing hard filters", () => {
+  assert.equal(bioCompatibilityRaw("yes"), 1);
+  assert.equal(bioCompatibilityRaw("may_do_well"), 0.65);
+  assert.equal(bioCompatibilityRaw("selective"), 0.4);
+  assert.equal(bioCompatibilityRaw("only_dog"), 0.15);
+  assert.equal(bioCompatibilityRaw("no"), 0);
+  assert.equal(bioCompatibilityRaw("unknown"), null);
+  assert.equal(bioCompatibilityRaw("older_children_only", { field: "good_with_kids", answer: ["under_3"] }), 0.15);
+  assert.equal(bioCompatibilityRaw("older_children_only", { field: "good_with_kids", answer: ["13_plus"] }), 0.9);
+
+  for (const value of ["may_do_well", "selective", "only_dog"]) {
+    assert.deepEqual(
+      getConfirmedIncompatibilities({ bio_good_with_dogs: value }, { pets_in_home: ["dogs"] }),
+      [],
+      value
+    );
+  }
+  assert.equal(
+    getConfirmedIncompatibilities({ good_with_dogs: false, bio_good_with_dogs: "yes" }, { pets_in_home: ["dogs"] })[0].code,
+    "confirmed_dog_incompatibility"
+  );
 });
 
 test("distinguishes universal, positive, and unknown child statements", () => {

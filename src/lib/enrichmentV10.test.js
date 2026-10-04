@@ -360,8 +360,9 @@ test("child compatibility requires child-specific evidence and preserves age res
       baseParsedTraits({ good_with_kids: trait("false", 0.9, "Collapsed age restriction.", "bio_explicit") }),
       dogInput({ description })
     );
-    assert.equal(normalized.good_with_kids.value, "unknown", description);
+    assert.equal(normalized.good_with_kids.value, "older_children_only", description);
     assert.equal(normalized.good_with_kids.evidence_basis, "bio_explicit", description);
+    assert.equal(buildBioColumns(normalized, null).bio_good_with_kids, "older_children_only", description);
   }
 
   const untested = normalizeAiTraits(
@@ -369,6 +370,82 @@ test("child compatibility requires child-specific evidence and preserves age res
     dogInput({ description: "She has not been tested with children." })
   );
   assert.equal(untested.good_with_kids.value, "unknown");
+});
+
+test("conditional household compatibility survives AI normalization as nuanced soft states", () => {
+  const cases = [
+    ["good_with_dogs", "bio_good_with_dogs", "She is dog selective.", "selective"],
+    ["good_with_dogs", "bio_good_with_dogs", "Slow introductions are required with other dogs.", "selective"],
+    ["good_with_dogs", "bio_good_with_dogs", "She could live with a compatible low-energy dog.", "selective"],
+    ["good_with_dogs", "bio_good_with_dogs", "Best as the only dog, but she has lived with dogs.", "only_dog"],
+    ["good_with_dogs", "bio_good_with_dogs", "She may do well with another dog.", "may_do_well"],
+    ["good_with_cats", "bio_good_with_cats", "Unknown with cats, but may do well after slow introductions.", "may_do_well"],
+    ["good_with_cats", "bio_good_with_cats", "She may live with dog-savvy cats after proper introductions.", "may_do_well"],
+    ["good_with_kids", "bio_good_with_kids", "Older children only.", "older_children_only"],
+    ["good_with_kids", "bio_good_with_kids", "Older children or no children.", "older_children_only"],
+    ["good_with_kids", "bio_good_with_kids", "She may do well with respectful children.", "may_do_well"],
+  ];
+
+  for (const [traitKey, columnKey, description, expected] of cases) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ [traitKey]: trait(expected === "only_dog" ? "false" : "true", 0.95, "Collapsed model result.", "bio_explicit") }),
+      dogInput({ description })
+    );
+    assert.equal(normalized[traitKey].value, expected, description);
+    assert.equal(normalized[traitKey].evidence_basis, "bio_explicit", description);
+    assert.equal(buildBioColumns(normalized, null)[columnKey], expected, description);
+  }
+});
+
+test("Abby's selective compatible-dog wording is not collapsed to false", () => {
+  const description = "While she is dog selective and takes time to warm up to new canine friends (she prefers low-energy dogs), she can do well in a home with a patient introduction process—or as the only dog.";
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({ good_with_dogs: trait("false", 0.9, "Bio clearly indicates the dog should not live with other dogs.", "bio_explicit") }),
+    dogInput({ description })
+  );
+  assert.equal(normalized.good_with_dogs.value, "selective");
+  assert.equal(buildBioColumns(normalized, null).bio_good_with_dogs, "selective");
+});
+
+test("real conditional dog biographies preserve only-dog versus compatible alternatives", () => {
+  const cases = [
+    ["He would be best as the only dog, at least until training is complete.", "only_dog"],
+    ["She should be the only dog in the house.", "only_dog"],
+    ["He loves to play with other dogs, but prefers to be the only dog to live with you.", "only_dog"],
+    ["He can be the only dog, or share with another small mature respectful dog.", "selective"],
+    ["She would ideally prefer to be an only dog, but could share with the right canine companion.", "selective"],
+    ["She would do best as the only pet, though with slow introductions she can live with another dog.", "selective"],
+  ];
+
+  for (const [description, expected] of cases) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({ good_with_dogs: trait("false", 0.9, "Collapsed model result.", "bio_explicit") }),
+      dogInput({ description })
+    );
+    assert.equal(normalized.good_with_dogs.value, expected, description);
+    assert.equal(buildBioColumns(normalized, null).bio_good_with_dogs, expected, description);
+  }
+});
+
+test("contradictory positive cat behavior and cat-housing exclusion remains unknown", () => {
+  const description = "Cats: Good with cats, but he is allergic to them. Cats are a hard pass to keep him healthy.";
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({ good_with_cats: trait("true", 0.95, "Good with cats.", "bio_explicit") }),
+    dogInput({ description })
+  );
+  assert.equal(normalized.good_with_cats.value, "unknown");
+  assert.equal(normalized.needs_human_review, true);
+  assert.equal(buildBioColumns(normalized, null).bio_good_with_cats, "unknown");
+});
+
+test("structured compatibility still outranks conditional biography wording", () => {
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({ good_with_dogs: trait("selective", 0.86, "Dog selective.", "bio_explicit") }),
+    dogInput({ good_with_dogs: true, description: "Dog selective; slow introductions are required." })
+  );
+  assert.equal(normalized.good_with_dogs.value, "true");
+  assert.equal(normalized.good_with_dogs.evidence_basis, "structured_source");
+  assert.equal(buildBioColumns(normalized, null).bio_good_with_dogs, "yes");
 });
 
 test("first-time-owner suitability requires explicit wording", () => {

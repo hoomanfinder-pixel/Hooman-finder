@@ -80,8 +80,10 @@ export const BIOGRAPHY_EVIDENCE_POLICY = {
   },
   dogs: {
     accepted: [
-      pattern("dogs_negative", /\b(?:no other dogs|(?:would prefer to be|would do best as|needs? to be|must be) (?:the )?only dog|only dog (?:home|household|preferred|required)|not good with (?:other )?dogs|cannot live with (?:other )?dogs|doesn't like (?:other )?dogs|dog aggressive)\b/gi, "no", 0.94, "Biography explicitly rules out living with other dogs."),
-      pattern("dogs_conditional", /\b(?:may|might|could) do well with (?:another|other) dogs?|\b(?:slow|proper) introductions? (?:to|with) (?:other )?dogs?\b|\bdog selective\b/gi, "may_do_well", 0.8, "Biography gives conditional dog-compatibility evidence."),
+      pattern("dogs_negative", /\b(?:no other dogs|not good with (?:other )?dogs|cannot live with (?:other )?dogs|doesn't like (?:other )?dogs|dog aggressive)\b/gi, "no", 0.94, "Biography explicitly rules out living with other dogs."),
+      pattern("dogs_only_dog", /\b(?:would prefer to be|prefers? to be|would do best as|best as|should be|needs? to be|must be) (?:the )?only (?:dog|pet)\b|\bonly dog (?:home|household|preferred|required)\b/gi, "only_dog", 0.9, "Biography explicitly recommends or requires an only-dog home without turning that recommendation into a confirmed source incompatibility."),
+      pattern("dogs_selective", /\b(?:dog selective|selective with dogs|slow introductions? (?:are )?(?:needed|required|recommended)|proper introductions? (?:are )?(?:needed|required|recommended)|with (?:slow|proper) introductions?|takes? time to warm up to (?:new )?(?:dogs|canine friends)|compatible (?:low[- ]energy )?dog|right canine companion|ideal canine companion|does well with (?:other )?dogs? as long as|share (?:her|his|their) (?:humans|home) with (?:the )?right (?:dog|canine companion)|can be (?:the )?only dog,? or (?:share|live))\b/gi, "selective", 0.86, "Biography explicitly describes selective compatibility or required introductions."),
+      pattern("dogs_conditional", /\b(?:may|might|could) (?:do well|live) with (?:a |another |other )?(?:compatible )?(?:low[- ]energy )?dogs?\b|\bcan do well (?:in a home )?with (?:a |another )?(?:compatible )?(?:low[- ]energy )?dogs?\b/gi, "may_do_well", 0.8, "Biography gives conditional dog-compatibility evidence."),
       pattern("dogs_positive", /(?<!not )\b(?:good with|loves|lived with|does well with|gets along with) (?:other )?dogs\b|\bvery dog friendly\b/gi, "yes", 0.93, "Biography explicitly describes positive experience with other dogs."),
     ],
     ambiguous: [
@@ -91,8 +93,8 @@ export const BIOGRAPHY_EVIDENCE_POLICY = {
   },
   cats: {
     accepted: [
-      pattern("cats_negative", /\b(?:no cats|feline[- ]free home|not cat[- ]safe|not good with cats|cannot live with cats|will chase cats|chases cats)\b/gi, "no", 0.95, "Biography explicitly rules out cats or describes chasing."),
-      pattern("cats_conditional", /\b(?:may|might|could) do well with (?:dog[- ]savvy )?cats|\b(?:okay|ok) with (?:dog[- ]savvy )?cats (?:with|after) (?:slow|proper) introductions?\b/gi, "may_do_well", 0.78, "Biography gives conditional cat-compatibility evidence."),
+      pattern("cats_negative", /\b(?:no cats|feline[- ]free home|not cat[- ]safe|not good with cats|cannot live with cats|will chase cats|chases cats|allergic to cats|cats?[^.!?]{0,50}hard pass)\b/gi, "no", 0.95, "Biography explicitly rules out cats, describes chasing, or states a cat-housing exclusion."),
+      pattern("cats_conditional", /\b(?:may|might|could) (?:do well|live) with (?:dog[- ]savvy )?cats(?: (?:with|after) (?:slow|proper) introductions?)?|\b(?:okay|ok) with (?:dog[- ]savvy )?cats (?:with|after) (?:slow|proper) introductions?|\bunknown with cats[^.!?]{0,80}(?:may|might|could) do well[^.!?]{0,40}(?:slow|proper) introductions?\b/gi, "may_do_well", 0.78, "Biography gives conditional cat-compatibility evidence."),
       pattern("cats_positive", /(?<!not )\b(?:good with|loves|lived with|does well with|gets along with) cats\b|\bcat[- ]friendly\b/gi, "yes", 0.94, "Biography explicitly describes positive experience with cats."),
     ],
     ambiguous: [
@@ -159,7 +161,8 @@ function isStructuredKnown(value) {
 function polarity(field, value) {
   if (["children", "dogs", "cats", "small_animals", "potty_training"].includes(field)) {
     if (value === "no") return "negative";
-    if (["yes", "most_likely", "may_do_well"].includes(value)) return "positive";
+    if (["yes", "most_likely"].includes(value)) return "positive";
+    if (["may_do_well", "selective", "only_dog", "older_children_only"].includes(value)) return "conditional";
   }
   if (field === "dog_social_style") {
     if (value === "only_dog") return "negative";
@@ -213,6 +216,11 @@ function allMatches(text, patterns) {
 function resolveAccepted(field, matches) {
   if (!matches.length) return null;
   const groups = new Set(matches.map((entry) => polarity(field, entry.value)));
+  if (["children", "dogs", "cats", "small_animals"].includes(field)) {
+    if (groups.has("negative") && groups.size > 1) return null;
+    const order = ["yes", "most_likely", "may_do_well", "older_children_only", "only_dog", "selective", "no"];
+    return [...matches].sort((a, b) => order.indexOf(b.value) - order.indexOf(a.value) || b.confidence - a.confidence)[0];
+  }
   if (groups.size > 1 && !["training_needs"].includes(field)) return null;
   if (field === "training_needs") {
     const order = ["low", "medium_low", "medium", "medium_high", "high"];
@@ -232,7 +240,8 @@ export function extractBiographyEvidence(dog) {
     const acceptedMatches = allMatches(text, policy.accepted);
     const ambiguousMatches = allMatches(text, policy.ambiguous);
     const resolved = resolveAccepted(field, acceptedMatches);
-    const contradictory = acceptedMatches.length > 1 && new Set(acceptedMatches.map((entry) => polarity(field, entry.value))).size > 1;
+    const acceptedGroups = new Set(acceptedMatches.map((entry) => polarity(field, entry.value)));
+    const contradictory = acceptedGroups.has("negative") && acceptedGroups.size > 1;
     const structuredFields = STRUCTURED_FIELDS[field] || [];
     const structuredPresent = structuredFields.some((key) => isStructuredKnown(dog?.[key]));
     const structuredDirection = structuredPolarity(field, dog);
@@ -248,7 +257,7 @@ export function extractBiographyEvidence(dog) {
     } else if (resolved) {
       status = "accepted";
       reason = ageRestricted
-        ? "Accepted as age-specific evidence, but not mapped to the current binary child field."
+        ? "Accepted as age-specific soft evidence."
         : structuredPresent
           ? "Accepted for audit only; structured source evidence takes precedence."
           : "Accepted as deterministic biography evidence.";
@@ -272,7 +281,7 @@ export function extractBiographyEvidence(dog) {
       structuredPresent,
       structuredConflict,
       applied: false,
-      blockedReason: structuredPresent ? "structured_source_precedence" : ageRestricted ? "unsupported_age_specific_child_mapping" : null,
+      blockedReason: structuredPresent ? "structured_source_precedence" : null,
     };
   }
   return { dogId: dog?.id ?? null, dogName: dog?.name ?? null, textLength: text.length, fields };
@@ -280,7 +289,15 @@ export function extractBiographyEvidence(dog) {
 
 function traitValue(field, value) {
   if (["children", "dogs", "cats", "small_animals", "potty_training"].includes(field)) {
-    return { yes: "true", most_likely: "likely", may_do_well: "maybe", no: "false" }[value];
+    return {
+      yes: "true",
+      most_likely: "likely",
+      may_do_well: "may_do_well",
+      selective: "selective",
+      only_dog: "only_dog",
+      older_children_only: "older_children_only",
+      no: "false",
+    }[value];
   }
   return value;
 }

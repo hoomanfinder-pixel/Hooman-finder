@@ -250,19 +250,33 @@ function bioExplicitCredit(rawCompatibility, confidence = 0.85) {
   };
 }
 
-function bioCompatibilityRaw(value) {
+export function bioCompatibilityRaw(value, { field = null, answer = null, conditionalMode = "nuanced" } = {}) {
   const normalized = String(value ?? "").toLowerCase().trim();
   if (["yes", "true"].includes(normalized)) return 1;
   if (["most_likely", "likely"].includes(normalized)) return 0.9;
-  if (["may_do_well", "maybe"].includes(normalized)) return 0.5;
+  if (["may_do_well", "maybe"].includes(normalized)) return conditionalMode === "legacy" ? 0.5 : 0.65;
+  if (normalized === "selective") return 0.4;
+  if (normalized === "only_dog") return 0.15;
+  if (normalized === "older_children_only") {
+    if (field !== "good_with_kids") return 0.5;
+    const childAges = normalizeAnswerList(answer);
+    if (childAges.some((age) => ["under_3", "3_5", "6_9"].includes(age))) return 0.15;
+    if (childAges.includes("10_12")) return 0.65;
+    if (childAges.length && childAges.every((age) => age === "13_plus")) return 0.9;
+    return 0.5;
+  }
   if (["no", "false"].includes(normalized)) return 0;
   return null;
 }
 
-function compatibilityEvidence(dog, field, structuredValue, bioValue) {
+function compatibilityEvidence(dog, field, structuredValue, bioValue, answer = null, matchOptions = {}) {
   if (structuredValue === true || truthy(structuredValue)) return structuredCredit(1);
   if (structuredValue === false || falsy(structuredValue)) return structuredCredit(0);
-  return adjustedAiCredit(dog, field, bioCompatibilityRaw(bioValue));
+  return adjustedAiCredit(dog, field, bioCompatibilityRaw(bioValue, {
+    field,
+    answer,
+    conditionalMode: matchOptions.conditionalMode,
+  }));
 }
 
 function dogSocialStyleEvidence(dog, preference) {
@@ -454,7 +468,7 @@ function result(questionId, evidence, explanation, { requested = true } = {}) {
   return { questionId, weight, requested: true, evidence, contribution };
 }
 
-function scoreQuestion(questionId, answer, dog, answersById = {}) {
+function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions = {}) {
   if (isEmptyAnswer(answer) || isNoPreferenceValue(answer)) return result(questionId, null, "", { requested: false });
 
   switch (questionId) {
@@ -472,18 +486,18 @@ function scoreQuestion(questionId, answer, dog, answersById = {}) {
     case "kids_in_home": {
       const needsKids = normalizeAnswerList(answer).some((value) => !["no_children"].includes(value));
       if (!needsKids) return result(questionId, null, "", { requested: false });
-      const evidence = compatibilityEvidence(dog, "good_with_kids", dog?.good_with_kids, dog?.bio_good_with_kids);
+      const evidence = compatibilityEvidence(dog, "good_with_kids", dog?.good_with_kids, dog?.bio_good_with_kids, answer, matchOptions);
       return result(questionId, evidence, evidence?.source === "structured" ? `Shelter listing ${evidence.rawCompatibility ? "supports" : "does not support"} a home with children` : `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible" : "does not clearly support"} child compatibility`);
     }
     case "pets_in_home": {
       const picks = normalizeAnswerList(answer);
       if (picks.includes("none")) return result(questionId, null, "", { requested: false });
       const items = [];
-      if (picks.includes("dogs")) items.push(compatibilityEvidence(dog, "good_with_dogs", dog?.good_with_dogs, dog?.bio_good_with_dogs));
-      if (picks.includes("cats")) items.push(compatibilityEvidence(dog, "good_with_cats", dog?.good_with_cats, dog?.bio_good_with_cats));
+      if (picks.includes("dogs")) items.push(compatibilityEvidence(dog, "good_with_dogs", dog?.good_with_dogs, dog?.bio_good_with_dogs, null, matchOptions));
+      if (picks.includes("cats")) items.push(compatibilityEvidence(dog, "good_with_cats", dog?.good_with_cats, dog?.bio_good_with_cats, null, matchOptions));
       if (picks.includes("small_pets") || picks.includes("small_animals")) {
         const value = dog?.good_with_small_animals ?? dog?.good_with_small_pets ?? null;
-        items.push(value === true || value === false ? structuredCredit(value ? 1 : 0) : adjustedAiCredit(dog, "good_with_small_animals", bioCompatibilityRaw(parseAiTraits(dog?.ai_traits)?.good_with_small_animals?.value)));
+        items.push(value === true || value === false ? structuredCredit(value ? 1 : 0) : adjustedAiCredit(dog, "good_with_small_animals", bioCompatibilityRaw(parseAiTraits(dog?.ai_traits)?.good_with_small_animals?.value, { conditionalMode: matchOptions.conditionalMode })));
       }
       const evidence = combineEvidence(items);
       return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed compatibility addresses the pets in your home" : "Available listing evidence partially addresses the pets in your home");
@@ -672,14 +686,14 @@ export function matchTierFromActivePct(scorePct, { limitedInformation = false } 
   return { label: "Potential match", pillClass: "bg-gray-800 text-white" };
 }
 
-export function computeRankedMatches(dogs, answersById) {
+export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
   const dogList = Array.isArray(dogs) ? dogs : [];
   const answeredCount = meaningfulAnsweredCount(answersById);
 
   const rows = dogList
     .filter((dog) => getConfirmedIncompatibilities(dog, answersById).length === 0)
     .map((dog) => {
-    const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog, answersById));
+    const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog, answersById, matchOptions));
     const requested = questionResults.filter((entry) => entry.requested);
     const contributions = requested.map((entry) => entry.contribution).filter(Boolean);
 

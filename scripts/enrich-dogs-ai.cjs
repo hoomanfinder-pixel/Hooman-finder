@@ -3,8 +3,8 @@
 //
 // Writes:
 // - dogs.ai_traits = full detailed JSON
-// - dogs.bio_good_with_kids = yes / most_likely / may_do_well / no / unknown
-// - dogs.bio_good_with_dogs = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_good_with_kids = yes / most_likely / may_do_well / older_children_only / no / unknown
+// - dogs.bio_good_with_dogs = yes / most_likely / may_do_well / selective / only_dog / no / unknown
 // - dogs.bio_good_with_cats = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_first_time_friendly = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_potty_trained = yes / most_likely / may_do_well / no / unknown
@@ -33,7 +33,7 @@ const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
 const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v12-evidence-safety";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v13-conditional-compatibility";
 const DEFAULT_LIMIT = 10;
 const DEFAULT_MAX_BATCHES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -41,7 +41,16 @@ const DEFAULT_RETRY_DELAY_MS = 5000;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
-const BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "no", "unknown"]);
+const BIO_VALUES = new Set([
+  "yes",
+  "most_likely",
+  "may_do_well",
+  "selective",
+  "only_dog",
+  "older_children_only",
+  "no",
+  "unknown",
+]);
 const ENERGY_VALUES = new Set(["low", "medium_low", "medium", "medium_high", "high", "unknown"]);
 const SHEDDING_VALUES = new Set(["low", "medium", "high", "unknown"]);
 const BARKING_VALUES = new Set(["quiet", "some", "unknown"]);
@@ -658,6 +667,12 @@ Allowed values for boolean-like traits:
 - "false" = clearly not compatible or clearly not trained
 - "unknown" = not enough info
 
+Additional allowed soft compatibility values:
+- "may_do_well" = explicitly conditional possibility, not a clean positive
+- "selective" = dog-selective or requires compatible dogs/slow introductions
+- "only_dog" = biography recommends or requires being the only dog; this remains soft biography evidence
+- "older_children_only" = child compatibility is limited to older children
+
 Allowed values for energy_level, exercise_needs, and training_needs:
 - "low"
 - "medium_low"
@@ -696,28 +711,33 @@ Apartment suitability:
 Compatibility extraction rules:
 - Use "true" when the bio directly says the dog is good with, gets along with, loves, lived with, or does well with that group.
 - Use "likely" when the bio gives strong positive evidence but not a formal guarantee.
-- Use "maybe" when the bio describes positive exposure with limits, such as respectful interactions, supervised meetings, slow introductions, proper introductions, or needing a compatible companion.
-- Use "false" only when the bio clearly says no, not good with, cannot live with, chases aggressively, must be the only pet, no kids, no cats, or no dogs.
+- Use "may_do_well" when the bio describes conditional possibility with respectful interactions or limited exposure.
+- Use "selective" for dog-selective wording, slow/proper introductions, or a specifically compatible dog.
+- Use "only_dog" when the biography recommends or requires an only-dog home but this is not a structured source fact.
+- Use "older_children_only" for age-specific child restrictions.
+- Use "false" only when the bio clearly says no, not good with, cannot live with, chases aggressively, no kids, no cats, or no dogs.
 - Use "unknown" when the group is not mentioned.
 
 Kids examples:
 - "good with kids", "kid-friendly", "loves kids", "lived with children" => good_with_kids true.
 - "respectful interactions with kids", "gentle with children", "loves 10 month old twins", "met kids and did well" => good_with_kids likely.
-- "met kids once", "may do well with respectful kids" => good_with_kids maybe.
+- "met kids once", "may do well with respectful kids" => good_with_kids may_do_well.
 - "no kids", "adult-only home", "not good with children" => good_with_kids false.
-- "older children only", "older children or no children", "no young children", "teenagers only" => age-specific/conditional evidence; do not output universal true or false.
+- "older children only", "older children or no children", "no young children", "teenagers only" => good_with_kids older_children_only.
 - "gentle with everyone", "sweet", "friendly", "loving", and "family dog" without child-specific wording => unknown.
 
 Dogs examples:
 - "good with dogs", "gets along with dogs", "does well with other dogs", "loves other dogs" => good_with_dogs true.
 - "would love a dog companion", "needs a well-established dog", "enjoys the company of other dogs" => good_with_dogs likely.
-- "does well with slow introductions", "proper introductions needed", "may do well with another dog" => good_with_dogs maybe.
-- "only dog", "does not like other dogs", "reactive to dogs" => good_with_dogs false.
+- "dog selective", "does well with slow introductions", "proper introductions needed", "could live with a compatible low-energy dog" => good_with_dogs selective.
+- "may do well with another dog" => good_with_dogs may_do_well.
+- "best as the only dog", "only dog preferred" => good_with_dogs only_dog.
+- "no other dogs", "does not like other dogs", "cannot live with dogs" => good_with_dogs false.
 
 Cats examples:
 - "lived with cats", "good with cats", "gets along with cats" => good_with_cats true.
 - "has been around cats and did well" => good_with_cats likely.
-- "does okay with cats but wants to chase", "may be okay with dog-savvy cats" => good_with_cats maybe.
+- "does okay with cats but wants to chase", "may be okay with dog-savvy cats", "unknown with cats but may do well after slow introductions" => good_with_cats may_do_well.
 - "no cats", "not cat safe", "will chase cats" => good_with_cats false.
 
 Potty training examples:
@@ -801,7 +821,17 @@ function normalizeTraitValue(value, fallbackValue = "unknown") {
 
   const raw = String(value ?? fallbackValue).trim().toLowerCase();
 
-  if (["true", "likely", "maybe", "false", "unknown"].includes(raw)) return raw;
+  if ([
+    "true",
+    "likely",
+    "maybe",
+    "may_do_well",
+    "selective",
+    "only_dog",
+    "older_children_only",
+    "false",
+    "unknown",
+  ].includes(raw)) return raw;
 
   // Some models accidentally use display-ish words.
   if (raw === "yes") return "true";
@@ -1112,6 +1142,42 @@ function normalizeAiTraits(parsed, dogInput) {
     return /\b(?:older|teenage)(?:,? mature)? (?:kids|children)(?: only| or no (?:kids|children)(?: at all)?)\b|\bteenagers? only\b|\bno young (?:kids|children)\b|\bno (?:kids|children) (?:under|younger than|below)\s*(?:\d+|[a-z-]+)\b|\b(?:kids|children) (?:ages? )?(?:1[0-9]|[6-9])\+\b/.test(bio);
   }
 
+  function conditionalChildCompatibility() {
+    if (hasAgeSpecificChildRestriction()) return "older_children_only";
+    if (/\b(?:may|might|could) do well with (?:respectful |older )?(?:kids|children)\b|\b(?:kids|children) with (?:slow|proper) introductions?\b/.test(bio)) {
+      return "may_do_well";
+    }
+    return null;
+  }
+
+  function conditionalDogCompatibility() {
+    const onlyDogRecommendation = /\b(?:would prefer to be|prefers? to be|would do best as|best as|should be|needs? to be|must be) (?:the )?only (?:dog|pet)\b|\bonly dog (?:home|household|preferred|required)\b/.test(bio);
+    const compatibleAlternative = /\bor as (?:the )?only dog\b|\bonly dog[^.!?]{0,100}\b(?:but|or|though|although)\b[^.!?]{0,40}\b(?:(?:could|can|may|might|would)[^.!?]{0,30}(?:share|live|do well)|sharing)\b|\bonly pet[^.!?]{0,100}\b(?:though|although|but) with (?:slow|proper) introductions?\b/.test(bio);
+    if (onlyDogRecommendation && !compatibleAlternative) {
+      return "only_dog";
+    }
+    if (/\b(?:dog selective|selective with dogs|dog reactive|slow introductions?|proper introductions?|patient introduction process|takes? time to warm up to (?:new )?(?:dogs|canine friends)|compatible (?:low[- ]energy )?dog|right canine companion|ideal canine companion|does well with (?:other )?dogs? as long as|share (?:her|his|their) (?:humans|home) with (?:the )?right (?:dog|canine companion)|can be (?:the )?only dog,? or (?:share|live))\b/.test(bio) || compatibleAlternative) {
+      return "selective";
+    }
+    if (/\b(?:may|might|could) (?:do well|live) with (?:a |another |other )?(?:compatible )?(?:low[- ]energy )?dogs?\b|\bcan do well (?:in a home )?with (?:a |another )?(?:compatible )?(?:low[- ]energy )?dogs?\b/.test(bio)) {
+      return "may_do_well";
+    }
+    return null;
+  }
+
+  function conditionalCatCompatibility() {
+    if (/\b(?:may|might|could) (?:do well|live) with (?:dog[- ]savvy )?cats\b|\b(?:okay|ok) with (?:dog[- ]savvy )?cats (?:with|after) (?:slow|proper) introductions?\b|\bunknown with cats[^.!?]{0,80}(?:may|might|could) do well[^.!?]{0,40}(?:slow|proper) introductions?\b/.test(bio)) {
+      return "may_do_well";
+    }
+    return null;
+  }
+
+  function hasContradictoryCatHousingEvidence() {
+    const positive = /\b(?:good with|loves|lived with|does well with|gets along with) cats\b|\bcat[- ]friendly\b/.test(bio);
+    const housingExclusion = /\ballergic to cats\b|\bcats?[^.!?]{0,50}\bhard pass\b/.test(bio);
+    return positive && housingExclusion;
+  }
+
   function hasUniversalChildExclusion() {
     return /\b(?:adult[- ]only home|not good with (?:kids|children)|cannot live with (?:kids|children))\b/.test(bio) ||
       /(?:^|[.!?;]\s*|\b(?:requires?|needs?|must have|looking for)\s+(?:a\s+)?(?:home\s+with\s+)?)no (?:kids|children)\b/.test(bio);
@@ -1161,12 +1227,11 @@ function normalizeAiTraits(parsed, dogInput) {
     }
     const phrasesByKey = {
       good_with_dogs: [
-        "only dog",
-        "must be the only dog",
+        "no other dogs",
         "no dogs",
         "not good with dogs",
         "cannot live with dogs",
-        "dog reactive",
+        "dog aggressive",
       ],
       good_with_cats: [
         "no cats",
@@ -2283,6 +2348,51 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   // Direct negative phrases override maybe/likely/unknown.
+  const childConditionalState = conditionalChildCompatibility();
+  const dogConditionalState = conditionalDogCompatibility();
+  const catConditionalState = conditionalCatCompatibility();
+
+  if (childConditionalState) {
+    normalized.good_with_kids = {
+      value: childConditionalState,
+      confidence: childConditionalState === "older_children_only" ? 0.92 : 0.78,
+      evidence: childConditionalState === "older_children_only"
+        ? "Bio limits compatibility to older children."
+        : "Bio describes conditional child compatibility.",
+      evidence_basis: "bio_explicit",
+    };
+  }
+
+  if (dogConditionalState) {
+    normalized.good_with_dogs = {
+      value: dogConditionalState,
+      confidence: dogConditionalState === "only_dog" ? 0.9 : dogConditionalState === "selective" ? 0.86 : 0.8,
+      evidence: dogConditionalState === "only_dog"
+        ? "Bio recommends or requires an only-dog home."
+        : dogConditionalState === "selective"
+          ? "Bio describes selective dog compatibility or required introductions."
+          : "Bio describes conditional dog compatibility.",
+      evidence_basis: "bio_explicit",
+    };
+  }
+
+  if (hasContradictoryCatHousingEvidence()) {
+    normalized.good_with_cats = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "Bio contains positive cat behavior and a separate cat-housing exclusion; this requires human review.",
+      evidence_basis: "bio_explicit",
+    };
+    normalized.needs_human_review = true;
+  } else if (catConditionalState) {
+    normalized.good_with_cats = {
+      value: catConditionalState,
+      confidence: 0.78,
+      evidence: "Bio describes conditional cat compatibility.",
+      evidence_basis: "bio_explicit",
+    };
+  }
+
   if (hasUniversalChildExclusion() && !hasAgeSpecificChildRestriction()) {
     normalized.good_with_kids = {
       value: "false",
@@ -2292,7 +2402,7 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  if (includesAny(["only dog", "must be the only dog", "not good with dogs", "no dogs", "dog reactive"])) {
+  if (!dogConditionalState && includesAny(["no other dogs", "no dogs", "not good with dogs", "cannot live with dogs", "dog aggressive"])) {
     normalized.good_with_dogs = {
       value: "false",
       confidence: 0.9,
@@ -2448,12 +2558,12 @@ function normalizeAiTraits(parsed, dogInput) {
     hasAgeSpecificChildRestriction()
   ) {
     normalized.good_with_kids = {
-      value: "unknown",
-      confidence: 0,
-      evidence: "Age-specific child guidance was preserved and not collapsed into universal compatibility.",
+      value: "older_children_only",
+      confidence: 0.92,
+      evidence: "Age-specific child guidance was preserved as conditional compatibility.",
       evidence_basis: "bio_explicit",
     };
-    kidsValue = "unknown";
+    kidsValue = "older_children_only";
   }
 
   if (
@@ -2605,7 +2715,10 @@ function traitToBioValue(trait) {
 
   if (value === "true") return "yes";
   if (value === "likely") return confidence >= 0.5 ? "most_likely" : "unknown";
-  if (value === "maybe") return confidence >= 0.45 ? "may_do_well" : "unknown";
+  if (["maybe", "may_do_well"].includes(value)) return confidence >= 0.45 ? "may_do_well" : "unknown";
+  if (value === "selective") return confidence >= 0.45 ? "selective" : "unknown";
+  if (value === "only_dog") return confidence >= 0.45 ? "only_dog" : "unknown";
+  if (value === "older_children_only") return confidence >= 0.45 ? "older_children_only" : "unknown";
   if (value === "false") return "no";
 
   return "unknown";
