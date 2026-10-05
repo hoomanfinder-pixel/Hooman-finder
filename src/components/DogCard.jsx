@@ -328,6 +328,8 @@ function buildFitChips(dog) {
       chips.push({ label: capitalizeFirst(field.label), confirmed: true });
     } else if (trait.estimated && ["Yes", "Most likely", "May do well"].includes(trait.value)) {
       chips.push({ label: `Likely ${field.label}`, confirmed: false });
+    } else if (trait.estimated && ["Selective with dogs", "Needs to be the only dog", "Older children only"].includes(trait.value)) {
+      chips.push({ label: trait.value, confirmed: false });
     }
   }
 

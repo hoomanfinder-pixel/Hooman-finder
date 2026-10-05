@@ -4,6 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 import shelterUtils from "./scripts/rescuegroups-shelter-utils.cjs";
 import rosterUtils from "./scripts/rescuegroups-roster.cjs";
 
+function stopDeprecatedImporter() {
+  throw new Error(
+    "Deprecated importer: these organizations are managed by npm run sync:rescuegroups, which preserves source provenance and enrichment hashes."
+  );
+}
+stopDeprecatedImporter();
+
 dotenv.config({ path: ".env.local" });
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL;

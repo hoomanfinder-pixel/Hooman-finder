@@ -37,6 +37,12 @@ const API_TIMEOUT_MS = 30000;
 
 const CONFIRMED = process.argv.includes("--confirm");
 
+if (CONFIRMED) {
+  throw new Error(
+    "Deprecated production write path: use npm run sync:rescuegroups. This script remains available only for preview diagnostics."
+  );
+}
+
 function clean(value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();

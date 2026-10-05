@@ -5,6 +5,7 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const {
   applyPublicationFilterToExistingUpdate,
+  applySourceDescriptionProvenance,
   buildExistingDogUpdate,
   buildRequestBody,
   fetchOnePageForRescue,
@@ -13,6 +14,14 @@ const {
   mergeManagedRescues,
   syncConfiguredRescues,
 } = require("../../sync-rescuegroups-dogs.cjs");
+const {
+  computeSourceContentHash,
+  computeTextContentHash,
+} = require("../../scripts/dog-enrichment-hash.cjs");
+const {
+  AI_ENRICHMENT_VERSION,
+  getEnrichmentEligibilityReason,
+} = require("../../scripts/enrich-dogs-ai.cjs");
 
 const silentLogger = {
   log() {},
@@ -92,6 +101,86 @@ test("real changed source values still update normally", () => {
   for (const [field, value] of Object.entries(changedValues)) {
     assert.deepEqual(update[field], value);
   }
+});
+
+test("unchanged imported biography establishes provenance without changing content", () => {
+  const description = "A source-provided biography.";
+  const update = applySourceDescriptionProvenance(
+    { description },
+    existingDog({ description, source_description_hash: null })
+  );
+
+  assert.equal(update.description, description);
+  assert.equal(update.source_description_hash, computeTextContentHash(description));
+  assert.equal(update.source_description_conflict, false);
+});
+
+test("a changed upstream biography replaces unchanged source text and changes the enrichment hash", () => {
+  const previous = "Previous source biography.";
+  const incoming = "Updated source biography with new dog-specific evidence.";
+  const existing = existingDog({
+    description: previous,
+    source_description_hash: computeTextContentHash(previous),
+    ai_enriched_at: "2026-10-05T00:00:00.000Z",
+    ai_enrichment_version: AI_ENRICHMENT_VERSION,
+  });
+  existing.source_content_hash = computeSourceContentHash(existing);
+  existing.ai_enriched_source_hash = existing.source_content_hash;
+
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", rescuegroups_org_id: "6172", description: incoming },
+    existing
+  );
+  const updated = { ...existing, ...update };
+
+  assert.equal(update.description, incoming);
+  assert.equal(update.source_description_hash, computeTextContentHash(incoming));
+  assert.equal(update.source_description_conflict, false);
+  assert.notEqual(updated.source_content_hash, existing.ai_enriched_source_hash);
+  assert.equal(getEnrichmentEligibilityReason(updated), "content_changed");
+});
+
+test("a possible local biography edit is preserved and its source conflict is observable", () => {
+  const previousSource = "Previous source biography.";
+  const localEdit = "Founder-edited local biography.";
+  const incomingSource = "New upstream source biography.";
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", rescuegroups_org_id: "6172", description: incomingSource },
+    existingDog({
+      description: localEdit,
+      source_description_hash: computeTextContentHash(previousSource),
+    })
+  );
+
+  assert.equal(Object.hasOwn(update, "description"), false);
+  assert.equal(update.source_description_hash, computeTextContentHash(incomingSource));
+  assert.equal(update.source_description_conflict, true);
+});
+
+test("the first provenance-aware sync fails safe when stored and incoming biographies differ", () => {
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", rescuegroups_org_id: "6172", description: "Incoming source biography." },
+    existingDog({ description: "Unattributed existing biography.", source_description_hash: null })
+  );
+
+  assert.equal(Object.hasOwn(update, "description"), false);
+  assert.equal(update.source_description_conflict, true);
+});
+
+test("a sparse biography response preserves stored description provenance", () => {
+  const previousHash = computeTextContentHash("Existing source biography.");
+  const update = buildExistingDogUpdate(
+    { rescuegroups_id: "dog-1", rescuegroups_org_id: "6172", description: null },
+    existingDog({
+      description: "Existing source biography.",
+      source_description_hash: previousHash,
+      source_description_conflict: false,
+    })
+  );
+
+  assert.equal(Object.hasOwn(update, "description"), false);
+  assert.equal(Object.hasOwn(update, "source_description_hash"), false);
+  assert.equal(Object.hasOwn(update, "source_description_conflict"), false);
 });
 
 test("animal location is retained separately and organization city is not treated as dog placement", () => {

@@ -109,8 +109,11 @@ test("AI eligibility scan paginates beyond 2,000 rows", async () => {
 test("AI workflow is separate and both jobs have explicit controls", () => {
   assert.doesNotMatch(syncWorkflow, /enrich-dogs-ai\.cjs/);
   assert.match(aiWorkflow, /AI_ENRICHMENT_ENABLED/);
-  assert.match(aiWorkflow, /max_dogs/);
-  assert.doesNotMatch(aiWorkflow, /--drain/);
+  assert.match(aiWorkflow, /batch_size/);
+  assert.match(aiWorkflow, /max_batches/);
+  assert.match(aiWorkflow, /--drain/);
+  assert.match(aiWorkflow, /--max-attempts=3/);
+  assert.doesNotMatch(aiWorkflow, /--force/);
 });
 
 test("migration enforces source identity uniqueness and quarantines legacy org 3182", () => {

@@ -81,6 +81,13 @@ function computeSourceContentHash(dogLike) {
   return crypto.createHash("sha256").update(json).digest("hex");
 }
 
+function computeTextContentHash(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value);
+  if (!text.trim()) return null;
+  return crypto.createHash("sha256").update(text).digest("hex");
+}
+
 // Builds the true "final row state" snapshot for hashing when a script only
 // partially updates a dog (e.g. an UPDATE payload that omits or deletes some
 // keys). For each hashed field, prefers the value actually present in
@@ -100,5 +107,6 @@ function mergeHashedSnapshot(existingDog, updateRow) {
 module.exports = {
   HASHED_FIELDS,
   computeSourceContentHash,
+  computeTextContentHash,
   mergeHashedSnapshot,
 };

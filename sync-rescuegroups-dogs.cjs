@@ -26,6 +26,7 @@ const {
 const {
   HASHED_FIELDS,
   computeSourceContentHash,
+  computeTextContentHash,
   mergeHashedSnapshot,
 } = require("./scripts/dog-enrichment-hash.cjs");
 const {
@@ -439,6 +440,36 @@ function hasMeaningfulSourceValue(value) {
   return true;
 }
 
+function applySourceDescriptionProvenance(updateRow, existingDog) {
+  const incomingDescription = updateRow.description;
+  const incomingHash = computeTextContentHash(incomingDescription);
+
+  // A sparse source response must not erase either the biography or the last
+  // usable source-provenance checkpoint.
+  if (!incomingHash) {
+    delete updateRow.description;
+    delete updateRow.source_description_hash;
+    delete updateRow.source_description_conflict;
+    return updateRow;
+  }
+
+  const storedHash = computeTextContentHash(existingDog?.description);
+  const previousSourceHash = existingDog?.source_description_hash || null;
+  const safeToReplace =
+    !storedHash ||
+    storedHash === incomingHash ||
+    (previousSourceHash !== null && storedHash === previousSourceHash);
+
+  updateRow.source_description_hash = incomingHash;
+  updateRow.source_description_conflict = !safeToReplace && storedHash !== incomingHash;
+
+  if (!safeToReplace) {
+    delete updateRow.description;
+  }
+
+  return updateRow;
+}
+
 function rescueMatchesDog(dog, rescue) {
   if (rescue.rescueGroupsOrgId) {
     return String(dog.rescuegroups_org_id || "") === String(rescue.rescueGroupsOrgId);
@@ -597,8 +628,17 @@ function buildExistingDogUpdate(dog, existingDog) {
   delete updateRow.urgency_level;
   delete updateRow.imported_status;
 
-  if (hasText(existingDog.description)) {
-    delete updateRow.description;
+  if (
+    String(dog.rescuegroups_org_id || existingDog.rescuegroups_org_id || "") ===
+      DACC_RESCUEGROUPS_ORG_ID
+  ) {
+    // DACC description provenance is maintained by the ShelterManager recovery
+    // pipeline. RescueGroups must not replace that authoritative recovered bio.
+    if (hasText(existingDog.description)) delete updateRow.description;
+    delete updateRow.source_description_hash;
+    delete updateRow.source_description_conflict;
+  } else {
+    applySourceDescriptionProvenance(updateRow, existingDog);
   }
 
   if (!updateRow.shelter_id) {
@@ -912,6 +952,8 @@ async function upsertDogs(dogs) {
     availability_status,
     unavailable_reason,
     dacc_sheltermanager_confirmed_absent_at,
+    source_description_hash,
+    source_description_conflict,
     ${HASHED_FIELDS.join(", ")}
   `;
 
@@ -984,8 +1026,14 @@ async function upsertDogs(dogs) {
         console.log(`Not inserting ${dog.name}: ${publicationFilterReason}.`);
       } else {
         delete cleanDog._sourceLocationStatus;
+        const tracksRescueGroupsDescription =
+          String(cleanDog.rescuegroups_org_id || "") !== DACC_RESCUEGROUPS_ORG_ID;
         const dogWithHash = {
           ...cleanDog,
+          source_description_hash: tracksRescueGroupsDescription
+            ? computeTextContentHash(cleanDog.description)
+            : null,
+          source_description_conflict: false,
           source_content_hash: computeSourceContentHash(cleanDog),
         };
 
@@ -1273,6 +1321,7 @@ if (require.main === module) {
 
 module.exports = {
   applyPublicationFilterToExistingUpdate,
+  applySourceDescriptionProvenance,
   buildExistingDogUpdate,
   buildRequestBody,
   describeError,

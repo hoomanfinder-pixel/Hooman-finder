@@ -8,6 +8,9 @@ export function normalizeBioValue(value) {
   if (raw === "yes") return "yes";
   if (raw === "most_likely") return "most_likely";
   if (raw === "may_do_well") return "may_do_well";
+  if (raw === "selective") return "selective";
+  if (raw === "only_dog") return "only_dog";
+  if (raw === "older_children_only") return "older_children_only";
   if (raw === "no") return "no";
 
   return "unknown";
@@ -24,6 +27,9 @@ export function displayBioTrait(value) {
   if (normalized === "yes") return "Yes";
   if (normalized === "most_likely") return "Most likely";
   if (normalized === "may_do_well") return "May do well";
+  if (normalized === "selective") return "Selective with dogs";
+  if (normalized === "only_dog") return "Needs to be the only dog";
+  if (normalized === "older_children_only") return "Older children only";
   if (normalized === "no") return "No";
 
   return "Unknown";

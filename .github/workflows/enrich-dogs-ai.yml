@@ -1,8 +1,11 @@
 name: Enrich Dog Profiles with AI
 
 on:
-  # Scheduled enrichment is intentionally paused during the seven-run
-  # RescueGroups ingestion pilot and can be reconsidered after it completes.
+  # Automatic scheduling is intentionally paused for the controlled rollout.
+  # After the five-dog canary is reviewed, restore the planned schedule:
+  # schedule:
+  #   - cron: "0 13 * * *"
+
   workflow_dispatch:
     inputs:
       enabled:
@@ -10,11 +13,16 @@ on:
         required: true
         type: boolean
         default: true
-      max_dogs:
-        description: Maximum dogs to enrich in this run (1-100)
+      batch_size:
+        description: Dogs per bounded batch (1-100)
         required: true
         type: number
         default: 25
+      max_batches:
+        description: Maximum batches to drain (1-20)
+        required: true
+        type: number
+        default: 4
 
 permissions:
   contents: read
@@ -40,5 +48,6 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           AI_ENRICHMENT_ENABLED: "true"
-          MAX_DOGS: ${{ github.event_name == 'workflow_dispatch' && inputs.max_dogs || 25 }}
-        run: node scripts/enrich-dogs-ai.cjs --limit="$MAX_DOGS"
+          BATCH_SIZE: ${{ github.event_name == 'workflow_dispatch' && inputs.batch_size || 25 }}
+          MAX_BATCHES: ${{ github.event_name == 'workflow_dispatch' && inputs.max_batches || 4 }}
+        run: node scripts/enrich-dogs-ai.cjs --drain --limit="$BATCH_SIZE" --max-batches="$MAX_BATCHES" --max-attempts=3
