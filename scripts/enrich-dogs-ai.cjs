@@ -338,18 +338,27 @@ const MIN_COMBINED_SHEDDING_CONFIDENCE = 0.3;
 // specific breed's own name (e.g. "Retriever" inside "Golden Retriever" is
 // the SAME component, not a second one).
 function splitBreedComponents(breedText) {
-  const text = String(breedText || "").toLowerCase();
-  if (!text) return [];
+  return parseBreedComponents(breedText).components;
+}
 
-  return text
-    .split("/")
-    .map((part) =>
-      part
-        .replace(/\([^)]*\)/g, " ") // strip "(short coat)", "(standard)", etc.
-        .replace(/\bmixed\b|\bmix\b|\bunknown\b/g, " ")
-        .trim()
-    )
-    .filter(Boolean);
+function parseBreedComponents(breedText) {
+  const text = String(breedText || "").toLowerCase();
+  if (!text) return { components: [], hasUnknownMixedComponent: false };
+
+  const components = [];
+  let hasUnknownMixedComponent = false;
+  for (const rawPart of text.split("/")) {
+    const withoutAnnotations = rawPart.replace(/\([^)]*\)/g, " ").trim();
+    if (/\b(?:mixed|mix|unknown)\b/.test(withoutAnnotations)) {
+      hasUnknownMixedComponent = true;
+    }
+    const component = withoutAnnotations
+      .replace(/\bmixed\b|\bmix\b|\bunknown\b/g, " ")
+      .replace(/^breed$|^type$/, " ")
+      .trim();
+    if (component) components.push(component);
+  }
+  return { components, hasUnknownMixedComponent };
 }
 
 function matchComponentTiers(component, tiers) {
@@ -370,11 +379,14 @@ function matchComponentTiers(component, tiers) {
 // own lower confidence, not overriding any specific match. Every signal is
 // deduped by (tier + matched breed phrase), so the same alias appearing
 // twice in a breed string only ever counts once.
-function matchBreedTiers(breedText) {
-  const components = splitBreedComponents(breedText);
-  if (components.length === 0) return [];
+function collectBreedSheddingEvidence(breedText) {
+  const { components, hasUnknownMixedComponent } = parseBreedComponents(breedText);
+  if (components.length === 0) {
+    return { matches: [], unresolvedComponents: [], hasUnknownMixedComponent };
+  }
 
   const matches = [];
+  const unresolvedComponents = [];
   const seenKeys = new Set();
 
   for (const component of components) {
@@ -384,6 +396,8 @@ function matchBreedTiers(breedText) {
         ? specificForComponent
         : matchComponentTiers(component, GENERIC_BREED_GROUP_SHEDDING_TIERS);
 
+    if (componentMatches.length === 0) unresolvedComponents.push(component);
+
     for (const match of componentMatches) {
       const key = `${match.level}:${match.confidence}:${match.matchedBreed}`;
       if (seenKeys.has(key)) continue;
@@ -392,7 +406,11 @@ function matchBreedTiers(breedText) {
     }
   }
 
-  return matches;
+  return { matches, unresolvedComponents, hasUnknownMixedComponent };
+}
+
+function matchBreedTiers(breedText) {
+  return collectBreedSheddingEvidence(breedText).matches;
 }
 
 // Combines every matched breed tier into a single shedding estimate. When
@@ -458,9 +476,26 @@ function combineShedding(matches) {
 // than being silently dropped just because some other component was a
 // specific breed.
 function resolveBreedShedding(breed) {
-  const matches = matchBreedTiers(breed);
+  const { matches, unresolvedComponents, hasUnknownMixedComponent } =
+    collectBreedSheddingEvidence(breed);
   const result = combineShedding(matches);
   if (!result) return null;
+
+  if (unresolvedComponents.length > 0) {
+    return {
+      value: "unknown",
+      confidence: 0,
+      evidence: `Breed text includes unresolved component(s) (${unresolvedComponents.join(", ")}); recognized breed evidence was not allowed to dominate the mix.`,
+    };
+  }
+
+  const mixedResult = hasUnknownMixedComponent
+    ? {
+        ...result,
+        confidence: Math.min(result.confidence, 0.35),
+        evidence: `${result.evidence} The listing also includes an unspecified mixed-breed component, so confidence is reduced.`,
+      }
+    : result;
 
   const coatLength = explicitCoatLength(breed);
   const shortCoatSignals = matches.filter((match) =>
@@ -475,25 +510,27 @@ function resolveBreedShedding(breed) {
       };
     }
     return {
-      ...result,
-      confidence: Math.min(result.confidence, 0.35),
-      evidence: `${result.evidence} Listed ${coatLength} coat conflicts with a short-coat component, so confidence is reduced.`,
+      ...mixedResult,
+      confidence: Math.min(mixedResult.confidence, 0.35),
+      evidence: `${mixedResult.evidence} Listed ${coatLength} coat conflicts with a short-coat component, so confidence is reduced.`,
     };
   }
 
-  return result;
+  return mixedResult;
 }
 
 function poodleIdentity(breed) {
   const raw = String(breed || "").toLowerCase();
-  const components = splitBreedComponents(raw);
+  const { components, hasUnknownMixedComponent } = parseBreedComponents(raw);
   const namesDoodle = /\b(?:goldendoodle|labradoodle|bernedoodle|aussiedoodle|sheepadoodle|cockapoo|cavapoo|maltipoo|schnoodle|doodle)\b/.test(raw);
   const poodleComponents = components.filter((component) => component.includes("poodle"));
 
   if (!namesDoodle && poodleComponents.length === 0) return null;
 
   const nonPoodleComponents = components.filter((component) => !component.includes("poodle"));
-  return namesDoodle || nonPoodleComponents.length > 0 ? "poodle_mix" : "poodle";
+  return namesDoodle || nonPoodleComponents.length > 0 || hasUnknownMixedComponent
+    ? "poodle_mix"
+    : "poodle";
 }
 
 function lowSheddingCoatEvidence(description) {
@@ -1241,11 +1278,19 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   function hasExplicitCatExclusion() {
-    return /\bcat[- ]free (?:home|household)\b|\bno cats?\b|\bnot good with cats?\b|\bnot cat[- ]safe\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with cats?\b|\bcats? (?:are|is) not recommended\b|\bcat reactive\b|\bwill chase cats?\b/.test(bio);
+    return /\b(?:cat|feline)[- ]free (?:home|household)\b|\bno (?:cats?|felines?)\b|\bnot good with (?:cats?|felines?)\b|\bnot (?:cat|feline)[- ]safe\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with (?:other )?(?:cats?|felines?)\b|\b(?:cats?|felines?) (?:are|is) not recommended\b|\bnot recommended with (?:cats?|felines?)\b|\b(?:cat|feline) reactive\b|\bwill chase (?:cats?|felines?)\b/.test(bio);
   }
 
   function hasExplicitDogExclusion() {
-    return /\bno other dogs?\b|\bno dogs?\b|\bnot good with dogs?\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with dogs?\b|\bdog aggressive\b/.test(bio);
+    return /\b(?:dog|canine)[- ]free (?:home|household)\b|\bno other (?:dogs?|canines?)\b|\bno (?:dogs?|canines?)\b|\bnot good with (?:dogs?|canines?)\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with (?:other )?(?:dogs?|canines?)\b|\bnot recommended with (?:dogs?|canines?)\b|\b(?:dog|canine) aggressive\b/.test(bio);
+  }
+
+  function hasExplicitFirstTimeOwnerPositive() {
+    return /\b(?:great|good|suitable|appropriate|recommended) (?:first dog )?for (?:a )?first[- ]time (?:dog )?owners?\b|\bfirst[- ]time (?:dog )?owner[- ]friendly\b|\bbeginner[- ]friendly\b/.test(bio);
+  }
+
+  function hasExplicitExperiencedOwnerRequirement() {
+    return /\b(?:needs?|requires?|must have) (?:an? )?experienced (?:dog )?(?:owners?|handlers?|adopters?)\b|\bexperienced (?:dog )?(?:owners?|handlers?|adopters?) (?:is )?(?:required|preferred|recommended)\b|\b(?:not (?:appropriate|suitable|recommended)|not for) (?:a )?first[- ]time (?:dog )?owners?\b|\b(?:needs?|requires?) (?:prior )?breed experience\b|\bbreed experience (?:is )?(?:required|preferred|recommended)\b/.test(bio);
   }
 
   function hasPottyTrainingEvidence() {
@@ -1264,7 +1309,7 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   function hasUniversalChildExclusion() {
-    return /\b(?:adult[- ]only home|not good with (?:kids|children)|cannot live with (?:kids|children))\b/.test(bio) ||
+    return /\b(?:adult[- ]only (?:home|household)|(?:kid|child)[- ]free (?:home|household)|not good with (?:kids|children)|cannot live with (?:kids|children)|not recommended with (?:kids|children))\b/.test(bio) ||
       /(?:^|[.!?;]\s*|\b(?:requires?|needs?|must have|looking for)\s+(?:a\s+)?(?:home\s+with\s+)?)no (?:kids|children)\b/.test(bio);
   }
 
@@ -1899,18 +1944,7 @@ function normalizeAiTraits(parsed, dogInput) {
     );
   }
 
-  if (
-    includesAny([
-      "first time dog owner",
-      "first-time dog owner",
-      "first time owner",
-      "first-time owner",
-      "beginner friendly",
-      "beginner-friendly",
-      "great for a first time owner",
-      "great for a first-time owner",
-    ])
-  ) {
+  if (hasExplicitFirstTimeOwnerPositive()) {
     setTraitFromBio(
       "first_time_friendly",
       "true",
@@ -2219,18 +2253,7 @@ function normalizeAiTraits(parsed, dogInput) {
     }
   }
 
-  const hasExplicitExperiencedOwnerRequirement = includesAny([
-      "needs an experienced adopter",
-      "experienced adopter",
-      "experienced owner",
-      "breed experience",
-      "not for first time",
-      "not for a first time",
-      "not for first-time",
-      "not for a first-time",
-    ]);
-
-  if (hasExplicitExperiencedOwnerRequirement) {
+  if (hasExplicitExperiencedOwnerRequirement()) {
     setTraitFromBio(
       "first_time_friendly",
       "false",
@@ -2928,46 +2951,59 @@ function buildBioColumns(aiTraits, inferredAdultSize) {
   };
 }
 
-// Carries forward ordinary existing bio_* values only when the fresh run found
-// nothing (never overrides evidence-backed fresh values). Safety-sensitive
-// child/dog/cat compatibility is deliberately excluded: a fresh unknown must
-// clear unsupported legacy compatibility instead of keeping it matching-facing.
-// Confirmed structured compatibility and fresh bio_explicit evidence already
-// produce non-unknown nextColumns before this merge, so they remain intact.
+function hasManualBioProvenance(dog) {
+  const source = String(dog?.bio_traits_source || "").replace(/[_-]+/g, " ");
+  return /\b(?:manual|founder|human|admin|local)(?:\s+(?:edit|authoritative|override))?\b/i.test(source);
+}
+
+function isUnknownBioColumnValue(key, value) {
+  if (key === "bio_max_alone_hours" || key === "bio_size") return value === null || value === undefined || value === "";
+  return value === null || value === undefined || value === "" || value === "unknown";
+}
+
+// Fresh current-version enrichment supersedes earlier AI/biography-derived
+// bio_* values, including when the fresh result is unknown. Structured source
+// facts have already been mirrored into nextColumns by normalizeAiTraits and
+// therefore remain authoritative. Existing bio_* values are retained only
+// when the row explicitly carries manual/local provenance; this prevents both
+// historical AI guesses from surviving indefinitely and later enrichment from
+// overwriting a known human-authoritative value.
 function mergeExistingBioColumns(nextColumns, dog) {
   const merged = { ...nextColumns };
   const carriedForwardFields = [];
+  const preservedAuthoritativeFields = [];
 
-  if (
-    merged.bio_potty_trained === "unknown" &&
-    BIO_VALUES.has(dog?.bio_potty_trained) &&
-    dog.bio_potty_trained !== "unknown"
-  ) {
-    merged.bio_potty_trained = dog.bio_potty_trained;
-    carriedForwardFields.push("bio_potty_trained");
+  if (!hasManualBioProvenance(dog)) {
+    return { merged, carriedForwardFields, preservedAuthoritativeFields };
   }
 
-  for (const key of ["bio_energy_level", "bio_exercise_needs", "bio_training_needs"]) {
-    const existing = normalizeEnergyLikeValue(dog?.[key]);
-    if (merged[key] === "unknown" && existing !== "unknown") {
-      merged[key] = existing;
-      carriedForwardFields.push(key);
+  for (const key of [
+    "bio_good_with_kids",
+    "bio_good_with_dogs",
+    "bio_good_with_cats",
+    "bio_first_time_friendly",
+    "bio_potty_trained",
+    "bio_energy_level",
+    "bio_shedding_level",
+    "bio_exercise_needs",
+    "bio_training_needs",
+    "bio_barking_level",
+    "bio_grooming_level",
+    "bio_max_alone_hours",
+    "bio_size",
+  ]) {
+    if (!isUnknownBioColumnValue(key, dog?.[key])) {
+      merged[key] = dog[key];
+      preservedAuthoritativeFields.push(key);
     }
   }
 
-  const existingBarking = normalizeBarkingValue(dog?.bio_barking_level);
-  if (merged.bio_barking_level === "unknown" && existingBarking !== "unknown") {
-    merged.bio_barking_level = existingBarking;
-    carriedForwardFields.push("bio_barking_level");
+  if (preservedAuthoritativeFields.includes("bio_max_alone_hours")) {
+    merged.bio_max_alone_hours_label = dog?.bio_max_alone_hours_label || aloneHoursLabel(dog.bio_max_alone_hours);
   }
+  if (preservedAuthoritativeFields.length) merged.bio_traits_source = dog.bio_traits_source;
 
-  const existingGrooming = normalizeGroomingValue(dog?.bio_grooming_level);
-  if (merged.bio_grooming_level === "unknown" && existingGrooming !== "unknown") {
-    merged.bio_grooming_level = existingGrooming;
-    carriedForwardFields.push("bio_grooming_level");
-  }
-
-  return { merged, carriedForwardFields };
+  return { merged, carriedForwardFields, preservedAuthoritativeFields };
 }
 
 async function callOpenAI(prompt) {

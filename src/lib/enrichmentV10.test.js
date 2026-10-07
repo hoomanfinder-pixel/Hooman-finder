@@ -181,8 +181,9 @@ test("general profile context cannot become a usable shedding answer", () => {
     })
   );
   assert.equal(breedSupported.shedding_level.value, "low");
-  assert.equal(breedSupported.shedding_level.confidence, 0.58);
+  assert.equal(breedSupported.shedding_level.confidence, 0.35);
   assert.equal(breedSupported.shedding_level.evidence_basis, "breed_coat_inference");
+  assert.match(breedSupported.shedding_level.evidence, /unspecified mixed-breed component/i);
 });
 
 test("confirmed source fields are passed through and override conflicting AI interpretations", () => {
@@ -477,10 +478,18 @@ test("conditional household compatibility survives AI normalization as nuanced s
 test("explicit household restrictions are preserved as bio-explicit compatibility", () => {
   const cases = [
     ["good_with_cats", "bio_good_with_cats", "This dog needs a cat-free home.", "false", "no"],
+    ["good_with_cats", "bio_good_with_cats", "This dog needs a feline-free household.", "false", "no"],
+    ["good_with_cats", "bio_good_with_cats", "No felines in the home.", "false", "no"],
+    ["good_with_cats", "bio_good_with_cats", "Cannot live with felines.", "false", "no"],
+    ["good_with_cats", "bio_good_with_cats", "Not recommended with felines.", "false", "no"],
     ["good_with_cats", "bio_good_with_cats", "Cats are not recommended for this dog.", "false", "no"],
+    ["good_with_dogs", "bio_good_with_dogs", "This dog needs a canine-free household.", "false", "no"],
+    ["good_with_dogs", "bio_good_with_dogs", "Cannot live with other canines.", "false", "no"],
     ["good_with_dogs", "bio_good_with_dogs", "He must be the only dog in the home.", "only_dog", "only_dog"],
     ["good_with_dogs", "bio_good_with_dogs", "She is dog selective and needs slow introductions.", "selective", "selective"],
     ["good_with_kids", "bio_good_with_kids", "No children in the home.", "false", "no"],
+    ["good_with_kids", "bio_good_with_kids", "Needs an adult-only household.", "false", "no"],
+    ["good_with_kids", "bio_good_with_kids", "A child-free home is required.", "false", "no"],
     ["good_with_kids", "bio_good_with_kids", "Kids 12+ only.", "older_children_only", "older_children_only"],
   ];
 
@@ -493,6 +502,8 @@ test("explicit household restrictions are preserved as bio-explicit compatibilit
 
   for (const description of [
     "Cats walked past the kennel once.",
+    "She watched a feline through the window.",
+    "He met a canine once on a walk.",
     "This hound may have prey drive typical of the breed.",
     "Friendly dog looking for a home.",
   ]) {
@@ -607,6 +618,9 @@ test("first-time-owner suitability requires explicit wording", () => {
     "A friendly, trained and calm dog.",
     "An easygoing low-maintenance senior.",
     "A sweet young family dog.",
+    "Applicants should research the breed before applying.",
+    "Applications are considered using many factors, including breed experience.",
+    "A large high-energy dog who needs structure and training.",
   ]) {
     const normalized = normalizeAiTraits(
       baseParsedTraits({ first_time_friendly: trait("likely", 0.9, "Broad profile synthesis.") }),
@@ -621,6 +635,14 @@ test("first-time-owner suitability requires explicit wording", () => {
   );
   assert.equal(
     normalizeAiTraits(baseParsedTraits(), dogInput({ description: "Needs an experienced owner; not for a first-time owner." })).first_time_friendly.value,
+    "false"
+  );
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "Breed experience is required for this dog." })).first_time_friendly.value,
+    "false"
+  );
+  assert.equal(
+    normalizeAiTraits(baseParsedTraits(), dogInput({ description: "An experienced adopter is preferred." })).first_time_friendly.value,
     "false"
   );
 });
@@ -798,27 +820,85 @@ test("fresh bio-explicit compatibility remains matching-facing", () => {
   assert.equal(merged.bio_good_with_cats, "yes");
 });
 
-test("ordinary lifestyle traits retain carry-forward while unsupported shedding is cleared", () => {
+test("fresh unknown clears stale AI-derived bio values across matching-facing fields", () => {
   const freshTraits = normalizeAiTraits(
     baseParsedTraits(),
     dogInput({ breed: null, size: null, age_years: null, age_text: null, description: "" })
   );
   const freshColumns = buildBioColumns(freshTraits, null);
-  const { merged, carriedForwardFields } = mergeExistingBioColumns(freshColumns, {
+  const { merged, carriedForwardFields, preservedAuthoritativeFields } = mergeExistingBioColumns(freshColumns, {
+    bio_traits_source: "ai_bio_extraction",
+    bio_potty_trained: "may_do_well",
     bio_energy_level: "high",
     bio_shedding_level: "low",
     bio_grooming_level: "moderate",
     bio_training_needs: "medium_high",
+    bio_barking_level: "some",
   });
 
-  assert.equal(merged.bio_energy_level, "high");
+  assert.equal(merged.bio_potty_trained, "unknown");
+  assert.equal(merged.bio_energy_level, "unknown");
   assert.equal(merged.bio_shedding_level, "unknown");
-  assert.equal(merged.bio_grooming_level, "moderate");
-  assert.equal(merged.bio_training_needs, "medium_high");
-  assert.deepEqual(
-    carriedForwardFields.sort(),
-    ["bio_energy_level", "bio_grooming_level", "bio_training_needs"].sort()
+  assert.equal(merged.bio_grooming_level, "unknown");
+  assert.equal(merged.bio_training_needs, "unknown");
+  assert.equal(merged.bio_barking_level, "unknown");
+  assert.deepEqual(carriedForwardFields, []);
+  assert.deepEqual(preservedAuthoritativeFields, []);
+});
+
+test("fresh unknown preserves explicitly manual bio values and their provenance", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ breed: null, size: null, age_years: null, age_text: null, description: "" })
   );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged, carriedForwardFields, preservedAuthoritativeFields } = mergeExistingBioColumns(freshColumns, {
+    bio_traits_source: "founder_manual_override",
+    bio_potty_trained: "yes",
+    bio_energy_level: "low",
+    bio_max_alone_hours: 4,
+    bio_max_alone_hours_label: "3-4",
+  });
+
+  assert.equal(merged.bio_potty_trained, "yes");
+  assert.equal(merged.bio_energy_level, "low");
+  assert.equal(merged.bio_max_alone_hours, 4);
+  assert.equal(merged.bio_max_alone_hours_label, "3-4");
+  assert.equal(merged.bio_traits_source, "founder_manual_override");
+  assert.deepEqual(carriedForwardFields, []);
+  assert.deepEqual(
+    preservedAuthoritativeFields.sort(),
+    ["bio_potty_trained", "bio_energy_level", "bio_max_alone_hours"].sort()
+  );
+});
+
+test("fresh supported enrichment replaces an older inferred value", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ description: "Fully house trained with no accidents." })
+  );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged } = mergeExistingBioColumns(freshColumns, {
+    bio_traits_source: "ai_bio_extraction",
+    bio_potty_trained: "may_do_well",
+  });
+  assert.equal(merged.bio_potty_trained, "yes");
+});
+
+test("fresh supported enrichment does not overwrite an explicitly manual value", () => {
+  const freshTraits = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ description: "Fully house trained with no accidents." })
+  );
+  const freshColumns = buildBioColumns(freshTraits, null);
+  const { merged, preservedAuthoritativeFields } = mergeExistingBioColumns(freshColumns, {
+    bio_traits_source: "local_authoritative",
+    bio_potty_trained: "no",
+  });
+
+  assert.equal(merged.bio_potty_trained, "no");
+  assert.equal(merged.bio_traits_source, "local_authoritative");
+  assert.deepEqual(preservedAuthoritativeFields, ["bio_potty_trained"]);
 });
 
 test("shedding evidence hierarchy preserves source facts and explicit bio statements", () => {
@@ -847,12 +927,19 @@ test("shedding evidence hierarchy preserves source facts and explicit bio statem
 test("Poodles and Poodle mixes use cautious breed and coat evidence", () => {
   const poodle = normalizeAiTraits(
     baseParsedTraits({ shedding_level: trait("medium", 0.8, "General model estimate.") }),
-    dogInput({ breed: "Poodle (Standard) / Mixed", description: "The source identifies this dog as a Standard Poodle." })
+    dogInput({ breed: "Poodle (Standard)", description: "The source identifies this dog as a Standard Poodle." })
   );
   assert.deepEqual(
     { value: poodle.shedding_level.value, confidence: poodle.shedding_level.confidence, basis: poodle.shedding_level.evidence_basis },
     { value: "low", confidence: 0.82, basis: "breed_coat_inference" }
   );
+
+  const unspecifiedPoodleMix = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.9, "Poodle estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Poodle (Miniature) / Mixed", description: "Coat type is not documented." })
+  );
+  assert.equal(unspecifiedPoodleMix.shedding_level.value, "unknown");
+  assert.equal(unspecifiedPoodleMix.shedding_level.confidence, 0);
 
   const doodleUnknown = normalizeAiTraits(
     baseParsedTraits({ shedding_level: trait("medium", 0.8, "Breed average.") }),
@@ -869,6 +956,13 @@ test("Poodles and Poodle mixes use cautious breed and coat evidence", () => {
   assert.equal(doodleCoat.shedding_level.value, "low");
   assert.equal(doodleCoat.shedding_level.confidence, 0.72);
   assert.equal(doodleCoat.shedding_level.evidence_basis, "breed_coat_inference");
+
+  const poodleMixCoat = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ breed: "Poodle / Mixed", description: "The rescue describes a curly coat and regular grooming." })
+  );
+  assert.equal(poodleMixCoat.shedding_level.value, "low");
+  assert.equal(poodleMixCoat.shedding_level.confidence, 0.72);
 });
 
 test("mixed-breed shedding combines breed components and respects conflicting coat evidence", () => {
@@ -894,6 +988,29 @@ test("mixed-breed shedding combines breed components and respects conflicting co
   );
   assert.equal(labPoodle.shedding_level.value, "unknown");
   assert.equal(labPoodle.shedding_level.confidence, 0);
+
+  const pitCattleDog = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.9, "Pit Bull estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Pit Bull Terrier / Australian Cattle Dog / Mixed (short coat)", description: "Coat shedding is not documented." })
+  );
+  assert.equal(pitCattleDog.shedding_level.value, "unknown");
+  assert.equal(pitCattleDog.shedding_level.confidence, 0);
+  assert.match(pitCattleDog.shedding_level.evidence, /unresolved component/i);
+
+  const knownAndUnknown = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("high", 0.9, "Labrador estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Labrador Retriever / Mystery Breed", description: "Coat shedding is not documented." })
+  );
+  assert.equal(knownAndUnknown.shedding_level.value, "unknown");
+  assert.equal(knownAndUnknown.shedding_level.confidence, 0);
+
+  const labMixed = normalizeAiTraits(
+    baseParsedTraits(),
+    dogInput({ breed: "Labrador Retriever / Mixed (short coat)", description: "Coat shedding is not documented." })
+  );
+  assert.equal(labMixed.shedding_level.value, "high");
+  assert.ok(labMixed.shedding_level.confidence <= 0.35);
+  assert.match(labMixed.shedding_level.evidence, /unspecified mixed-breed component/i);
 
   const unknownMix = normalizeAiTraits(
     baseParsedTraits({ shedding_level: trait("medium", 0.8, "Generic mixed-breed estimate.", "breed_coat_inference") }),
