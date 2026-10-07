@@ -474,6 +474,83 @@ test("conditional household compatibility survives AI normalization as nuanced s
   }
 });
 
+test("explicit household restrictions are preserved as bio-explicit compatibility", () => {
+  const cases = [
+    ["good_with_cats", "bio_good_with_cats", "This dog needs a cat-free home.", "false", "no"],
+    ["good_with_cats", "bio_good_with_cats", "Cats are not recommended for this dog.", "false", "no"],
+    ["good_with_dogs", "bio_good_with_dogs", "He must be the only dog in the home.", "only_dog", "only_dog"],
+    ["good_with_dogs", "bio_good_with_dogs", "She is dog selective and needs slow introductions.", "selective", "selective"],
+    ["good_with_kids", "bio_good_with_kids", "No children in the home.", "false", "no"],
+    ["good_with_kids", "bio_good_with_kids", "Kids 12+ only.", "older_children_only", "older_children_only"],
+  ];
+
+  for (const [traitKey, columnKey, description, expectedTrait, expectedColumn] of cases) {
+    const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({ description }));
+    assert.equal(normalized[traitKey].value, expectedTrait, description);
+    assert.equal(normalized[traitKey].evidence_basis, "bio_explicit", description);
+    assert.equal(buildBioColumns(normalized, null)[columnKey], expectedColumn, description);
+  }
+
+  for (const description of [
+    "Cats walked past the kennel once.",
+    "This hound may have prey drive typical of the breed.",
+    "Friendly dog looking for a home.",
+  ]) {
+    assert.equal(
+      normalizeAiTraits(baseParsedTraits(), dogInput({ description })).good_with_cats.value,
+      "unknown",
+      description
+    );
+  }
+});
+
+test("playfulness requires direct play language and remains unknown for generic energy or friendliness", () => {
+  for (const description of [
+    "She is playful with people and dogs.",
+    "He loves toys and loves to play.",
+    "She enjoys fetch and tug.",
+    "His playful personality comes out once comfortable.",
+  ]) {
+    const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({ description }));
+    assert.equal(normalized.playfulness.value, "true", description);
+    assert.equal(normalized.playfulness.evidence_basis, "bio_explicit", description);
+    assert.ok(normalized.playfulness.confidence > 0, description);
+  }
+
+  for (const description of [
+    "A sweet and friendly companion.",
+    "A high-energy young dog who needs long walks.",
+    "A six-month-old puppy looking for a home.",
+  ]) {
+    const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({ description }));
+    assert.equal(normalized.playfulness.value, "unknown", description);
+    assert.equal(normalized.playfulness.confidence, 0, description);
+  }
+});
+
+test("potty training requires potty, house-training, or accident-specific evidence", () => {
+  const cases = [
+    ["Crate trained and sleeps quietly in her crate.", "unknown", "true"],
+    ["Fully house trained with no accidents.", "true", "unknown"],
+    ["House trained and crate trained.", "true", "true"],
+    ["Working on training and learning basic commands.", "unknown", "unknown"],
+    ["A young puppy who will need training.", "unknown", "unknown"],
+    ["Working on potty training and making progress.", "maybe", "unknown"],
+    ["Mostly house trained with occasional accidents.", "likely", "unknown"],
+  ];
+
+  for (const [description, expectedPotty, expectedCrate] of cases) {
+    const normalized = normalizeAiTraits(
+      baseParsedTraits({
+        potty_trained: trait("maybe", 0.7, "Model inferred training progress.", "bio_explicit"),
+      }),
+      dogInput({ description })
+    );
+    assert.equal(normalized.potty_trained.value, expectedPotty, description);
+    assert.equal(normalized.crate_trained.value, expectedCrate, description);
+  }
+});
+
 test("Abby's selective compatible-dog wording is not collapsed to false", () => {
   const description = "While she is dog selective and takes time to warm up to new canine friends (she prefers low-energy dogs), she can do well in a home with a patient introduction process—or as the only dog.";
   const normalized = normalizeAiTraits(
@@ -792,6 +869,38 @@ test("Poodles and Poodle mixes use cautious breed and coat evidence", () => {
   assert.equal(doodleCoat.shedding_level.value, "low");
   assert.equal(doodleCoat.shedding_level.confidence, 0.72);
   assert.equal(doodleCoat.shedding_level.evidence_basis, "breed_coat_inference");
+});
+
+test("mixed-breed shedding combines breed components and respects conflicting coat evidence", () => {
+  const pomChi = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.9, "Chihuahua estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Pomeranian / Chihuahua / Mixed (long coat)", description: "Senior companion." })
+  );
+  assert.equal(pomChi.shedding_level.value, "medium");
+  assert.ok(pomChi.shedding_level.confidence <= 0.35);
+  assert.equal(pomChi.shedding_level.evidence_basis, "breed_coat_inference");
+  assert.match(pomChi.shedding_level.evidence, /conflict/i);
+
+  const longCoatChi = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.9, "Chihuahua estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Chihuahua / Mixed (long coat)", description: "Long-coated mixed-breed dog." })
+  );
+  assert.equal(longCoatChi.shedding_level.value, "unknown");
+  assert.equal(longCoatChi.shedding_level.confidence, 0);
+
+  const labPoodle = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("low", 0.9, "Poodle mix.", "breed_coat_inference") }),
+    dogInput({ breed: "Labrador Retriever / Poodle / Mixed", description: "Coat type is not documented." })
+  );
+  assert.equal(labPoodle.shedding_level.value, "unknown");
+  assert.equal(labPoodle.shedding_level.confidence, 0);
+
+  const unknownMix = normalizeAiTraits(
+    baseParsedTraits({ shedding_level: trait("medium", 0.8, "Generic mixed-breed estimate.", "breed_coat_inference") }),
+    dogInput({ breed: "Mixed Breed", description: "Friendly companion." })
+  );
+  assert.equal(unknownMix.shedding_level.value, "unknown");
+  assert.equal(unknownMix.shedding_level.confidence, 0);
 });
 
 test("missing shedding evidence remains unknown", () => {

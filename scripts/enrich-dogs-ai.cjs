@@ -33,7 +33,7 @@ const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
 const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
 
-const AI_ENRICHMENT_VERSION = "dog-ai-traits-v13-conditional-compatibility";
+const AI_ENRICHMENT_VERSION = "dog-ai-traits-v14-explicit-evidence-safety";
 const DEFAULT_LIMIT = 10;
 const DEFAULT_MAX_BATCHES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
@@ -212,6 +212,7 @@ const SPECIFIC_BREED_SHEDDING_TIERS = [
       "bernese",
       "newfoundland",
       "shiba inu",
+      "pomeranian",
       "anatolian shepherd",
     ],
   },
@@ -458,7 +459,29 @@ function combineShedding(matches) {
 // specific breed.
 function resolveBreedShedding(breed) {
   const matches = matchBreedTiers(breed);
-  return combineShedding(matches);
+  const result = combineShedding(matches);
+  if (!result) return null;
+
+  const coatLength = explicitCoatLength(breed);
+  const shortCoatSignals = matches.filter((match) =>
+    match.label.includes("short single-coat")
+  );
+  if (coatLength && coatLength !== "short" && shortCoatSignals.length > 0) {
+    if (shortCoatSignals.length === matches.length) {
+      return {
+        value: "unknown",
+        confidence: 0,
+        evidence: `Listed ${coatLength} coat conflicts with the only available short-coat breed shedding estimate.`,
+      };
+    }
+    return {
+      ...result,
+      confidence: Math.min(result.confidence, 0.35),
+      evidence: `${result.evidence} Listed ${coatLength} coat conflicts with a short-coat component, so confidence is reduced.`,
+    };
+  }
+
+  return result;
 }
 
 function poodleIdentity(breed) {
@@ -744,8 +767,8 @@ Kids examples:
 - "good with kids", "kid-friendly", "loves kids", "lived with children" => good_with_kids true.
 - "respectful interactions with kids", "gentle with children", "loves 10 month old twins", "met kids and did well" => good_with_kids likely.
 - "met kids once", "may do well with respectful kids" => good_with_kids may_do_well.
-- "no kids", "adult-only home", "not good with children" => good_with_kids false.
-- "older children only", "older children or no children", "no young children", "teenagers only" => good_with_kids older_children_only.
+- "no kids", "no children", "adult-only home", "not good with children" => good_with_kids false.
+- "older children only", "older children or no children", "no young children", "teenagers only", "kids 12+" => good_with_kids older_children_only.
 - "gentle with everyone", "sweet", "friendly", "loving", and "family dog" without child-specific wording => unknown.
 
 Dogs examples:
@@ -753,20 +776,27 @@ Dogs examples:
 - "would love a dog companion", "needs a well-established dog", "enjoys the company of other dogs" => good_with_dogs likely.
 - "dog selective", "does well with slow introductions", "proper introductions needed", "could live with a compatible low-energy dog" => good_with_dogs selective.
 - "may do well with another dog" => good_with_dogs may_do_well.
-- "best as the only dog", "only dog preferred" => good_with_dogs only_dog.
+- "best as the only dog", "must be the only dog", "only dog preferred" => good_with_dogs only_dog.
 - "no other dogs", "does not like other dogs", "cannot live with dogs" => good_with_dogs false.
 
 Cats examples:
 - "lived with cats", "good with cats", "gets along with cats" => good_with_cats true.
 - "has been around cats and did well" => good_with_cats likely.
 - "does okay with cats but wants to chase", "may be okay with dog-savvy cats", "unknown with cats but may do well after slow introductions" => good_with_cats may_do_well.
-- "no cats", "not cat safe", "will chase cats" => good_with_cats false.
+- "cat-free home", "no cats", "cannot live with cats", "must not live with cats", "cats are not recommended", "not cat safe", "will chase cats" => good_with_cats false.
 
 Potty training examples:
 - "potty trained", "house trained", "fully housebroken" => potty_trained true.
 - "mostly potty trained", "doing well with potty training" => potty_trained likely.
 - "working on potty training" => potty_trained maybe.
 - "not potty trained" => potty_trained false.
+- Crate training, generic puppy/basic-command training, and unspecified "training in progress" are not potty-training evidence.
+- Populate crate_trained only from crate-specific evidence and potty_trained only from house/potty/accident-specific evidence.
+
+Playfulness:
+- Direct dog-specific wording such as "playful", "loves toys", "loves to play", "enjoys fetch", "enjoys tug", or "playful with people/dogs" supports playfulness true with bio_explicit provenance.
+- Do not infer playfulness from puppy age, breed, friendliness, sweetness, or high energy alone.
+- Ambiguous or absent play language must remain unknown.
 
 First-time-friendly:
 - First-time-friendly means likely manageable for someone who has never owned a dog before. It does not simply mean sweet, loving, gentle, or affectionate.
@@ -805,8 +835,8 @@ Return exactly this JSON shape:
   "good_with_cats": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "good_with_small_animals": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "potty_trained": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
-  "crate_trained": { "value": "unknown", "confidence": 0, "evidence": "" },
-  "leash_trained": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "crate_trained": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
+  "leash_trained": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "first_time_friendly": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "apartment_friendly": { "value": "unknown", "confidence": 0, "evidence": "" },
   "needs_yard": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
@@ -816,7 +846,7 @@ Return exactly this JSON shape:
   "training_needs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "home_environment": { "value": "unknown", "confidence": 0, "evidence": "" },
   "affection_level": { "value": "unknown", "confidence": 0, "evidence": "" },
-  "playfulness": { "value": "unknown", "confidence": 0, "evidence": "" },
+  "playfulness": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "shyness": { "value": "unknown", "confidence": 0, "evidence": "" },
   "anxiety_or_fear": { "value": "unknown", "confidence": 0, "evidence": "" },
   "ideal_home_summary": "",
@@ -1177,7 +1207,7 @@ function normalizeAiTraits(parsed, dogInput) {
   }
 
   function hasAgeSpecificChildRestriction() {
-    return /\b(?:older|teenage)(?:,? mature)? (?:kids|children)(?: only| or no (?:kids|children)(?: at all)?)\b|\bteenagers? only\b|\bno young (?:kids|children)\b|\bno (?:kids|children) (?:under|younger than|below)\s*(?:\d+|[a-z-]+)\b|\b(?:kids|children) (?:ages? )?(?:1[0-9]|[6-9])\+\b/.test(bio);
+    return /\b(?:older|teenage)(?:,? mature)? (?:kids|children)(?: only| or no (?:kids|children)(?: at all)?)\b|\bteenagers? only\b|\bno young (?:kids|children)\b|\bno (?:kids|children) (?:under|younger than|below)\s*(?:\d+|[a-z-]+)\b|\b(?:kids|children) (?:ages? )?(?:1[0-9]|[6-9])\+(?: only)?/.test(bio);
   }
 
   function conditionalChildCompatibility() {
@@ -1208,6 +1238,23 @@ function normalizeAiTraits(parsed, dogInput) {
       return "may_do_well";
     }
     return null;
+  }
+
+  function hasExplicitCatExclusion() {
+    return /\bcat[- ]free (?:home|household)\b|\bno cats?\b|\bnot good with cats?\b|\bnot cat[- ]safe\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with cats?\b|\bcats? (?:are|is) not recommended\b|\bcat reactive\b|\bwill chase cats?\b/.test(bio);
+  }
+
+  function hasExplicitDogExclusion() {
+    return /\bno other dogs?\b|\bno dogs?\b|\bnot good with dogs?\b|\b(?:cannot|can't|must not|should not) (?:live|be housed) with dogs?\b|\bdog aggressive\b/.test(bio);
+  }
+
+  function hasPottyTrainingEvidence() {
+    return /\b(?:potty|house)[- ]?train(?:ed|ing)?\b|\bhousebreak(?:ing|en)?\b|\bhousebroken\b|\bpee[- ]?pad train(?:ed|ing)?\b|\b(?:no|without|occasional|rare) accidents?\b|\baccidents? (?:in|inside|indoors|at home)\b/.test(bio);
+  }
+
+  function hasExplicitPlayfulnessEvidence() {
+    if (/\bnot playful\b|\bdoes(?:n't| not) (?:like|enjoy) (?:to )?play\b/.test(bio)) return false;
+    return /\bplayful\b|\bloves? (?:to )?play\b|\bloves? toys?\b|\bplays? with toys?\b|\benjoys? (?:playing|fetch|tug)\b|\bplays? fetch\b|\bplayful (?:personality|side|with)\b/.test(bio);
   }
 
   function hasContradictoryCatHousingEvidence() {
@@ -1263,21 +1310,9 @@ function normalizeAiTraits(parsed, dogInput) {
     if (key === "good_with_kids") {
       return hasUniversalChildExclusion() && !hasAgeSpecificChildRestriction();
     }
+    if (key === "good_with_cats") return hasExplicitCatExclusion();
+    if (key === "good_with_dogs") return hasExplicitDogExclusion();
     const phrasesByKey = {
-      good_with_dogs: [
-        "no other dogs",
-        "no dogs",
-        "not good with dogs",
-        "cannot live with dogs",
-        "dog aggressive",
-      ],
-      good_with_cats: [
-        "no cats",
-        "not good with cats",
-        "not cat safe",
-        "cannot live with cats",
-        "cat reactive",
-      ],
       good_with_small_animals: [
         "no small animals",
         "not good with small animals",
@@ -1733,18 +1768,28 @@ function normalizeAiTraits(parsed, dogInput) {
       evidence: poodleShedding.evidence,
       evidence_basis: poodleShedding.evidence_basis,
     };
-  } else if (normalizeSheddingValue(normalized.shedding_level?.value) === "unknown") {
-    // Deliberately NOT using explicitCoatLength() here: coat length alone does not
-    // reliably predict shedding amount (e.g. Labrador Retrievers, German Shepherds,
-    // and other double-coated breeds shed heavily despite a short coat; Poodle-type
-    // curly coats shed very little despite being long). Breed/breed-group tendency
-    // is a stronger shedding signal than coat length, so it's checked first. Coat
-    // length is only used to set grooming (see setGrooming calls further down),
-    // never to independently decide a shedding value. See resolveBreedShedding()
-    // above for how multiple named breeds / breed groups are combined.
+  } else {
+    // Coat length alone never determines shedding. It is used only to reject or
+    // discount a breed rule whose stated premise is a short single coat when this
+    // specific listing says medium/long coat. See resolveBreedShedding().
     const breedShedding = resolveBreedShedding(dogInput.breed);
     if (breedShedding) {
-      setShedding(breedShedding.value, breedShedding.confidence, breedShedding.evidence, false, "breed_coat_inference");
+      normalized.shedding_level = {
+        value: breedShedding.value,
+        confidence: breedShedding.confidence,
+        evidence: breedShedding.evidence,
+        evidence_basis: "breed_coat_inference",
+      };
+    } else if (
+      normalizeSheddingValue(normalized.shedding_level?.value) !== "unknown" ||
+      normalized.shedding_level?.evidence_basis === "breed_coat_inference"
+    ) {
+      normalized.shedding_level = {
+        value: "unknown",
+        confidence: 0,
+        evidence: "Available breed and coat evidence does not support a reliable shedding estimate.",
+        evidence_basis: "breed_coat_inference",
+      };
     }
   }
 
@@ -1843,6 +1888,15 @@ function normalizeAiTraits(parsed, dogInput) {
     ])
   ) {
     setTraitFromBio("crate_trained", "true", 0.88, "Bio directly describes crate training.");
+  }
+
+  if (hasExplicitPlayfulnessEvidence()) {
+    strengthenTraitFromBio(
+      "playfulness",
+      "true",
+      0.88,
+      "Bio directly describes playful behavior or enjoyment of play or toys."
+    );
   }
 
   if (
@@ -2343,6 +2397,15 @@ function normalizeAiTraits(parsed, dogInput) {
 
   // Potty training.
   if (
+    !includesAny([
+      "mostly potty trained",
+      "mostly house trained",
+      "mostly housetrained",
+      "doing well with potty training",
+      "doing well with house training",
+      "almost potty trained",
+      "occasional accidents",
+    ]) &&
     includesAny([
       "fully potty trained",
       "potty trained",
@@ -2360,8 +2423,12 @@ function normalizeAiTraits(parsed, dogInput) {
   } else if (
     includesAny([
       "mostly potty trained",
+      "mostly house trained",
+      "mostly housetrained",
       "doing well with potty training",
+      "doing well with house training",
       "almost potty trained",
+      "occasional accidents",
     ])
   ) {
     strengthenTraitFromBio(
@@ -2374,6 +2441,8 @@ function normalizeAiTraits(parsed, dogInput) {
     includesAny([
       "working on potty training",
       "working on house training",
+      "learning potty training",
+      "learning house training",
       "needs help with potty training",
     ])
   ) {
@@ -2440,7 +2509,7 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  if (!dogConditionalState && includesAny(["no other dogs", "no dogs", "not good with dogs", "cannot live with dogs", "dog aggressive"])) {
+  if (!dogConditionalState && hasExplicitDogExclusion()) {
     normalized.good_with_dogs = {
       value: "false",
       confidence: 0.9,
@@ -2449,7 +2518,7 @@ function normalizeAiTraits(parsed, dogInput) {
     };
   }
 
-  if (includesAny(["no cats", "not good with cats", "not cat safe", "cannot live with cats"])) {
+  if (hasExplicitCatExclusion()) {
     normalized.good_with_cats = {
       value: "false",
       confidence: 0.9,
@@ -2659,6 +2728,20 @@ function normalizeAiTraits(parsed, dogInput) {
       value: "unknown",
       confidence: 0,
       evidence: "General profile context was not treated as small-animal compatibility evidence.",
+      evidence_basis: "profile_inference",
+    };
+  }
+
+  const pottyValue = String(normalized.potty_trained?.value || "").toLowerCase();
+  if (
+    dogInput.current_potty_trained === null &&
+    ["true", "likely", "maybe", "may_do_well"].includes(pottyValue) &&
+    !hasPottyTrainingEvidence()
+  ) {
+    normalized.potty_trained = {
+      value: "unknown",
+      confidence: 0,
+      evidence: "Crate, command, puppy, or generic training language was not treated as potty-training evidence.",
       evidence_basis: "profile_inference",
     };
   }

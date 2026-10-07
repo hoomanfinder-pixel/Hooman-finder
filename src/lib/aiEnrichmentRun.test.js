@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const {
+  AI_ENRICHMENT_VERSION,
   buildRunFinalizationPayload,
   conciseErrorReason,
   determineRunStatus,
@@ -68,7 +69,7 @@ test("dog-id targeting requires a UUID, normal eligibility, and no force overrid
       id,
       name: "Biscuit",
       ai_enriched_at: "2026-10-07T12:00:00.000Z",
-      ai_enrichment_version: "dog-ai-traits-v13-conditional-compatibility",
+      ai_enrichment_version: AI_ENRICHMENT_VERSION,
       source_content_hash: "same-hash",
       ai_enriched_source_hash: "same-hash",
     }], { limit: 1, force: false, dogId: id }),
