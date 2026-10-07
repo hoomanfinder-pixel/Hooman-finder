@@ -12,6 +12,7 @@ const {
   hasMeaningfulChange,
   mergeExistingBioColumns,
   normalizeAiTraits,
+  normalizeUnknownMetadata,
   parseBoundedPositiveInteger,
 } = require("../../scripts/enrich-dogs-ai.cjs");
 import { isPubliclyVisibleDog } from "./dogVisibility.js";
@@ -106,6 +107,82 @@ test("version-only and provenance-only enrichment changes are meaningful", () =>
   const changedProvenance = JSON.parse(JSON.stringify(currentDog));
   changedProvenance.ai_traits.energy_level.evidence_basis = "bio_explicit";
   assert.equal(hasMeaningfulChange(next, changedProvenance), true);
+});
+
+test("unknown answers keep review evidence but never retain answer confidence", () => {
+  const metadata = normalizeUnknownMetadata({
+    value: "unknown",
+    confidence: 0.8,
+    evidence: "The bio says this dog is playful, but the supplied value is unsupported.",
+    evidence_basis: "bio_explicit",
+  });
+  assert.deepEqual(metadata, {
+    value: "unknown",
+    confidence: 0,
+    evidence: "The bio says this dog is playful, but the supplied value is unsupported.",
+    evidence_basis: "bio_explicit",
+  });
+
+  const numeric = normalizeUnknownMetadata({
+    value: null,
+    confidence: 0.9,
+    evidence: "No supported hour estimate.",
+    evidence_basis: "profile_inference",
+  }, { unknown: null });
+  assert.equal(numeric.confidence, 0);
+  assert.equal(numeric.evidence, "No supported hour estimate.");
+});
+
+test("unknown confidence normalization applies to parsed trait fields", () => {
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({
+      playfulness: trait("unknown", 0.8, "Described as playful.", "bio_explicit"),
+      barking_level: trait("unknown", 0.75, "Some unclear noise wording.", "bio_explicit"),
+      max_alone_hours_estimate: trait(null, 0.9, "No supported duration.", "profile_inference"),
+    }),
+    dogInput()
+  );
+
+  for (const field of ["playfulness", "barking_level", "max_alone_hours_estimate"]) {
+    assert.equal(normalized[field].confidence, 0, field);
+    assert.ok(normalized[field].evidence.length > 0, field);
+  }
+  assert.equal(normalized.playfulness.evidence_basis, "bio_explicit");
+});
+
+test("general profile context cannot become a usable shedding answer", () => {
+  const normalized = normalizeAiTraits(
+    baseParsedTraits({
+      shedding_level: trait(
+        "low",
+        0.9,
+        "current_grooming_level is low",
+        "profile_inference"
+      ),
+    }),
+    dogInput({ breed: null, grooming_level: "low", description: "Friendly companion with an easy care routine." })
+  );
+
+  assert.equal(normalized.shedding_level.value, "unknown");
+  assert.equal(normalized.shedding_level.confidence, 0);
+  assert.equal(normalized.shedding_level.evidence_basis, "profile_inference");
+  assert.match(normalized.shedding_level.evidence, /grooming/i);
+  assert.equal(normalized.grooming_level.value, "low");
+  assert.equal(normalized.grooming_level.evidence_basis, "structured_source");
+
+  const breedSupported = normalizeAiTraits(
+    baseParsedTraits({
+      shedding_level: trait("low", 0.9, "current_grooming_level is low", "profile_inference"),
+    }),
+    dogInput({
+      breed: "American Pit Bull Terrier / Mixed (short coat)",
+      grooming_level: "low",
+      description: "Friendly companion with an easy care routine.",
+    })
+  );
+  assert.equal(breedSupported.shedding_level.value, "low");
+  assert.equal(breedSupported.shedding_level.confidence, 0.58);
+  assert.equal(breedSupported.shedding_level.evidence_basis, "breed_coat_inference");
 });
 
 test("confirmed source fields are passed through and override conflicting AI interpretations", () => {

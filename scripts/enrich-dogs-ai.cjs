@@ -38,6 +38,8 @@ const DEFAULT_LIMIT = 10;
 const DEFAULT_MAX_BATCHES = 20;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 5000;
+const OPENAI_TIMEOUT_MS = 60_000;
+const MAX_ERROR_SUMMARY_LENGTH = 2000;
 const MODEL = "gpt-4o-mini";
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
@@ -60,6 +62,8 @@ const ALONE_HOURS_LABELS = new Set(["1-2", "3-4", "5-6", "7-8", "unknown"]);
 let supabase = null;
 let openAiApiKey = "";
 let activeAiRunId = null;
+let activeAiRunStats = null;
+let activeAiRunFailures = [];
 const runTokenUsage = { input: 0, output: 0, total: 0 };
 
 function initializeRuntime() {
@@ -90,6 +94,24 @@ function getArg(name, fallback = null) {
 
 function hasFlag(name) {
   return process.argv.includes(`--${name}`);
+}
+
+function validateDogId(value) {
+  if (!value) return null;
+  const dogId = String(value).trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(dogId)) {
+    throw new Error("--dog-id must be a valid UUID.");
+  }
+  return dogId;
+}
+
+function validateRunMode({ drain, force, dryRun, dogId }) {
+  if (drain && (force || dryRun || dogId)) {
+    throw new Error("--drain cannot be combined with --force, --dry-run, or --dog-id.");
+  }
+  if (dogId && force) {
+    throw new Error("--dog-id cannot be combined with --force; targeted dogs must remain normally eligible.");
+  }
 }
 
 function parseBoundedPositiveInteger(value, fallback, { name, max }) {
@@ -847,18 +869,24 @@ function normalizeEvidenceBasis(value) {
   return "profile_inference";
 }
 
+function normalizeUnknownMetadata(trait, { unknown = "unknown" } = {}) {
+  const isUnknown = unknown === null ? trait.value === null : trait.value === unknown;
+  if (!isUnknown) return trait;
+  return { ...trait, confidence: 0 };
+}
+
 function normalizeTraitObject(obj, fallbackValue = "unknown") {
   if (!obj || typeof obj !== "object") {
     return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
-  return {
+  return normalizeUnknownMetadata({
     ...obj,
     value: normalizeTraitValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  });
 }
 
 function normalizeEnergyLikeValue(value, fallbackValue = "unknown") {
@@ -884,13 +912,13 @@ function normalizeEnergyLikeTraitObject(obj, fallbackValue = "unknown") {
     return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
-  return {
+  return normalizeUnknownMetadata({
     ...obj,
     value: normalizeEnergyLikeValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  });
 }
 
 function normalizeSheddingValue(value, fallbackValue = "unknown") {
@@ -915,13 +943,23 @@ function normalizeSheddingTraitObject(obj, fallbackValue = "unknown") {
     return { value: "unknown", confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
-  return {
+  const normalized = normalizeUnknownMetadata({
     ...obj,
     value,
     confidence,
     evidence,
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  });
+
+  // A usable shedding estimate must identify an actual shedding/coat evidence
+  // tier. General profile synthesis (including grooming difficulty by itself)
+  // is not evidence of how much a dog sheds. Preserve the review evidence but
+  // do not expose it as a matching-facing shedding answer.
+  if (normalized.value !== "unknown" && normalized.evidence_basis === "profile_inference") {
+    return { ...normalized, value: "unknown", confidence: 0 };
+  }
+
+  return normalized;
 }
 
 function normalizeBarkingValue(value, fallbackValue = "unknown") {
@@ -938,13 +976,13 @@ function normalizeBarkingTraitObject(obj, fallbackValue = "unknown") {
     return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
-  return {
+  return normalizeUnknownMetadata({
     ...obj,
     value: normalizeBarkingValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  });
 }
 
 function normalizeGroomingValue(value, fallbackValue = "unknown") {
@@ -961,13 +999,13 @@ function normalizeGroomingTraitObject(obj, fallbackValue = "unknown") {
     return { value: fallbackValue, confidence: 0, evidence: "", evidence_basis: "profile_inference" };
   }
 
-  return {
+  return normalizeUnknownMetadata({
     ...obj,
     value: normalizeGroomingValue(obj.value, fallbackValue),
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  });
 }
 
 function normalizeNumericTraitObject(obj) {
@@ -977,13 +1015,13 @@ function normalizeNumericTraitObject(obj) {
 
   const n = Number(obj.value);
 
-  return {
+  return normalizeUnknownMetadata({
     ...obj,
     value: Number.isFinite(n) && n >= 0 ? n : null,
     confidence: normalizeConfidence(obj.confidence),
     evidence: typeof obj.evidence === "string" ? obj.evidence.slice(0, 280) : "",
     evidence_basis: normalizeEvidenceBasis(obj.evidence_basis),
-  };
+  }, { unknown: null });
 }
 
 function safeParseJson(text) {
@@ -2851,7 +2889,7 @@ function mergeExistingBioColumns(nextColumns, dog) {
 
 async function callOpenAI(prompt) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60_000);
+  const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
     const response = await fetch(OPENAI_URL, {
@@ -2892,6 +2930,13 @@ async function callOpenAI(prompt) {
     runTokenUsage.total += Number(json.usage?.total_tokens || 0);
 
     return json.choices?.[0]?.message?.content || "";
+  } catch (error) {
+    if (controller.signal.aborted || error?.name === "AbortError") {
+      const timeoutError = new Error(`OpenAI request timed out after ${OPENAI_TIMEOUT_MS / 1000} seconds`);
+      timeoutError.name = "TimeoutError";
+      throw timeoutError;
+    }
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -3175,6 +3220,40 @@ async function collectPaginatedDogs(fetchPage, { pageSize = 1000, maxPages = 100
   throw new Error(`Dog eligibility scan exceeded ${maxPages} pages of ${pageSize}; raise the explicit bound after review.`);
 }
 
+function resolveEnrichmentCandidates(visible, { limit, force, dogId }) {
+  if (force) {
+    return {
+      dogs: visible.slice(0, limit),
+      eligibleCount: null,
+      reasonCounts: null,
+    };
+  }
+
+  if (dogId && visible.length === 0) {
+    throw new Error(`Target dog ${dogId} was not found or is not publicly visible.`);
+  }
+
+  const eligible = [];
+  const reasonCounts = { new: 0, version_outdated: 0, content_changed: 0 };
+
+  for (const dog of visible) {
+    const reason = getEnrichmentEligibilityReason(dog);
+    if (!reason) continue;
+    reasonCounts[reason] += 1;
+    eligible.push(dog);
+  }
+
+  if (dogId && eligible.length === 0) {
+    throw new Error(`Target dog ${dogId} is not eligible for enrichment.`);
+  }
+
+  return {
+    dogs: eligible.slice(0, limit),
+    eligibleCount: eligible.length,
+    reasonCounts,
+  };
+}
+
 async function fetchDogs({ limit, force, dogId }) {
   const data = await collectPaginatedDogs(async (from, to) => {
     let query = supabase
@@ -3200,30 +3279,19 @@ async function fetchDogs({ limit, force, dogId }) {
   // actually renders on the live site.
   const visible = data.filter(isPubliclyVisibleDog);
 
-  if (force || dogId) {
-    return visible.slice(0, limit);
-  }
-
   // Column-to-column comparisons (source_content_hash vs
   // ai_enriched_source_hash) aren't expressible in a single PostgREST filter,
   // so eligibility is resolved here instead of in the query. Dataset size
   // (a handful of Michigan rescues) makes fetching the full visible set
   // before filtering/limiting a non-issue.
-  const eligible = [];
-  const reasonCounts = { new: 0, version_outdated: 0, content_changed: 0 };
-
-  for (const dog of visible) {
-    const reason = getEnrichmentEligibilityReason(dog);
-    if (!reason) continue;
-    reasonCounts[reason] += 1;
-    eligible.push(dog);
+  const resolved = resolveEnrichmentCandidates(visible, { limit, force, dogId });
+  if (resolved.reasonCounts) {
+    console.log(
+      `Eligible for enrichment: ${resolved.eligibleCount} (new: ${resolved.reasonCounts.new}, version outdated: ${resolved.reasonCounts.version_outdated}, content changed: ${resolved.reasonCounts.content_changed})`
+    );
   }
 
-  console.log(
-    `Eligible for enrichment: ${eligible.length} (new: ${reasonCounts.new}, version outdated: ${reasonCounts.version_outdated}, content changed: ${reasonCounts.content_changed})`
-  );
-
-  return eligible.slice(0, limit);
+  return resolved.dogs;
 }
 
 function isDaccDog(dog) {
@@ -3297,6 +3365,79 @@ function addRunStats(total, batch) {
   for (const key of Object.keys(total)) total[key] += batch[key] || 0;
 }
 
+function conciseErrorReason(error) {
+  const raw = String(error?.message || error || "Unknown error").replace(/\s+/g, " ").trim();
+  if (error?.name === "TimeoutError" || /\b(?:abort(?:ed)?|timed?\s*out|timeout)\b/i.test(raw)) {
+    return /timed?\s*out|timeout/i.test(raw)
+      ? raw.slice(0, 300)
+      : `Request timed out after ${OPENAI_TIMEOUT_MS / 1000} seconds`;
+  }
+  return raw.slice(0, 300) || "Unknown error";
+}
+
+function dogFailure(dog, error, attempt) {
+  return {
+    dogId: String(dog?.id || "unknown-id"),
+    dogName: cleanText(dog?.name || "Unnamed dog", 100),
+    attempt: Number(attempt || 1),
+    reason: conciseErrorReason(error),
+  };
+}
+
+function formatRunErrorSummary(failures = [], error = null, maxLength = MAX_ERROR_SUMMARY_LENGTH) {
+  const entries = failures.map((failure) => {
+    const name = cleanText(failure?.dogName || "Unnamed dog", 100);
+    const id = cleanText(failure?.dogId || "unknown-id", 100);
+    const attempt = Number(failure?.attempt || 1);
+    const reason = cleanText(failure?.reason || "Unknown error", 300);
+    return `${name} (${id}), attempt ${attempt}: ${reason}`;
+  });
+
+  if (error) entries.push(`Run error: ${conciseErrorReason(error)}`);
+  if (!entries.length) return null;
+
+  let summary = "";
+  for (let index = 0; index < entries.length; index += 1) {
+    const separator = summary ? "; " : "";
+    const remaining = entries.length - index;
+    const suffix = remaining > 1 ? `; (+${remaining - 1} more)` : "";
+    const available = maxLength - summary.length - separator.length;
+    if (entries[index].length + suffix.length > available) {
+      const clipped = entries[index].slice(0, Math.max(0, available - suffix.length));
+      summary += `${separator}${clipped}${suffix}`;
+      break;
+    }
+    summary += `${separator}${entries[index]}`;
+  }
+
+  return summary.slice(0, maxLength);
+}
+
+function determineRunStatus(stats, { error = null } = {}) {
+  const failed = Number(stats?.failed || 0) + (error && !stats?.failed ? 1 : 0);
+  if (failed <= 0 && !error) return "success";
+  const completed = Number(stats?.updated || 0) + Number(stats?.skippedNoChange || 0);
+  return completed > 0 ? "partial" : "failed";
+}
+
+function buildRunFinalizationPayload(
+  stats,
+  { status = determineRunStatus(stats), error = null, failures = [], tokenUsage = runTokenUsage, finishedAt = new Date().toISOString() } = {}
+) {
+  return {
+    finished_at: finishedAt,
+    status,
+    attempted_count: Number(stats?.attempted || 0),
+    succeeded_count: Number(stats?.updated || 0),
+    skipped_count: Number((stats?.skippedNoChange || 0) + (stats?.skippedNoData || 0)),
+    failed_count: Number(stats?.failed || (error ? 1 : 0)),
+    input_tokens: Number(tokenUsage?.input || 0),
+    output_tokens: Number(tokenUsage?.output || 0),
+    total_tokens: Number(tokenUsage?.total || 0),
+    error_summary: formatRunErrorSummary(failures, error),
+  };
+}
+
 function printRunStats(stats, { dryRun = false, heading = "AI enrichment complete" } = {}) {
   console.log("\n========================================");
   console.log(dryRun ? "AI enrichment dry run complete (nothing written)" : heading);
@@ -3310,7 +3451,7 @@ function printRunStats(stats, { dryRun = false, heading = "AI enrichment complet
 
 async function processDogBatch(
   dogs,
-  { dryRun = false, failureAttempts = new Map(), maxAttempts = DEFAULT_MAX_ATTEMPTS } = {}
+  { dryRun = false, failureAttempts = new Map(), maxAttempts = DEFAULT_MAX_ATTEMPTS, enrichDog = enrichOneDog } = {}
 ) {
   let updated = 0;
   let skippedNoChange = 0;
@@ -3318,12 +3459,13 @@ async function processDogBatch(
   let failed = 0;
   const noDataDogs = [];
   const exhaustedFailures = [];
+  const failures = [];
 
   for (const dog of dogs) {
     try {
       console.log(`\nEnriching: ${dog.name || dog.id}`);
 
-      const result = await enrichOneDog(dog, { dryRun });
+      const result = await enrichDog(dog, { dryRun });
       if (!result) {
         skippedNoData += 1;
         noDataDogs.push(`${dog.name || "Unnamed dog"} (${dog.id})`);
@@ -3369,7 +3511,9 @@ async function processDogBatch(
       failed += 1;
       const attempts = (failureAttempts.get(dog.id) || 0) + 1;
       failureAttempts.set(dog.id, attempts);
-      console.error(`❌ Failed ${dog.name || dog.id}: ${error.message || error}`);
+      const failure = dogFailure(dog, error, attempts);
+      failures.push(failure);
+      console.error(`❌ Failed ${dog.name || dog.id}: ${failure.reason}`);
       console.error(`   Attempt ${attempts}/${maxAttempts}`);
       if (attempts >= maxAttempts) {
         exhaustedFailures.push(`${dog.name || "Unnamed dog"} (${dog.id})`);
@@ -3385,7 +3529,7 @@ async function processDogBatch(
     failed,
   };
   printRunStats(stats, { dryRun, heading: "AI enrichment batch complete" });
-  return { stats, noDataDogs, exhaustedFailures };
+  return { stats, noDataDogs, exhaustedFailures, failures };
 }
 
 async function startAiRun(maxDogs) {
@@ -3396,28 +3540,30 @@ async function startAiRun(maxDogs) {
     .single();
   if (error) throw new Error(`Could not create AI enrichment run log: ${error.message}`);
   activeAiRunId = data.id;
+  activeAiRunStats = emptyRunStats();
+  activeAiRunFailures = [];
 }
 
-async function finishAiRun(stats, { status = "success", error = null } = {}) {
+async function finishAiRun(stats, { status = determineRunStatus(stats), error = null, failures = [] } = {}) {
   if (!activeAiRunId || !supabase) return;
-  const payload = {
-    finished_at: new Date().toISOString(),
-    status,
-    attempted_count: Number(stats?.attempted || 0),
-    succeeded_count: Number(stats?.updated || 0),
-    skipped_count: Number((stats?.skippedNoChange || 0) + (stats?.skippedNoData || 0)),
-    failed_count: Number(stats?.failed || (error ? 1 : 0)),
-    input_tokens: runTokenUsage.input,
-    output_tokens: runTokenUsage.output,
-    total_tokens: runTokenUsage.total,
-    error_summary: error ? String(error.message || error).slice(0, 2000) : null,
-  };
+  const finalStats = stats || activeAiRunStats;
+  const finalFailures = failures.length ? failures : activeAiRunFailures;
+  const finalStatus = status === "success" && (error || Number(finalStats?.failed || 0) > 0)
+    ? determineRunStatus(finalStats, { error })
+    : status;
+  const payload = buildRunFinalizationPayload(finalStats, {
+    status: finalStatus,
+    error,
+    failures: finalFailures,
+  });
   const { error: updateError } = await supabase
     .from("ai_enrichment_runs")
     .update(payload)
     .eq("id", activeAiRunId);
   if (updateError) console.error(`Could not finalize AI enrichment run log: ${updateError.message}`);
   activeAiRunId = null;
+  activeAiRunStats = null;
+  activeAiRunFailures = [];
 }
 
 async function main() {
@@ -3435,7 +3581,7 @@ async function main() {
   const force = hasFlag("force");
   const dryRun = hasFlag("dry-run");
   const drain = hasFlag("drain");
-  const dogId = getArg("dog-id", null);
+  const dogId = validateDogId(getArg("dog-id", null));
   const maxBatches = parseBoundedPositiveInteger(
     getArg("max-batches", DEFAULT_MAX_BATCHES),
     DEFAULT_MAX_BATCHES,
@@ -3452,9 +3598,7 @@ async function main() {
     { name: "--retry-delay-ms", max: 60000 }
   );
 
-  if (drain && (force || dryRun || dogId)) {
-    throw new Error("--drain cannot be combined with --force, --dry-run, or --dog-id.");
-  }
+  validateRunMode({ drain, force, dryRun, dogId });
 
   const maxDogsThisRun = drain ? limit * maxBatches : limit;
   if (!dryRun) await startAiRun(maxDogsThisRun);
@@ -3484,10 +3628,13 @@ async function main() {
     }
 
     console.log(`Found ${dogs.length} dog(s) to enrich.`);
-    const result = await processDogBatch(dogs, { dryRun });
+    const result = await processDogBatch(dogs, { dryRun, maxAttempts: 1 });
     if (!dryRun) {
+      activeAiRunStats = result.stats;
+      activeAiRunFailures = result.failures;
       await finishAiRun(result.stats, {
-        status: result.stats.failed > 0 ? "partial" : "success",
+        status: determineRunStatus(result.stats),
+        failures: result.failures,
       });
     }
     return;
@@ -3495,6 +3642,7 @@ async function main() {
 
   const totals = emptyRunStats();
   const failureAttempts = new Map();
+  const failures = [];
   let queueCleared = false;
   let batchesRun = 0;
 
@@ -3512,16 +3660,23 @@ async function main() {
       maxAttempts,
     });
     addRunStats(totals, result.stats);
+    failures.push(...result.failures);
+    activeAiRunStats = { ...totals };
+    activeAiRunFailures = [...failures];
 
     if (result.noDataDogs.length) {
-      throw new Error(
+      const error = new Error(
         `Eligible dog(s) could not be enriched because they lack usable source/profile data: ${result.noDataDogs.join(", ")}`
       );
+      await finishAiRun(totals, { status: determineRunStatus(totals, { error }), error, failures });
+      throw error;
     }
     if (result.exhaustedFailures.length) {
-      throw new Error(
+      const error = new Error(
         `Enrichment failed ${maxAttempts} times for: ${result.exhaustedFailures.join(", ")}`
       );
+      await finishAiRun(totals, { status: determineRunStatus(totals, { error }), error, failures });
+      throw error;
     }
     if (result.stats.failed > 0) {
       console.log(`Waiting ${retryDelayMs}ms before retrying failed eligible dog(s).`);
@@ -3532,16 +3687,18 @@ async function main() {
   if (!queueCleared) {
     const remaining = await fetchDogs({ limit: 1, force: false, dogId: null });
     if (remaining.length) {
-      throw new Error(
+      const error = new Error(
         `Eligible enrichment queue was not cleared within ${maxBatches} batches of ${limit}. Increase the explicit bound only after reviewing the backlog.`
       );
+      await finishAiRun(totals, { status: determineRunStatus(totals, { error }), error, failures });
+      throw error;
     }
     queueCleared = true;
   }
 
   console.log(`\nEligible enrichment queue cleared after ${batchesRun} batch(es).`);
   printRunStats(totals, { heading: "AI enrichment queue drain complete" });
-  await finishAiRun(totals, { status: totals.failed > 0 ? "partial" : "success" });
+  await finishAiRun(totals, { status: determineRunStatus(totals), failures });
 }
 
 if (require.main === module) {
@@ -3561,6 +3718,7 @@ module.exports = {
   callOpenAI,
   safeParseJson,
   normalizeAiTraits,
+  normalizeUnknownMetadata,
   poodleIdentity,
   resolvePoodleShedding,
   inferExpectedAdultSizeForPuppy,
@@ -3573,4 +3731,12 @@ module.exports = {
   ENRICHMENT_DOG_SELECT,
   AI_ENRICHMENT_VERSION,
   collectPaginatedDogs,
+  resolveEnrichmentCandidates,
+  validateDogId,
+  validateRunMode,
+  buildRunFinalizationPayload,
+  conciseErrorReason,
+  determineRunStatus,
+  formatRunErrorSummary,
+  processDogBatch,
 };
