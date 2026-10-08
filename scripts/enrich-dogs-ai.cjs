@@ -5,7 +5,7 @@
 // - dogs.ai_traits = full detailed JSON
 // - dogs.bio_good_with_kids = yes / most_likely / may_do_well / older_children_only / no / unknown
 // - dogs.bio_good_with_dogs = yes / most_likely / may_do_well / selective / only_dog / no / unknown
-// - dogs.bio_good_with_cats = yes / most_likely / may_do_well / no / unknown
+// - dogs.bio_good_with_cats = yes / most_likely / may_do_well / selective / no / unknown
 // - dogs.bio_first_time_friendly = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_potty_trained = yes / most_likely / may_do_well / no / unknown
 // - dogs.bio_energy_level = low / medium_low / medium / medium_high / high / unknown
@@ -53,6 +53,9 @@ const BIO_VALUES = new Set([
   "no",
   "unknown",
 ]);
+const KIDS_BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "older_children_only", "no", "unknown"]);
+const DOGS_BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "selective", "only_dog", "no", "unknown"]);
+const CATS_BIO_VALUES = new Set(["yes", "most_likely", "may_do_well", "selective", "no", "unknown"]);
 const ENERGY_VALUES = new Set(["low", "medium_low", "medium", "medium_high", "high", "unknown"]);
 const SHEDDING_VALUES = new Set(["low", "medium", "high", "unknown"]);
 const BARKING_VALUES = new Set(["quiet", "some", "unknown"]);
@@ -2872,6 +2875,10 @@ function safeBioValue(value) {
   return BIO_VALUES.has(value) ? value : "unknown";
 }
 
+function safeCompatibilityBioValue(value, allowedValues) {
+  return allowedValues.has(value) ? value : "unknown";
+}
+
 function safeEnergyValue(value) {
   const normalized = normalizeEnergyLikeValue(value);
   return ENERGY_VALUES.has(normalized) ? normalized : "unknown";
@@ -2930,9 +2937,9 @@ function buildBioColumns(aiTraits, inferredAdultSize) {
   const aloneLabel = aloneHoursLabel(aloneHours);
 
   return {
-    bio_good_with_kids: safeBioValue(traitToBioValue(aiTraits.good_with_kids)),
-    bio_good_with_dogs: safeBioValue(traitToBioValue(aiTraits.good_with_dogs)),
-    bio_good_with_cats: safeBioValue(traitToBioValue(aiTraits.good_with_cats)),
+    bio_good_with_kids: safeCompatibilityBioValue(traitToBioValue(aiTraits.good_with_kids), KIDS_BIO_VALUES),
+    bio_good_with_dogs: safeCompatibilityBioValue(traitToBioValue(aiTraits.good_with_dogs), DOGS_BIO_VALUES),
+    bio_good_with_cats: safeCompatibilityBioValue(traitToBioValue(aiTraits.good_with_cats), CATS_BIO_VALUES),
     bio_first_time_friendly: safeBioValue(traitToBioValue(aiTraits.first_time_friendly)),
     bio_potty_trained: safeBioValue(traitToBioValue(aiTraits.potty_trained)),
     bio_energy_level: safeEnergyValue(aiTraits.energy_level?.value),

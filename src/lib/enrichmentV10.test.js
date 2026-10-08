@@ -475,6 +475,33 @@ test("conditional household compatibility survives AI normalization as nuanced s
   }
 });
 
+test("cat compatibility persistence accepts exactly the v14 cat vocabulary", () => {
+  const accepted = [
+    ["true", 0.9, "yes"],
+    ["likely", 0.9, "most_likely"],
+    ["may_do_well", 0.9, "may_do_well"],
+    ["selective", 0.9, "selective"],
+    ["false", 0.9, "no"],
+    ["unknown", 0, "unknown"],
+  ];
+
+  for (const [value, confidence, expected] of accepted) {
+    const columns = buildBioColumns(
+      baseParsedTraits({ good_with_cats: trait(value, confidence, "Cat-specific evidence.", "bio_explicit") }),
+      null
+    );
+    assert.equal(columns.bio_good_with_cats, expected, value);
+  }
+
+  for (const value of ["only_dog", "older_children_only"]) {
+    const columns = buildBioColumns(
+      baseParsedTraits({ good_with_cats: trait(value, 0.9, "Invalid cross-field value.", "bio_explicit") }),
+      null
+    );
+    assert.equal(columns.bio_good_with_cats, "unknown", value);
+  }
+});
+
 test("explicit household restrictions are preserved as bio-explicit compatibility", () => {
   const cases = [
     ["good_with_cats", "bio_good_with_cats", "This dog needs a cat-free home.", "false", "no"],
