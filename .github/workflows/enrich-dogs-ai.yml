@@ -1,10 +1,8 @@
 name: Enrich Dog Profiles with AI
 
 on:
-  # Automatic scheduling is intentionally paused for the controlled rollout.
-  # After the five-dog canary is reviewed, restore the planned schedule:
-  # schedule:
-  #   - cron: "0 13 * * *"
+  schedule:
+    - cron: "0 13 * * *"
 
   workflow_dispatch:
     inputs:

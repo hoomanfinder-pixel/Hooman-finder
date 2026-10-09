@@ -7,17 +7,19 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const read = (filename) => fs.readFileSync(path.join(ROOT, filename), "utf8");
 
-test("rollout keeps scheduling paused while manual dispatch uses bounded retrying drain mode", () => {
+test("daily scheduling and manual dispatch both use bounded retrying drain mode", () => {
   const workflow = read(".github/workflows/enrich-dogs-ai.yml");
-  assert.doesNotMatch(workflow, /^\s{2}schedule:/m);
-  assert.match(workflow, /restore the planned schedule:/);
+  assert.match(workflow, /^\s{2}schedule:/m);
   assert.match(workflow, /cron:\s*["']0 13 \* \* \*["']/);
+  assert.equal(workflow.match(/cron:/g)?.length, 1);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /--drain/);
   assert.match(workflow, /--limit="\$BATCH_SIZE"/);
   assert.match(workflow, /--max-batches="\$MAX_BATCHES"/);
   assert.match(workflow, /--max-attempts=3/);
+  assert.match(workflow, /batch_size:[\s\S]*?default:\s*25/);
   assert.match(workflow, /default:\s*4/);
+  assert.match(workflow, /timeout-minutes:\s*45/);
   assert.doesNotMatch(workflow, /--force/);
 });
 
