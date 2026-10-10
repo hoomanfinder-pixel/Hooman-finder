@@ -411,6 +411,19 @@ test('CLI bounds limit and concurrency and apply is gated in source', () => {
   assert.doesNotMatch(source, /OpenAI|--force/);
 });
 
+test('CLI applies its bounded limit after global lifecycle prioritization', () => {
+  const now = new Date('2026-10-10T12:00:00Z');
+  const shelters = [
+    { id: 'verified', name: 'A', logo_checked_at: '2026-10-09T12:00:00Z', logo_verification_status: 'verified' },
+    { id: 'rejected', name: 'B', logo_checked_at: '2026-08-01T12:00:00Z', logo_verification_status: 'rejected' },
+    { id: 'broken', name: 'Z', logo_checked_at: '2026-10-09T12:00:00Z', logo_verification_status: 'broken' },
+    { id: 'unchecked', name: 'Y', logo_checked_at: null, logo_verification_status: null },
+  ];
+  const selected = cli.selectDueShelters(shelters, { limit: 2, now });
+  assert.deepEqual(selected.due.map(({ id }) => id), ['unchecked', 'broken']);
+  assert.equal(selected.totalDue, 3);
+});
+
 test('migration is additive, nullable, idempotent, and does not backfill logo data', () => {
   const sql = fs.readFileSync(path.join(ROOT, 'supabase/migrations/20261009130000_add_shelter_logo_provenance.sql'), 'utf8');
   for (const column of ['logo_source_url', 'logo_source_type', 'logo_verification_status', 'logo_checked_at']) {

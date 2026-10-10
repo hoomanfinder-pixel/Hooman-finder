@@ -52,6 +52,13 @@ function incrementSummary(summary, result) {
   else summary.rejected += 1;
 }
 
+function selectDueShelters(shelters, { limit, offset = 0, now = new Date() }) {
+  const due = shelters
+    .filter((shelter) => isDue(shelter, now))
+    .sort((a, b) => lifecyclePriority(a) - lifecyclePriority(b) || a.name.localeCompare(b.name));
+  return { due: due.slice(offset, offset + limit), totalDue: due.length };
+}
+
 async function main() {
   require('dotenv').config({ path: '.env.local' });
   const { createClient } = require('@supabase/supabase-js');
@@ -68,20 +75,21 @@ async function main() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   let shelterQuery = supabase.from('shelters').select('*').order('name');
-  shelterQuery = shelterIds.length
-    ? shelterQuery.in('id', shelterIds)
-    : shelterQuery.range(offset, offset + limit - 1);
+  if (shelterIds.length) shelterQuery = shelterQuery.in('id', shelterIds);
   const { data, error } = await shelterQuery;
   if (error) throw error;
   if (shelterIds.length && data.length !== shelterIds.length) {
     const found = new Set(data.map(({ id }) => id));
     throw new Error(`Shelter allowlist mismatch; missing: ${shelterIds.filter((id) => !found.has(id)).join(', ')}`);
   }
-  const due = data.filter((shelter) => isDue(shelter)).sort((a, b) => lifecyclePriority(a) - lifecyclePriority(b) || a.name.localeCompare(b.name));
+  const selected = shelterIds.length
+    ? selectDueShelters(data, { limit: shelterIds.length })
+    : selectDueShelters(data, { limit, offset });
+  const { due, totalDue } = selected;
   const summary = {
-    mode: apply ? 'apply' : 'dry_run', considered: due.length, skipped_verified: data.length - due.length,
+    mode: apply ? 'apply' : 'dry_run', considered: due.length, skipped_verified: data.length - totalDue,
     discovered: 0, verified_existing: 0, filled: 0, replaced: 0, rejected: 0,
-    no_candidate: 0, fetch_failed: 0, broken: 0, deferred: Math.max(0, data.length - due.length),
+    no_candidate: 0, fetch_failed: 0, broken: 0, deferred: Math.max(0, totalDue - due.length),
     apply_attempted: 0, applied: 0, skipped_changed_state: 0, failed: 0,
   };
   const results = await mapConcurrent(due, concurrency, async (shelter) => {
@@ -130,4 +138,4 @@ async function main() {
 
 if (require.main === module) main().catch((error) => { console.error(error); process.exitCode = 1; });
 
-module.exports = { boundedInteger, incrementSummary, mapConcurrent, parseShelterIds, validateWriteMode };
+module.exports = { boundedInteger, incrementSummary, mapConcurrent, parseShelterIds, selectDueShelters, validateWriteMode };
