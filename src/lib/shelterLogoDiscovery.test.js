@@ -423,13 +423,16 @@ test('migration is additive, nullable, idempotent, and does not backfill logo da
   assert.doesNotMatch(sql, /default/i);
 });
 
-test('workflow remains manual-only, dry-run by default, bounded, and reports summaries', () => {
+test('workflow runs daily and remains manually dispatchable, bounded, and safe by default', () => {
   const workflow = fs.readFileSync(path.join(ROOT, '.github/workflows/discover-shelter-logos.yml'), 'utf8');
-  assert.match(workflow, /# schedule:/);
-  assert.doesNotMatch(workflow, /^\s{2}schedule:/m);
+  assert.match(workflow, /^\s{2}schedule:/m);
+  assert.match(workflow, /cron:\s*["']0 12 \* \* \*["']/);
+  assert.equal(workflow.match(/cron:/g)?.length, 1);
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /default:\s*false/);
   assert.match(workflow, /default:\s*20/);
+  assert.match(workflow, /--limit="\$\{\{ inputs\.limit \|\| 20 \}\}"/);
+  assert.doesNotMatch(workflow, /--limit="\$\{\{ inputs\.limit \}\}"/);
   assert.match(workflow, /--concurrency=3/);
   assert.match(workflow, /timeout-minutes:\s*20/);
   assert.match(workflow, /SHELTER_LOGO_WRITES_ENABLED/);

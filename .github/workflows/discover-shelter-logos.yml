@@ -1,10 +1,8 @@
 name: Discover Shelter Logos
 
 on:
-  # Intended daily schedule after the 11:00 UTC shelter ingestion. Keep paused
-  # until the migration and a small production apply canary have been reviewed.
-  # schedule:
-  #   - cron: "0 12 * * *"
+  schedule:
+    - cron: "0 12 * * *"
   workflow_dispatch:
     inputs:
       apply:
@@ -45,6 +43,6 @@ jobs:
           SHELTER_LOGO_WRITES_ENABLED: ${{ (github.event_name == 'schedule' || inputs.apply) && 'true' || 'false' }}
         run: >-
           node scripts/discover-shelter-logos.cjs
-          --limit="${{ inputs.limit }}"
+          --limit="${{ inputs.limit || 20 }}"
           --concurrency=3
           ${{ (github.event_name == 'schedule' || inputs.apply) && '--apply' || '' }}
