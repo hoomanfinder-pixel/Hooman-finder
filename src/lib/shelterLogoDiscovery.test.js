@@ -158,6 +158,55 @@ test('pinned HTTPS keeps the original hostname for Host, SNI, and certificate va
   assert.equal(options.rejectUnauthorized, true);
 });
 
+test('backend 200 and browser-like embed 200 is fully accepted', async () => {
+  const calls = [];
+  const fetchImpl = async (_url, options) => {
+    calls.push(options.headers);
+    return new Response(png(), { status: 200, headers: { 'content-type': 'image/png' } });
+  };
+  const result = await validator.validateEmbeddableImage('https://rescue.example/logo.png', { fetchImpl, lookup: publicLookup });
+  assert.equal(result.ok, true);
+  assert.equal(result.backend.ok, true);
+  assert.equal(result.embed.ok, true);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].referer, undefined);
+  assert.equal(calls[1].referer, validator.EMBED_REFERER);
+  assert.equal(calls[1]['user-agent'], validator.EMBED_USER_AGENT);
+});
+
+test('backend 200 and browser-like embed 403 is rejected as embed-blocked', async () => {
+  const fetchImpl = async (_url, options) => options.headers.referer
+    ? new Response('blocked', { status: 403, headers: { 'content-type': 'text/plain' } })
+    : new Response(png(), { status: 200, headers: { 'content-type': 'image/png' } });
+  const result = await validator.validateEmbeddableImage('https://rescue.example/logo.png', { fetchImpl, lookup: publicLookup });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'embed_http_403');
+  assert.equal(result.backend.ok, true);
+  assert.deepEqual(result.embed, { ok: false, error: 'http_403' });
+});
+
+test('embed validation retains SSRF rejection and pinned redirect revalidation', async () => {
+  const privateLookup = async () => [{ address: '127.0.0.1', family: 4 }];
+  const privateResult = await validator.validateEmbeddableImage('https://rescue.example/logo.png', {
+    fetchImpl: async () => new Response(png(), { status: 200, headers: { 'content-type': 'image/png' } }),
+    lookup: privateLookup,
+  });
+  assert.equal(privateResult.ok, false);
+  assert.equal(privateResult.error, 'private_address');
+
+  const lookup = async (hostname) => [{ address: hostname === 'cdn.example' ? '142.250.72.14' : '93.184.216.34', family: 4 }];
+  const scripted = scriptedRequest([
+    { status: 200, headers: { 'content-type': 'image/png' }, body: png() },
+    { status: 302, headers: { location: 'https://cdn.example/final.png' } },
+    { status: 200, headers: { 'content-type': 'image/png' }, body: png() },
+  ]);
+  const result = await validator.validateEmbeddableImage('https://rescue.example/logo.png', { lookup, requestImpl: scripted.requestImpl });
+  assert.equal(result.ok, true);
+  assert.deepEqual(scripted.captures.map(({ address }) => address), ['93.184.216.34', '93.184.216.34', '142.250.72.14']);
+  assert.equal(scripted.captures[1].options.headers.referer, validator.EMBED_REFERER);
+  assert.equal(scripted.captures[2].options.headers.referer, validator.EMBED_REFERER);
+});
+
 test('image validation accepts supported static formats with matching MIME', () => {
   assert.equal(validator.inspectImage(png(), 'image/png').type, 'image/png');
   assert.equal(validator.inspectImage(jpeg(), 'image/jpeg').type, 'image/jpeg');
@@ -264,6 +313,40 @@ test('broken legacy logos can be replaced only by one validated high-confidence 
   assert.equal(result.action, 'replace');
   assert.equal(result.proposedUrl, 'https://rescue.example/new.png');
   assert.equal(result.status, 'verified');
+});
+
+test('a hotlink-blocked strong candidate is skipped for the next embeddable strong candidate', async () => {
+  const fetchImpl = async (url, options) => {
+    if (url.endsWith('old.png')) return new Response('missing', { status: 404 });
+    if (url === 'https://rescue.example/') {
+      return new Response('<header><img class="site-logo" src="/blocked.png"><img class="site-logo" src="/usable.png"></header>', {
+        status: 200, headers: { 'content-type': 'text/html' },
+      });
+    }
+    if (url.endsWith('blocked.png') && options.headers.referer) return new Response('blocked', { status: 403 });
+    if (url.endsWith('.png')) return new Response(png(), { status: 200, headers: { 'content-type': 'image/png' } });
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const result = await discovery.inspectShelter({ website: 'rescue.example', logo_url: 'https://rescue.example/old.png' }, { fetchImpl, lookup: publicLookup });
+  assert.equal(result.action, 'replace');
+  assert.equal(result.proposedUrl, 'https://rescue.example/usable.png');
+  assert.equal(result.candidates.find(({ url }) => url.endsWith('blocked.png')).validation.error, 'embed_http_403');
+});
+
+test('a backend-valid but embed-blocked existing logo fails closed as broken', async () => {
+  const fetchImpl = async (url, options) => {
+    if (url.endsWith('logo.png')) return options.headers.referer
+      ? new Response('blocked', { status: 403 })
+      : new Response(png(), { status: 200, headers: { 'content-type': 'image/png' } });
+    if (url === 'https://rescue.example/') return new Response('<main>No logo</main>', { status: 200, headers: { 'content-type': 'text/html' } });
+    throw new Error(`unexpected URL ${url}`);
+  };
+  const result = await discovery.inspectShelter({ website: 'rescue.example', logo_url: 'https://rescue.example/logo.png', logo_verification_status: 'verified' }, { fetchImpl, lookup: publicLookup });
+  assert.equal(result.action, 'broken');
+  assert.equal(result.status, 'broken');
+  assert.equal(result.proposedUrl, null);
+  assert.equal(result.existingValidation.error, 'embed_http_403');
+  assert.equal(discovery.buildLogoUpdate(result).logo_url, undefined);
 });
 
 test('an optional homepage failure does not discard a successfully fetched official subpage', async () => {

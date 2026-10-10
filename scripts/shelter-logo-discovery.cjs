@@ -1,10 +1,10 @@
 const {
-  fetchAndValidateImage,
   fetchSafely,
   isKnownAssetHost,
   isProhibitedLogoUrl,
   isSameSite,
   normalizeShelterWebsite,
+  validateEmbeddableImage,
 } = require('./shelter-logo-validator.cjs');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -125,8 +125,8 @@ function lifecyclePriority(shelter) {
 
 async function validateCandidate(candidate, adapters = {}) {
   try {
-    const validation = await fetchAndValidateImage(candidate.url, adapters);
-    return { ...candidate, validation: { ok: true, ...validation } };
+    const validation = await validateEmbeddableImage(candidate.url, adapters);
+    return { ...candidate, validation };
   } catch (error) {
     return { ...candidate, validation: { ok: false, error: error.message } };
   }

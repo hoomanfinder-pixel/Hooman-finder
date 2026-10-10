@@ -7,6 +7,10 @@ const MAX_REDIRECTS = 5;
 const MAX_HTML_BYTES = 2 * 1024 * 1024;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const USER_AGENT = "HoomanFinder-ShelterLogoVerifier/1.0 (+https://hoomanfinder.com)";
+const EMBED_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36";
+const EMBED_REFERER = "https://hoomanfinder.com/";
+const IMAGE_ACCEPT = "image/avif,image/webp,image/png,image/jpeg,image/svg+xml";
+const EMBED_IMAGE_ACCEPT = "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8";
 const ALLOWED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/avif", "image/svg+xml"]);
 const PROHIBITED_HOSTS = [
   /(^|\.)googleusercontent\.com$/i,
@@ -84,13 +88,13 @@ async function assertSafeNetworkUrl(value, { lookup = dns.lookup } = {}) {
   return { url, addresses };
 }
 
-function pinnedRequest({ url, addresses }, { timeoutMs, maxBytes, accept, requestImpl = null }) {
+function pinnedRequest({ url, addresses }, { timeoutMs, maxBytes, accept, headers = {}, requestImpl = null }) {
   return new Promise((resolve, reject) => {
     const target = addresses[0];
     const transport = url.protocol === 'https:' ? https : http;
     const hostname = url.hostname.replace(/^\[|\]$/g, '');
     const request = (requestImpl || transport.get)(url, {
-      headers: { 'user-agent': USER_AGENT, accept, host: url.host },
+      headers: { 'user-agent': USER_AGENT, accept, ...headers, host: url.host },
       family: target.family || net.isIP(target.address),
       rejectUnauthorized: true,
       servername: net.isIP(hostname) ? undefined : hostname,
@@ -156,6 +160,7 @@ async function fetchSafely(value, {
   maxRedirects = MAX_REDIRECTS,
   maxBytes = MAX_HTML_BYTES,
   accept = 'text/html,application/xhtml+xml',
+  headers = {},
 } = {}) {
   let current = String(value);
   for (let redirects = 0; redirects <= maxRedirects; redirects += 1) {
@@ -166,10 +171,10 @@ async function fetchSafely(value, {
       response = await fetchImpl(current, {
         redirect: 'manual',
         signal: AbortSignal.timeout(timeoutMs),
-        headers: { 'user-agent': USER_AGENT, accept },
+        headers: { 'user-agent': USER_AGENT, accept, ...headers },
       });
     } else {
-      const pinned = await pinnedRequest(safeTarget, { timeoutMs, maxBytes, accept, requestImpl });
+      const pinned = await pinnedRequest(safeTarget, { timeoutMs, maxBytes, accept, headers, requestImpl });
       response = pinned;
       body = pinned.body;
     }
@@ -277,9 +282,44 @@ async function fetchAndValidateImage(url, options = {}) {
   const result = await fetchSafely(url, {
     ...options,
     maxBytes: MAX_IMAGE_BYTES,
-    accept: 'image/avif,image/webp,image/png,image/jpeg,image/svg+xml',
+    accept: IMAGE_ACCEPT,
   });
   return { ...inspectImage(result.body, result.response.headers.get('content-type')), finalUrl: result.finalUrl, bytes: result.body.length };
+}
+
+async function fetchAndValidateEmbeddedImage(url, options = {}) {
+  if (isProhibitedLogoUrl(url)) throw new Error('prohibited_source');
+  const result = await fetchSafely(url, {
+    ...options,
+    maxBytes: MAX_IMAGE_BYTES,
+    accept: EMBED_IMAGE_ACCEPT,
+    headers: {
+      ...(options.headers || {}),
+      'user-agent': EMBED_USER_AGENT,
+      referer: EMBED_REFERER,
+    },
+  });
+  return { ...inspectImage(result.body, result.response.headers.get('content-type')), finalUrl: result.finalUrl, bytes: result.body.length };
+}
+
+async function validateEmbeddableImage(url, options = {}) {
+  let backend;
+  try {
+    backend = await fetchAndValidateImage(url, options);
+  } catch (error) {
+    return { ok: false, error: error.message, backend: { ok: false, error: error.message }, embed: null };
+  }
+  try {
+    const embed = await fetchAndValidateEmbeddedImage(url, options);
+    return { ok: true, ...backend, backend: { ok: true, ...backend }, embed: { ok: true, ...embed } };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `embed_${error.message}`,
+      backend: { ok: true, ...backend },
+      embed: { ok: false, error: error.message },
+    };
+  }
 }
 
 function registrableApprox(hostname) {
@@ -311,11 +351,14 @@ function isProhibitedLogoUrl(value) {
 
 module.exports = {
   ALLOWED_IMAGE_TYPES,
+  EMBED_REFERER,
+  EMBED_USER_AGENT,
   MAX_HTML_BYTES,
   MAX_IMAGE_BYTES,
   USER_AGENT,
   assertSafeNetworkUrl,
   fetchAndValidateImage,
+  fetchAndValidateEmbeddedImage,
   fetchSafely,
   inspectImage,
   isKnownAssetHost,
@@ -324,4 +367,5 @@ module.exports = {
   isSameSite,
   normalizeShelterWebsite,
   pinnedRequest,
+  validateEmbeddableImage,
 };
