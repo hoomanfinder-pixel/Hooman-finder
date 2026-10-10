@@ -294,7 +294,9 @@ test('persistence updates only logo lifecycle fields and carries both compare-an
   assert.deepEqual(Object.keys(payload).sort(), ['logo_checked_at', 'logo_source_type', 'logo_source_url', 'logo_url', 'logo_verification_status']);
   assert.ok(calls.some((call) => call[0] === 'eq' && call[1] === 'id' && call[2] === 's1'));
   assert.ok(calls.some((call) => call[0] === 'is' && call[1] === 'logo_url'));
-  assert.ok(calls.some((call) => call[0] === 'is' && call[1] === 'logo_verification_status'));
+  for (const field of ['logo_url', 'logo_source_url', 'logo_source_type', 'logo_verification_status', 'logo_checked_at']) {
+    assert.ok(calls.some((call) => call[0] === 'is' && call[1] === field), `missing guard for ${field}`);
+  }
 });
 
 test('persistence fails closed when compare-and-set matches no shelter row', async () => {
@@ -314,11 +316,15 @@ test('CLI bounds limit and concurrency and apply is gated in source', () => {
   assert.equal(cli.validateWriteMode({ apply: false, writesEnabled: false }), false);
   assert.throws(() => cli.validateWriteMode({ apply: true, writesEnabled: false }), /requires SHELTER_LOGO_WRITES_ENABLED/);
   assert.equal(cli.validateWriteMode({ apply: true, writesEnabled: true }), true);
+  assert.deepEqual(cli.parseShelterIds('7d90d385-c672-40dd-a995-0cd307ba2876,7d90d385-c672-40dd-a995-0cd307ba2876'), ['7d90d385-c672-40dd-a995-0cd307ba2876']);
+  assert.throws(() => cli.parseShelterIds('not-a-uuid'), /Invalid shelter UUID/);
   const source = fs.readFileSync(path.join(ROOT, 'scripts/discover-shelter-logos.cjs'), 'utf8');
   assert.match(source, /SHELTER_LOGO_WRITES_ENABLED === 'true'/);
   assert.match(source, /apply && !writesEnabled/);
   assert.match(source, /boundedInteger\('limit', 20, 20\)/);
   assert.match(source, /boundedInteger\('concurrency', 3, 3\)/);
+  assert.match(source, /shelterQuery\.in\('id', shelterIds\)/);
+  assert.match(source, /fillsOnly \|\| result\.action === 'fill'/);
   assert.doesNotMatch(source, /OpenAI|--force/);
 });
 

@@ -239,10 +239,9 @@ function buildLogoUpdate(result) {
 
 async function compareAndSetShelter(supabase, shelter, result) {
   let query = supabase.from('shelters').update(buildLogoUpdate(result)).eq('id', shelter.id);
-  query = shelter.logo_url == null ? query.is('logo_url', null) : query.eq('logo_url', shelter.logo_url);
-  query = shelter.logo_verification_status == null
-    ? query.is('logo_verification_status', null)
-    : query.eq('logo_verification_status', shelter.logo_verification_status);
+  for (const field of ['logo_url', 'logo_source_url', 'logo_source_type', 'logo_verification_status', 'logo_checked_at']) {
+    query = shelter[field] == null ? query.is(field, null) : query.eq(field, shelter[field]);
+  }
   const { data, error } = await query.select('id').maybeSingle();
   if (error) throw error;
   if (!data) throw new Error('compare_and_set_conflict');
