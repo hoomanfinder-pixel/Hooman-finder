@@ -10,6 +10,10 @@ const VERIFIED_ORG_ADOPTION_DESTINATIONS = Object.freeze({
   "10584": "https://www.noahprojectmuskegon.org/adopt",
 });
 
+const VERIFIED_ORG_HOME_PAGES = Object.freeze({
+  "6454": "https://projecthoperescue.org",
+});
+
 function clean(value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -56,6 +60,10 @@ function getVerifiedOrgAdoptionDestination(orgId) {
   return VERIFIED_ORG_ADOPTION_DESTINATIONS[String(orgId || "")] || null;
 }
 
+function getVerifiedOrgHomePage(orgId) {
+  return VERIFIED_ORG_HOME_PAGES[String(orgId || "")] || null;
+}
+
 function resolveRescueGroupsAdoptionUrl({ orgId, candidates = [] }) {
   return (
     firstSafeAuthoritativeUrl(...candidates) ||
@@ -63,11 +71,18 @@ function resolveRescueGroupsAdoptionUrl({ orgId, candidates = [] }) {
   );
 }
 
+function resolveRescueGroupsOrganizationUrl({ orgId, candidates = [] }) {
+  return firstSafeAuthoritativeUrl(...candidates) || getVerifiedOrgHomePage(orgId);
+}
+
 module.exports = {
   VERIFIED_ORG_ADOPTION_DESTINATIONS,
+  VERIFIED_ORG_HOME_PAGES,
   firstSafeAuthoritativeUrl,
   getVerifiedOrgAdoptionDestination,
+  getVerifiedOrgHomePage,
   isBrokenRescueGroupsFallback,
   isValidHttpsUrl,
   resolveRescueGroupsAdoptionUrl,
+  resolveRescueGroupsOrganizationUrl,
 };

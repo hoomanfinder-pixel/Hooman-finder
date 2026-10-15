@@ -22,6 +22,7 @@ const {
 } = require("./scripts/dog-availability.cjs");
 const {
   resolveRescueGroupsAdoptionUrl,
+  resolveRescueGroupsOrganizationUrl,
 } = require("./scripts/rescuegroups-adoption-urls.cjs");
 const {
   HASHED_FIELDS,
@@ -496,6 +497,15 @@ function mapAnimalToDogRow(animal, included, rescue, options = {}) {
     cleanText(attrs.descriptionHtml) ||
     cleanText(attrs.description);
   const adoptionUrl = getPublicListingUrl(animal, org || orgId);
+  const organizationUrlCandidates = [orgAttrs.url, orgAttrs.website];
+  const hasOrganizationUrlValue = organizationUrlCandidates.some(hasText);
+  const organizationUrl =
+    String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID
+      ? DACC_WEBSITE
+      : resolveRescueGroupsOrganizationUrl({
+          orgId,
+          candidates: organizationUrlCandidates,
+        });
   const photoUrls = getPhotoUrls(animal, included);
   const photoUrl = photoUrls[0] || null;
   const now = new Date().toISOString();
@@ -553,10 +563,12 @@ function mapAnimalToDogRow(animal, included, rescue, options = {}) {
     adoption_url: adoptionUrl,
 
     shelter_name: orgAttrs.name || rescue.name,
-    shelter_website:
-      String(orgId || "") === DACC_RESCUEGROUPS_ORG_ID
-        ? DACC_WEBSITE
-        : orgAttrs.url || orgAttrs.website || null,
+    shelter_website: organizationUrl,
+    _shelterWebsiteStatus: organizationUrl
+      ? "resolved"
+      : hasOrganizationUrlValue
+        ? "invalid"
+        : "missing",
     shelter_id: rescue.supabaseShelterId,
 
     placement_type: "Shelter",
@@ -603,6 +615,8 @@ function mapAnimalToDogRow(animal, included, rescue, options = {}) {
 
 function buildExistingDogUpdate(dog, existingDog) {
   const updateRow = { ...dog };
+  const shelterWebsiteStatus = updateRow._shelterWebsiteStatus;
+  delete updateRow._shelterWebsiteStatus;
 
   // Existing display placement is intentionally not rewritten as part of the
   // source-geography migration. The new source_location_* fields carry the
@@ -617,6 +631,9 @@ function buildExistingDogUpdate(dog, existingDog) {
   delete updateRow._sourceLocationStatus;
 
   for (const field of SPARSE_SOURCE_FIELDS) {
+    if (field === "shelter_website" && shelterWebsiteStatus === "invalid") {
+      continue;
+    }
     if (!hasMeaningfulSourceValue(updateRow[field])) {
       delete updateRow[field];
     }
@@ -1026,6 +1043,7 @@ async function upsertDogs(dogs) {
         console.log(`Not inserting ${dog.name}: ${publicationFilterReason}.`);
       } else {
         delete cleanDog._sourceLocationStatus;
+        delete cleanDog._shelterWebsiteStatus;
         const tracksRescueGroupsDescription =
           String(cleanDog.rescuegroups_org_id || "") !== DACC_RESCUEGROUPS_ORG_ID;
         const dogWithHash = {

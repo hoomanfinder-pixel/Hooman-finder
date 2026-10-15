@@ -5,8 +5,10 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const {
   getVerifiedOrgAdoptionDestination,
+  getVerifiedOrgHomePage,
   isBrokenRescueGroupsFallback,
   resolveRescueGroupsAdoptionUrl,
+  resolveRescueGroupsOrganizationUrl,
 } = require("../../scripts/rescuegroups-adoption-urls.cjs");
 
 test("the broken www RescueGroups detail fallback is rejected", () => {
@@ -47,5 +49,34 @@ test("malformed and insecure values are not accepted as authoritative URLs", () 
       candidates: ["not a URL", "http://example.com/dog"],
     }),
     "https://angelsrescue.org/available-pets/"
+  );
+});
+
+test("bare schemes are rejected as organization URLs", () => {
+  for (const value of ["http://", "https://"]) {
+    assert.equal(
+      resolveRescueGroupsOrganizationUrl({ orgId: "unconfigured", candidates: [value] }),
+      null
+    );
+  }
+});
+
+test("a valid organization URL remains unchanged", () => {
+  const organizationUrl = "https://example.org/about";
+  assert.equal(
+    resolveRescueGroupsOrganizationUrl({ orgId: "unconfigured", candidates: [organizationUrl] }),
+    organizationUrl
+  );
+});
+
+test("Project Hope alone receives its verified organization homepage fallback", () => {
+  assert.equal(getVerifiedOrgHomePage("6454"), "https://projecthoperescue.org");
+  assert.equal(
+    resolveRescueGroupsOrganizationUrl({ orgId: "6454", candidates: ["http://"] }),
+    "https://projecthoperescue.org"
+  );
+  assert.equal(
+    resolveRescueGroupsOrganizationUrl({ orgId: "6172", candidates: ["http://"] }),
+    null
   );
 });

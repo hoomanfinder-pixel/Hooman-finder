@@ -380,6 +380,67 @@ test("organization adoption URL is a safe fallback when an animal has no listing
   assert.equal(mapped.adoption_url, "https://example.org/adopt");
 });
 
+test("scheduled mapping preserves valid organization websites and animal adoption URLs", () => {
+  const adoptionUrl = "https://example.org/dogs/scout";
+  const organizationUrl = "https://example.org/about";
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-valid-org-url",
+      attributes: { name: "Scout", url: adoptionUrl },
+      relationships: { orgs: { data: [{ type: "orgs", id: "159" }] } },
+    },
+    [{ type: "orgs", id: "159", attributes: { url: organizationUrl } }],
+    rescue("Example Rescue", "159")
+  );
+
+  assert.equal(mapped.source_url, adoptionUrl);
+  assert.equal(mapped.adoption_url, adoptionUrl);
+  assert.equal(mapped.shelter_website, organizationUrl);
+});
+
+test("Project Hope fallback replaces a bare organization scheme during normal updates", () => {
+  const adoptionUrl = "https://projecthoperescue.org/dogs/scout";
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-project-hope",
+      attributes: { name: "Scout", url: adoptionUrl },
+      relationships: { orgs: { data: [{ type: "orgs", id: "6454" }] } },
+    },
+    [{ type: "orgs", id: "6454", attributes: { url: "http://" } }],
+    rescue("Project Hope Animal Rescue", "6454")
+  );
+  const update = buildExistingDogUpdate(
+    mapped,
+    existingDog({ shelter_website: "http://" })
+  );
+
+  assert.equal(mapped.source_url, adoptionUrl);
+  assert.equal(mapped.adoption_url, adoptionUrl);
+  assert.equal(mapped.shelter_website, "https://projecthoperescue.org");
+  assert.equal(update.shelter_website, "https://projecthoperescue.org");
+  assert.equal(Object.hasOwn(update, "_shelterWebsiteStatus"), false);
+});
+
+test("other organizations clear bare schemes without receiving Project Hope's fallback", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-other-invalid-org-url",
+      attributes: { name: "Scout", url: "https://example.org/dogs/scout" },
+      relationships: { orgs: { data: [{ type: "orgs", id: "159" }] } },
+    },
+    [{ type: "orgs", id: "159", attributes: { website: "https://" } }],
+    rescue("Example Rescue", "159")
+  );
+  const update = buildExistingDogUpdate(
+    mapped,
+    existingDog({ shelter_website: "https://" })
+  );
+
+  assert.equal(mapped.shelter_website, null);
+  assert.equal(update.shelter_website, null);
+  assert.notEqual(update.shelter_website, "https://projecthoperescue.org");
+});
+
 test("configured publication state codes are persisted in canonical uppercase form", () => {
   const mapped = mapAnimalToDogRow(
     { id: "dog-state", attributes: { name: "Scout", locationState: "Ny" } },
