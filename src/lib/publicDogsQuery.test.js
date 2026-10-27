@@ -6,6 +6,7 @@ import {
   PUBLIC_DOG_QUERY_PAGE_SIZE,
   fetchAllPublicDogs,
 } from "./publicDogsQuery.js";
+import { filterDogItems } from "./dogListFilters.js";
 
 function publicDog(index) {
   return {
@@ -69,4 +70,46 @@ test("dogs beyond the first 1,000 rows are included in matching", async () => {
 
   assert.equal(ranked.length, 1205);
   assert.ok(ranked.some((row) => row.dog.id === "dog-1204"));
+});
+
+test("pagination applies public eligibility to the complete inventory", async () => {
+  const sourceRows = Array.from({ length: 1109 }, (_, index) => ({
+    ...publicDog(index),
+    placement_state: index >= 1000 ? "GA" : "MI",
+  }));
+
+  sourceRows.push(
+    { ...publicDog(2000), placement_state: "GA", adoption_pending: true },
+    { ...publicDog(2001), placement_state: "GA", availability_status: "unavailable" },
+    { ...publicDog(2002), placement_state: "GA", verified: false },
+  );
+
+  const dogs = await fetchAllPublicDogs(mockSupabase(sourceRows), { select: "*" });
+  const georgiaDogs = filterDogItems(dogs, { stateFilter: "GA" });
+
+  assert.equal(dogs.length, 1109);
+  assert.equal(georgiaDogs.length, 109);
+  assert.ok(georgiaDogs.every((dog) => dog.placement_state === "GA"));
+  assert.ok(georgiaDogs.some((dog) => dog.id === "dog-1108"));
+  assert.ok(!dogs.some((dog) => ["dog-2000", "dog-2001", "dog-2002"].includes(dog.id)));
+});
+
+test("matching intentionally excludes confirmed incompatibilities without changing public inventory", async () => {
+  const publicDogs = Array.from({ length: 1109 }, (_, index) => ({
+    ...publicDog(index),
+    good_with_dogs: index >= 1070 ? false : true,
+  }));
+
+  const dogs = await fetchAllPublicDogs(mockSupabase(publicDogs), { select: "*" });
+  const ranked = computeRankedMatches(dogs, {
+    size_preference: ["any"],
+    age_preference: ["any"],
+    kids_in_home: ["no_children"],
+    pets_in_home: ["dogs"],
+    potty_requirement: "preferred",
+  });
+
+  assert.equal(dogs.length, 1109);
+  assert.equal(ranked.length, 1070);
+  assert.ok(ranked.every((row) => row.dog.good_with_dogs !== false));
 });

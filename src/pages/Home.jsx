@@ -2,6 +2,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import SEO from "../components/SEO";
+import HomeFeaturedDogsView, {
+  getHomepageFeaturedDogsViewState,
+} from "../components/HomeFeaturedDogsView.js";
 import TrustRibbon, { HomeIcon } from "../components/TrustRibbon";
 import { getDogSourceLocation } from "../lib/dogSource";
 import { filterPublicDogs } from "../lib/dogVisibility";
@@ -285,6 +288,7 @@ function pickDailyFeaturedDogs(dogs, count = 6) {
 
 export default function Home() {
   const [featuredDogs, setFeaturedDogs] = useState([]);
+  const [dogLoadLoading, setDogLoadLoading] = useState(true);
   const [dogLoadFailed, setDogLoadFailed] = useState(false);
   const publicDogCount = platformStats.public_dog_count;
   const shelterCount = platformStats.public_shelter_count;
@@ -341,6 +345,7 @@ export default function Home() {
         if (isMounted) {
           setFeaturedDogs(pickDailyFeaturedDogs(sortedDogs));
           setDogLoadFailed(false);
+          setDogLoadLoading(false);
         }
       } catch (error) {
         console.error("Could not load homepage dogs:", error);
@@ -348,6 +353,7 @@ export default function Home() {
         if (isMounted) {
           setFeaturedDogs([]);
           setDogLoadFailed(true);
+          setDogLoadLoading(false);
         }
       }
     }
@@ -369,6 +375,11 @@ export default function Home() {
         .slice(0, 3),
     [featuredDogs]
   );
+  const featuredDogsState = getHomepageFeaturedDogsViewState({
+    count: previewDogs.length,
+    loading: dogLoadLoading,
+    failed: dogLoadFailed,
+  });
 
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
@@ -523,10 +534,13 @@ export default function Home() {
               ) : null}
             </div>
 
-            {previewDogs.length > 0 ? (
-              <>
-                <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
-                  {previewDogs.map((dog) => {
+            <HomeFeaturedDogsView
+              state={featuredDogsState}
+            >
+              {previewDogs.length > 0 ? (
+                <>
+                  <div className="mt-4 flex gap-3 overflow-x-auto pb-2 sm:grid sm:grid-cols-3 sm:gap-5 sm:overflow-visible">
+                    {previewDogs.map((dog) => {
                     const image =
                       previewDogImage(dog?.photo_url) || fallbackDogImages[0];
                     const age = previewDogAge(dog);
@@ -572,8 +586,8 @@ export default function Home() {
                         </div>
                       </Link>
                     );
-                  })}
-                </div>
+                    })}
+                  </div>
 
                 <Link
                   to="/dogs"
@@ -590,22 +604,9 @@ export default function Home() {
                     Take the quiz to find your match
                   </Link>
                 </div>
-              </>
-            ) : (
-              <div className="mt-4 flex min-h-72 flex-col items-center justify-center rounded-2xl border border-[#C7D4BB] bg-white p-6 text-center sm:min-h-[22rem] sm:p-8">
-                <p className="text-sm leading-6 text-[#6F6A66]">
-                  {dogLoadFailed
-                    ? "We could not load dogs right now. Please try again in a moment."
-                    : "New adoptable dogs are added regularly. Check back soon, or browse the full list."}
-                </p>
-                <Link
-                  to="/dogs"
-                  className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35] px-6 text-sm font-bold text-[#183D35] transition hover:bg-[#183D35] hover:text-white"
-                >
-                  Browse Dogs
-                </Link>
-              </div>
-            )}
+                </>
+              ) : null}
+            </HomeFeaturedDogsView>
           </div>
         </section>
 
