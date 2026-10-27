@@ -13,6 +13,12 @@ import {
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
+import { filterDogItems } from "../lib/dogListFilters";
+import {
+  getNextVisibleDogCount,
+  getVisibleDogItems,
+  INITIAL_DOG_CARD_COUNT,
+} from "../lib/incrementalDogRendering";
 import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
 import { trackQuizComplete, trackResultsView } from "../lib/googleAnalytics";
 import { fetchAllPublicDogs } from "../lib/publicDogsQuery";
@@ -61,50 +67,6 @@ const DOG_SELECT = `
   )
 `;
 
-function parsedAgeYearsFromText(ageText) {
-  const text = String(ageText || "").toLowerCase().trim();
-  if (!text) return null;
-
-  const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*year/);
-  const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*month/);
-  const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*week/);
-  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*day/);
-
-  if (!yearMatch && !monthMatch && !weekMatch && !dayMatch) return null;
-
-  const years = Number(yearMatch?.[1] || 0);
-  const months = Number(monthMatch?.[1] || 0);
-  const weeks = Number(weekMatch?.[1] || 0);
-  const days = Number(dayMatch?.[1] || 0);
-  return years + months / 12 + weeks / 52 + days / 365;
-}
-
-// age_years has been observed inconsistent with age_text on some historical
-// rows (e.g. a raw month count stored as whole years). When the two disagree
-// by more than half a year, the unit-aware text parse is preferred.
-function normalizeAgeBucket(ageYears, ageText) {
-  const raw = Number(ageYears);
-  const parsed = parsedAgeYearsFromText(ageText);
-
-  let n = Number.isFinite(raw) ? raw : null;
-  if (parsed !== null && (n === null || Math.abs(n - parsed) > 0.5)) {
-    n = parsed;
-  }
-
-  if (Number.isFinite(n)) {
-    if (n < 2) return "puppy";
-    if (n < 7) return "adult";
-    return "senior";
-  }
-
-  const text = String(ageText || "").toLowerCase();
-
-  if (text.includes("puppy")) return "puppy";
-  if (text.includes("senior")) return "senior";
-
-  return null;
-}
-
 function getShelterId(dog) {
   return getDogSourceFilterId(dog) || "";
 }
@@ -125,6 +87,7 @@ export default function Results() {
   const [err, setErr] = useState("");
   const [completedResultsSessionId, setCompletedResultsSessionId] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [visibleMatchCount, setVisibleMatchCount] = useState(INITIAL_DOG_CARD_COUNT);
   const filtersRef = useRef(null);
 
   const [rescueFilter, setRescueFilter] = useState("all");
@@ -257,37 +220,18 @@ export default function Results() {
   );
 
   const filteredRows = useMemo(() => {
-    return rankedRows.filter((row) => {
-      const dog = row.dog;
-
-      if (dog?.urgency_level === "Adopted") return false;
-
-      if (rescueFilter !== "all") {
-        const shelterId = getShelterId(dog);
-        if (shelterId !== rescueFilter) return false;
-      }
-
-      if (
-        stateFilter !== "all" &&
-        String(dog?.placement_state || "").trim().toUpperCase() !== stateFilter
-      ) return false;
-
-      if (ageFilter !== "all") {
-        const bucket = normalizeAgeBucket(dog?.age_years, dog?.age_text);
-        if (bucket !== ageFilter) return false;
-      }
-
-      if (sizeFilter !== "all" && dog?.size !== sizeFilter) return false;
-      if (energyFilter !== "all" && dog?.energy_level !== energyFilter) return false;
-
-      if (hypoOnly && !dog?.hypoallergenic) return false;
-      if (pottyOnly && !dog?.potty_trained) return false;
-      if (kidsOnly && !dog?.good_with_kids) return false;
-      if (catsOnly && !dog?.good_with_cats) return false;
-      if (dogsOnly && dog?.good_with_dogs !== true) return false;
-
-      return true;
-    });
+    return filterDogItems(rankedRows, {
+      rescueFilter,
+      stateFilter,
+      ageFilter,
+      sizeFilter,
+      energyFilter,
+      hypoOnly,
+      pottyOnly,
+      kidsOnly,
+      catsOnly,
+      dogsOnly,
+    }, (row) => row.dog);
   }, [
     rankedRows,
     rescueFilter,
@@ -301,6 +245,26 @@ export default function Results() {
     catsOnly,
     dogsOnly,
   ]);
+
+  useEffect(() => {
+    setVisibleMatchCount(INITIAL_DOG_CARD_COUNT);
+  }, [
+    rescueFilter,
+    stateFilter,
+    ageFilter,
+    sizeFilter,
+    energyFilter,
+    hypoOnly,
+    pottyOnly,
+    kidsOnly,
+    catsOnly,
+    dogsOnly,
+  ]);
+
+  const visibleRows = useMemo(
+    () => getVisibleDogItems(filteredRows, visibleMatchCount),
+    [filteredRows, visibleMatchCount]
+  );
 
   const activeFilterCount = [
     rescueFilter !== "all",
@@ -659,7 +623,7 @@ export default function Results() {
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredRows.map((row, idx) => (
+              {visibleRows.map((row, idx) => (
                 <DogCard
                   key={row.dog?.id ?? idx}
                   dog={row.dog}
@@ -671,6 +635,23 @@ export default function Results() {
                   rank={idx + 1}
                 />
               ))}
+            </div>
+
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <p className="text-sm font-semibold text-[#6F6A66]" aria-live="polite">
+                Showing {visibleRows.length} of {filteredRows.length} matches
+              </p>
+              {visibleRows.length < filteredRows.length ? (
+                <button
+                  type="button"
+                  onClick={() => setVisibleMatchCount((current) =>
+                    getNextVisibleDogCount(current, filteredRows.length)
+                  )}
+                  className="min-h-11 rounded-full bg-[#183D35] px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm hover:bg-[#12332C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
+                >
+                  Load more matches
+                </button>
+              ) : null}
             </div>
           </section>
         )}

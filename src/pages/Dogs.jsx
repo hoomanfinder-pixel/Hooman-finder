@@ -8,6 +8,12 @@ import SiteFooter from "../components/SiteFooter";
 import Breadcrumbs, { StructuredData } from "../components/Breadcrumbs";
 import { breadcrumbJsonLd } from "../lib/structuredData";
 import { filterPublicDogs } from "../lib/dogVisibility";
+import { filterDogItems } from "../lib/dogListFilters";
+import {
+  getNextVisibleDogCount,
+  getVisibleDogItems,
+  INITIAL_DOG_CARD_COUNT,
+} from "../lib/incrementalDogRendering";
 import {
   getDogApplyLink,
   getDogSourceFilterId,
@@ -16,6 +22,7 @@ import {
 } from "../lib/dogSource";
 import { supabase } from "../lib/supabase";
 import { INDEXABLE_ROUTE_SEO, readPrerenderData } from "../lib/siteSeo";
+import { fetchAllPublicDogs } from "../lib/publicDogsQuery";
 
 const AGE_OPTIONS = [
   { label: "All ages", value: "all" },
@@ -38,50 +45,6 @@ const ENERGY_OPTIONS = [
   { label: "Moderate", value: "Moderate" },
   { label: "High", value: "High" },
 ];
-
-function parsedAgeYearsFromText(ageText) {
-  const text = String(ageText || "").toLowerCase().trim();
-  if (!text) return null;
-
-  const yearMatch = text.match(/(\d+(?:\.\d+)?)\s*year/);
-  const monthMatch = text.match(/(\d+(?:\.\d+)?)\s*month/);
-  const weekMatch = text.match(/(\d+(?:\.\d+)?)\s*week/);
-  const dayMatch = text.match(/(\d+(?:\.\d+)?)\s*day/);
-
-  if (!yearMatch && !monthMatch && !weekMatch && !dayMatch) return null;
-
-  const years = Number(yearMatch?.[1] || 0);
-  const months = Number(monthMatch?.[1] || 0);
-  const weeks = Number(weekMatch?.[1] || 0);
-  const days = Number(dayMatch?.[1] || 0);
-  return years + months / 12 + weeks / 52 + days / 365;
-}
-
-// age_years has been observed inconsistent with age_text on some historical
-// rows (e.g. a raw month count stored as whole years). When the two disagree
-// by more than half a year, the unit-aware text parse is preferred.
-function normalizeAgeBucket(ageYears, ageText) {
-  const raw = Number(ageYears);
-  const parsed = parsedAgeYearsFromText(ageText);
-
-  let n = Number.isFinite(raw) ? raw : null;
-  if (parsed !== null && (n === null || Math.abs(n - parsed) > 0.5)) {
-    n = parsed;
-  }
-
-  if (Number.isFinite(n)) {
-    if (n < 2) return "puppy";
-    if (n < 7) return "adult";
-    return "senior";
-  }
-
-  const text = String(ageText || "").toLowerCase();
-
-  if (text.includes("puppy")) return "puppy";
-  if (text.includes("senior")) return "senior";
-
-  return null;
-}
 
 function urgencyRank(level) {
   switch (level) {
@@ -139,8 +102,11 @@ export default function Dogs() {
     []
   );
   const [loading, setLoading] = useState(initialDogs.length === 0);
+  const [loadError, setLoadError] = useState("");
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [dogs, setDogs] = useState(initialDogs);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [visibleDogCount, setVisibleDogCount] = useState(INITIAL_DOG_CARD_COUNT);
   const filtersRef = useRef(null);
 
   const [rescueFilter, setRescueFilter] = useState("all");
@@ -160,10 +126,11 @@ export default function Dogs() {
 
     async function loadDogs() {
       setLoading(true);
+      setLoadError("");
 
-      const { data, error } = await supabase
-        .from("dogs")
-        .select(`
+      try {
+        const data = await fetchAllPublicDogs(supabase, {
+          select: `
           *,
           shelters (
             id,
@@ -182,23 +149,21 @@ export default function Dogs() {
             publication_eligible,
             last_successful_sync_at
           )
-        `)
-        .eq("adoptable", true)
-        .or("adoption_pending.is.null,adoption_pending.eq.false")
-        .in("availability_status", ["available", "active", "unknown"])
-        .order("created_at", { ascending: false });
+          `,
+        });
 
-      if (!mounted) return;
+        if (!mounted) return;
 
-      if (error) {
+        setDogs(data.map(normalizeDog));
+      } catch (error) {
+        if (!mounted) return;
         console.error("Error fetching dogs:", error);
-        setDogs([]);
-      } else {
-        const normalizedDogs = filterPublicDogs(data).map(normalizeDog);
-        setDogs(normalizedDogs);
+        setLoadError(
+          "We couldn't fully load the latest adoptable-dog listings. Please try again."
+        );
+      } finally {
+        if (mounted) setLoading(false);
       }
-
-      setLoading(false);
     }
 
     loadDogs();
@@ -206,7 +171,7 @@ export default function Dogs() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadAttempt]);
 
   const rescueOptions = useMemo(() => {
     const map = new Map();
@@ -243,36 +208,18 @@ export default function Dogs() {
   }, [dogs]);
 
   const filteredDogs = useMemo(() => {
-    return dogs
-      .filter((dog) => {
-        if (dog.urgency_level === "Adopted") return false;
-
-        if (rescueFilter !== "all") {
-          const shelterId = getShelterId(dog);
-          if (shelterId !== rescueFilter) return false;
-        }
-
-        if (
-          stateFilter !== "all" &&
-          String(dog.placement_state || "").trim().toUpperCase() !== stateFilter
-        ) return false;
-
-        if (ageFilter !== "all") {
-          const bucket = normalizeAgeBucket(dog.age_years, dog.age_text);
-          if (bucket !== ageFilter) return false;
-        }
-
-        if (sizeFilter !== "all" && dog.size !== sizeFilter) return false;
-        if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
-
-        if (hypoOnly && !dog.hypoallergenic) return false;
-        if (pottyOnly && !dog.potty_trained) return false;
-        if (kidsOnly && !dog.good_with_kids) return false;
-        if (catsOnly && !dog.good_with_cats) return false;
-        if (dogsOnly && dog.good_with_dogs !== true) return false;
-
-        return true;
-      })
+    return filterDogItems(dogs, {
+      rescueFilter,
+      stateFilter,
+      ageFilter,
+      sizeFilter,
+      energyFilter,
+      hypoOnly,
+      pottyOnly,
+      kidsOnly,
+      catsOnly,
+      dogsOnly,
+    })
       .sort((a, b) => {
         const urgencyDiff = urgencyRank(a.urgency_level) - urgencyRank(b.urgency_level);
         if (urgencyDiff !== 0) return urgencyDiff;
@@ -291,6 +238,26 @@ export default function Dogs() {
     catsOnly,
     dogsOnly,
   ]);
+
+  useEffect(() => {
+    setVisibleDogCount(INITIAL_DOG_CARD_COUNT);
+  }, [
+    rescueFilter,
+    stateFilter,
+    ageFilter,
+    sizeFilter,
+    energyFilter,
+    hypoOnly,
+    pottyOnly,
+    kidsOnly,
+    catsOnly,
+    dogsOnly,
+  ]);
+
+  const visibleDogs = useMemo(
+    () => getVisibleDogItems(filteredDogs, visibleDogCount),
+    [filteredDogs, visibleDogCount]
+  );
 
   const activeFilterCount = [
     rescueFilter !== "all",
@@ -328,6 +295,11 @@ export default function Dogs() {
       }
       return next;
     });
+  }
+
+  function retryLoadDogs() {
+    if (loading) return;
+    setLoadAttempt((current) => current + 1);
   }
 
   return (
@@ -571,9 +543,43 @@ export default function Dogs() {
           </section>
         ) : null}
 
-        {loading ? (
+        {loadError ? (
+          <section
+            role="alert"
+            aria-labelledby="dog-list-load-error-title"
+            className="mt-5 rounded-[1.35rem] border border-amber-300 bg-amber-50 p-5 text-[#183D35]"
+          >
+            <h2
+              id="dog-list-load-error-title"
+              className="font-['Fraunces',serif] text-xl font-semibold"
+            >
+              We couldn't fully load the latest listings.
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#6F6A66]">
+              {dogs.length > 0
+                ? "We're showing the valid listings that were already available, but some current dogs may be missing."
+                : loadError}
+            </p>
+            <button
+              type="button"
+              onClick={retryLoadDogs}
+              disabled={loading}
+              className="mt-4 min-h-11 rounded-full bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm hover:bg-[#12332C] disabled:cursor-wait disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
+            >
+              Retry loading listings
+            </button>
+          </section>
+        ) : null}
+
+        {loading && dogs.length > 0 ? (
+          <p role="status" className="mt-4 text-sm font-semibold text-[#6F6A66]">
+            Refreshing adoptable dogs…
+          </p>
+        ) : null}
+
+        {loading && dogs.length === 0 ? (
           <DogGridSkeleton count={6} />
-        ) : filteredDogs.length === 0 ? (
+        ) : filteredDogs.length === 0 && !loadError ? (
           <div className="mt-5 rounded-[1.35rem] border border-[#C7D4BB] bg-white/60 p-5">
             <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
               No dogs match those filters yet.
@@ -600,7 +606,7 @@ export default function Dogs() {
               </Link>
             </div>
           </div>
-        ) : (
+        ) : filteredDogs.length > 0 ? (
           <section className="mt-4 sm:mt-6">
             <div className="mb-3 flex items-center justify-between gap-3">
               <p className="text-sm font-semibold text-[#6F6A66]">
@@ -619,7 +625,7 @@ export default function Dogs() {
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-              {filteredDogs.map((dog) => (
+              {visibleDogs.map((dog) => (
                 <DogCard
                   key={dog.id}
                   dog={dog}
@@ -629,8 +635,25 @@ export default function Dogs() {
                 />
               ))}
             </div>
+
+            <div className="mt-6 flex flex-col items-center gap-3">
+              <p className="text-sm font-semibold text-[#6F6A66]" aria-live="polite">
+                Showing {visibleDogs.length} of {filteredDogs.length} dogs
+              </p>
+              {visibleDogs.length < filteredDogs.length ? (
+                <button
+                  type="button"
+                  onClick={() => setVisibleDogCount((current) =>
+                    getNextVisibleDogCount(current, filteredDogs.length)
+                  )}
+                  className="min-h-11 rounded-full bg-[#183D35] px-6 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] shadow-sm hover:bg-[#12332C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
+                >
+                  Load more dogs
+                </button>
+              ) : null}
+            </div>
           </section>
-        )}
+        ) : null}
       </main>
 
       <SiteFooter />
