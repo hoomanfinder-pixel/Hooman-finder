@@ -1,12 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://hoomanfinder.com/dog/001a223d-a0f3-435d-ad3f-a2dc62b3e887</loc>
-    <lastmod>2026-10-26</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/0042b69b-5d20-47d9-8934-57f8b35d22e7</loc>
     <lastmod>2026-10-25</lastmod>
     <changefreq>daily</changefreq>
@@ -121,12 +115,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/04c8baa0-148f-473b-b500-8ab619489748</loc>
-    <lastmod>2026-10-09</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/04fd08a8-e051-4ff9-8ec7-52c02b3d0395</loc>
     <lastmod>2026-08-16</lastmod>
     <changefreq>daily</changefreq>
@@ -229,12 +217,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/09f7ee24-f4c4-496c-98d1-9fefb71ff866</loc>
-    <lastmod>2026-10-05</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/0a1e0d05-4e19-493b-afd2-f4eb8edc5e53</loc>
     <lastmod>2026-10-25</lastmod>
     <changefreq>daily</changefreq>
@@ -289,12 +271,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/0d10cbb7-ee14-41cb-9d9a-19eb3cf48600</loc>
-    <lastmod>2026-10-11</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/0d49e846-b1c3-4250-a23f-aae76a2d16ce</loc>
     <lastmod>2026-05-29</lastmod>
     <changefreq>daily</changefreq>
@@ -331,12 +307,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/0f1d5d88-45d6-48bb-98b8-31dea31f31ab</loc>
-    <lastmod>2026-10-22</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/0f71faed-90a4-4c46-b46d-5316992b8930</loc>
     <lastmod>2026-10-27</lastmod>
     <changefreq>daily</changefreq>
@@ -362,7 +332,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/10f382f8-dd79-4967-aff7-a1266e5e5fe6</loc>
-    <lastmod>2026-10-22</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -387,12 +357,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/11d2e965-67ec-401c-b572-8fdf09e6164d</loc>
     <lastmod>2025-07-16</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/120ea863-cbf6-41fd-9573-4b29e43b5a5e</loc>
-    <lastmod>2026-10-12</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -584,7 +548,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/1803671a-b9b4-4a2b-8e58-ac99a9d1dcd5</loc>
-    <lastmod>2026-10-05</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -621,12 +585,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/193319b5-246b-4937-8215-1534301c1403</loc>
     <lastmod>2026-07-22</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/19492176-f11a-4e91-aae6-33d9230f0511</loc>
-    <lastmod>2026-09-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -728,7 +686,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/1debe0e7-0714-4b86-a578-51efa67f509e</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -860,7 +818,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/23a990c3-37d9-47f8-baba-1ba1ec9cf8ae</loc>
-    <lastmod>2026-09-02</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1009,6 +967,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/29fea794-6ef9-4309-880d-b2e9630249ae</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/2a35b960-fb32-4e83-abd1-d24ad290229e</loc>
     <lastmod>2026-07-30</lastmod>
     <changefreq>daily</changefreq>
@@ -1141,6 +1105,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/31506430-da4e-4984-abdf-03ba39f7230d</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/31747956-439b-46f7-a4ce-2684dc98a95f</loc>
     <lastmod>2026-07-12</lastmod>
     <changefreq>daily</changefreq>
@@ -1214,6 +1184,12 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/348c8bfc-ad88-43a4-95de-aa8455b9bf61</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hoomanfinder.com/dog/34a9d2bd-53eb-4e95-8eb7-2b0934e1706a</loc>
     <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
@@ -1340,7 +1316,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/388a20c9-8885-4435-a2cf-b873e5ca2717</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1479,12 +1455,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/3d472de5-db98-4f7c-955a-51a8c11d3511</loc>
     <lastmod>2026-07-21</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/3d877206-82f1-4c02-b1fc-420524deb5be</loc>
-    <lastmod>2026-10-23</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1651,6 +1621,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/42195f61-32fa-4be1-8c72-2ffdf23a06e6</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/42afebc7-5474-4465-9cf4-ab0501b3a58e</loc>
     <lastmod>2026-10-22</lastmod>
     <changefreq>daily</changefreq>
@@ -1658,7 +1634,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/42bfdcee-c373-46f4-8655-712827270e4f</loc>
-    <lastmod>2026-10-28</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1681,6 +1657,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/4363a8f4-64e9-4a11-a877-e38b61091f3c</loc>
+    <lastmod>2026-10-29</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/4364eb5a-19c9-4971-aadd-24ccc15c44d5</loc>
     <lastmod>2026-04-27</lastmod>
     <changefreq>daily</changefreq>
@@ -1695,6 +1677,12 @@
   <url>
     <loc>https://hoomanfinder.com/dog/44b106b7-f5ef-44be-b64c-2d547ab0350f</loc>
     <lastmod>2026-10-01</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hoomanfinder.com/dog/44d790c3-649b-4f16-81f5-839a743e5c3d</loc>
+    <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -1789,6 +1777,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/488265ec-fd9f-4415-83ea-559618397ea6</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/4882fea0-b480-4a95-b648-3c68518af398</loc>
     <lastmod>2026-08-31</lastmod>
     <changefreq>daily</changefreq>
@@ -1863,6 +1857,12 @@
   <url>
     <loc>https://hoomanfinder.com/dog/4bbdfe4a-f584-4aa8-bbbe-53be306f1d51</loc>
     <lastmod>2026-07-12</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hoomanfinder.com/dog/4c54cce4-74e8-40f3-bfc6-704bd4f2501d</loc>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2233,12 +2233,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/5898bd59-7e0f-4db2-a475-46cf4b5c7dbd</loc>
-    <lastmod>2026-09-09</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/58ae853a-0f2e-4ba2-8c6d-750340d51589</loc>
     <lastmod>2026-08-22</lastmod>
     <changefreq>daily</changefreq>
@@ -2299,6 +2293,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/5b291d2e-3d50-4d31-b7b4-0d51d8f1fdd3</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/5b738946-7aec-4561-bbfb-0c6dd83369e0</loc>
     <lastmod>2026-10-22</lastmod>
     <changefreq>daily</changefreq>
@@ -2319,12 +2319,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/5c9b71ae-519d-4f09-916d-55e8b7b788fe</loc>
     <lastmod>2026-09-12</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/5cb8b101-5d25-462e-969b-fcb8ab6e34c6</loc>
-    <lastmod>2026-10-18</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2367,12 +2361,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/5ddef1e9-e166-4ac1-b468-4320d0c30a5d</loc>
     <lastmod>2023-08-29</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/5de4a155-b346-4407-914b-f2b0880b7cb7</loc>
-    <lastmod>2026-10-05</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2475,12 +2463,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/62bc4126-d8d0-467b-8d98-04085c5ecfb1</loc>
     <lastmod>2026-10-10</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/62bf03fd-5e0d-4312-b53d-f815c018b865</loc>
-    <lastmod>2026-10-09</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -2683,12 +2665,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/69e04418-8590-4186-897c-eac106e72ed1</loc>
-    <lastmod>2026-10-22</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/6a46630d-fda4-4855-8840-c18bebc9e995</loc>
     <lastmod>2026-09-16</lastmod>
     <changefreq>daily</changefreq>
@@ -2810,19 +2786,13 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/6db1ba0d-6e8a-4091-99c4-9f8b866b4f1f</loc>
-    <lastmod>2026-10-05</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/6e0a800a-3bd8-4c3a-b108-c9c5896204b1</loc>
     <lastmod>2026-10-03</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/6f6e6362-9596-41d4-be9c-5d0c3352d9bb</loc>
-    <lastmod>2026-10-25</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3092,7 +3062,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/7ab7b546-f72b-4efc-a597-877954ff6efc</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3229,12 +3199,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/7fbc964d-17f9-4219-9719-500d980fb7ec</loc>
-    <lastmod>2026-04-11</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/7fc4ef01-12a0-46aa-91b9-779fdd704294</loc>
     <lastmod>2023-04-18</lastmod>
     <changefreq>daily</changefreq>
@@ -3260,7 +3224,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/8165f6b9-d908-4058-b41b-8ebad219b45f</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3279,12 +3243,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/8200b509-d3b3-47f3-9f45-c0149cf202f8</loc>
     <lastmod>2026-10-13</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/820c1aea-8772-4c1f-9a0e-c15a48b52fba</loc>
-    <lastmod>2026-10-22</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3458,7 +3416,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/884b59a0-7d69-4ae7-9783-dfbf2e8142e9</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3674,7 +3632,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/9126c235-bef7-4044-a280-f0620e4addc8</loc>
-    <lastmod>2026-10-28</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3765,6 +3723,12 @@
   <url>
     <loc>https://hoomanfinder.com/dog/942d5406-e841-43ee-9429-aeddda74a203</loc>
     <lastmod>2026-08-31</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://hoomanfinder.com/dog/94583307-ed69-4a8a-ba9b-194688e117d5</loc>
+    <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -3967,6 +3931,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://hoomanfinder.com/dog/999f45b7-0aae-4b05-801a-e0c94381805c</loc>
+    <lastmod>2026-10-28</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://hoomanfinder.com/dog/99b68193-0182-49da-97f0-abc0509cfb5b</loc>
     <lastmod>2026-01-28</lastmod>
     <changefreq>daily</changefreq>
@@ -4010,7 +3980,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/9ac1d1d2-a807-44cb-9d52-6c0cdb461699</loc>
-    <lastmod>2026-10-19</lastmod>
+    <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4058,7 +4028,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/9c24cbe8-1f1d-40cd-b23a-09630031d24f</loc>
-    <lastmod>2026-09-02</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4172,7 +4142,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/a010eca5-a496-4e59-aeb2-bc8efc2885f3</loc>
-    <lastmod>2026-10-22</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4185,12 +4155,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/a04c9b0d-bad8-4410-8870-92e524981a71</loc>
     <lastmod>2026-10-14</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/a0a1b5d6-14a4-4f29-9923-06885111bffd</loc>
-    <lastmod>2026-06-20</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4417,12 +4381,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/a9613418-596c-48f9-a654-d16e1cbd27e5</loc>
-    <lastmod>2026-10-14</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/a96aa0a7-9047-4ce6-a5f6-c4a871042e53</loc>
     <lastmod>2026-01-28</lastmod>
     <changefreq>daily</changefreq>
@@ -4459,12 +4417,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/aa3035c2-75dd-434e-80c4-e28f19b6cc08</loc>
-    <lastmod>2026-10-22</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/aa921285-c5de-438a-a9c0-b9ccbd80d7bd</loc>
     <lastmod>2026-09-30</lastmod>
     <changefreq>daily</changefreq>
@@ -4485,12 +4437,6 @@
   <url>
     <loc>https://hoomanfinder.com/dog/ab2b3164-bb5a-4645-a27b-a7f312edec9f</loc>
     <lastmod>2026-09-29</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/ab6daf8b-ce0f-45ef-82ea-02b5bd339985</loc>
-    <lastmod>2026-10-04</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4645,12 +4591,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/b02405d3-5f0a-45ac-9c27-2f0c3cece515</loc>
-    <lastmod>2026-09-17</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/b075b377-b060-445d-8d39-5cbce75ecefe</loc>
     <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
@@ -4724,7 +4664,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/b41490ff-4c6b-4ea4-865b-3bd7c75780cf</loc>
-    <lastmod>2026-10-28</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -4952,7 +4892,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/bd119069-8788-4a53-8b42-c2deb99bbf5f</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5150,7 +5090,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/c5ef9e7d-7df7-4a1f-aba5-8d84f20114e4</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5180,7 +5120,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/c7305858-db46-4661-98c4-4b6ce8f86b8a</loc>
-    <lastmod>2026-10-24</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5269,20 +5209,8 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/cb7439c1-f3aa-477d-96bc-d4e3b2ac348b</loc>
-    <lastmod>2026-10-23</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/cbd78c1f-68e3-4d34-8958-a057cade8618</loc>
     <lastmod>2026-10-12</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/cbe9d810-6611-4c34-a324-ed6207c002d0</loc>
-    <lastmod>2026-10-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5726,19 +5654,13 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/dd4aab16-5f01-4330-8456-dbec1be05be9</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/dd9dc26c-b08c-4d0e-83cc-d693916b3fc7</loc>
     <lastmod>2026-10-06</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
-    <loc>https://hoomanfinder.com/dog/ddc04b1e-40b5-4779-ac32-5c6db3df3783</loc>
-    <lastmod>2026-08-14</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5756,7 +5678,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/de301182-5bea-47b7-bec5-55d93a1b15c3</loc>
-    <lastmod>2026-10-27</lastmod>
+    <lastmod>2026-10-28</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -5894,7 +5816,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/e288be9b-4e68-4064-8bfd-6bb8a112e9b7</loc>
-    <lastmod>2026-10-12</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -6229,12 +6151,6 @@
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://hoomanfinder.com/dog/efd52edc-4c47-40a0-aecb-b765d24592b0</loc>
-    <lastmod>2026-10-27</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.7</priority>
-  </url>
-  <url>
     <loc>https://hoomanfinder.com/dog/f03be37c-1b19-4f66-aef5-df5a0fae26b1</loc>
     <lastmod>2023-04-18</lastmod>
     <changefreq>daily</changefreq>
@@ -6512,7 +6428,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/fb4c1824-8824-4096-8d03-065f9efbd840</loc>
-    <lastmod>2026-10-22</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
@@ -6548,7 +6464,7 @@
   </url>
   <url>
     <loc>https://hoomanfinder.com/dog/fd2b0eb7-4cd5-43f6-a94d-e992ad915aa4</loc>
-    <lastmod>2026-10-03</lastmod>
+    <lastmod>2026-10-29</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
