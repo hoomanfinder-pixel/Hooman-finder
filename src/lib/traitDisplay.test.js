@@ -48,4 +48,8 @@ test("nuanced biography compatibility stays estimated while structured facts win
     getTraitDisplay({ structuredValue: false, bioValue: "most_likely", evidenceBasis: "bio_explicit" }),
     { value: "No", source: "listed", estimated: false }
   );
+  assert.deepEqual(
+    getTraitDisplay({ structuredValue: "older_children_only", bioValue: "yes" }),
+    { value: "Older children only", source: "listed", estimated: false }
+  );
 });

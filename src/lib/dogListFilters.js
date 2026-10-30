@@ -1,4 +1,5 @@
 import { getDogSourceFilterId } from "./dogSource.js";
+import { CHILD_COMPATIBILITY, resolveChildCompatibility } from "./childCompatibility.js";
 
 function parsedAgeYearsFromText(ageText) {
   const text = String(ageText || "").toLowerCase().trim();
@@ -80,7 +81,13 @@ export function filterDogItems(
     if (energyFilter !== "all" && dog.energy_level !== energyFilter) return false;
     if (hypoOnly && !dog.hypoallergenic) return false;
     if (pottyOnly && !dog.potty_trained) return false;
-    if (kidsOnly && !dog.good_with_kids) return false;
+    if (kidsOnly) {
+      const childCompatibility = resolveChildCompatibility(dog);
+      if (
+        childCompatibility.source !== "structured" ||
+        childCompatibility.value !== CHILD_COMPATIBILITY.YES
+      ) return false;
+    }
     if (catsOnly && !dog.good_with_cats) return false;
     if (dogsOnly && dog.good_with_dogs !== true) return false;
 

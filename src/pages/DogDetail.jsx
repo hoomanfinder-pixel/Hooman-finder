@@ -28,6 +28,7 @@ import { supabase } from "../lib/supabase";
 import { FALLBACK_DOG_IMAGE, normalizeImageUrl } from "../lib/urlSafety";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { hasUsefulBioValue, getTraitDisplay } from "../lib/traitDisplay";
+import { getChildTraitDisplay } from "../lib/childCompatibility";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 const BIO_PREVIEW_LENGTH = 520;
@@ -1121,11 +1122,7 @@ export default function DogDetail() {
               />
               <TraitCard
                 label="Good with kids"
-                trait={getTraitDisplay({
-                  structuredValue: dog.good_with_kids,
-                  bioValue: dog.bio_good_with_kids,
-                  evidenceBasis: aiTraits?.good_with_kids?.evidence_basis,
-                })}
+                trait={getChildTraitDisplay(dog)}
               />
               <TraitCard
                 label="Shedding"

@@ -140,6 +140,24 @@ function booleanOrNull(value) {
   return value === true || value === false ? value : null;
 }
 
+function hasOlderChildrenOnlySourceQuality(qualities) {
+  const values = Array.isArray(qualities)
+    ? qualities
+    : String(qualities || "").split(/[,;|]/);
+  return values.some((value) => {
+    const token = String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return token === "olderkidsonly" || token === "olderchildrenonly";
+  });
+}
+
+function resolveSourceChildCompatibility(dog) {
+  const broadValue = booleanOrNull(dog?.good_with_kids);
+  if (broadValue === false) return "no";
+  if (hasOlderChildrenOnlySourceQuality(dog?.qualities)) return "older_children_only";
+  if (broadValue === true) return "yes";
+  return "unknown";
+}
+
 function isClearlyPuppy({ ageYears, ageText }) {
   const text = String(ageText || "").toLowerCase();
 
@@ -706,6 +724,7 @@ function asDogInput(dog) {
     // source attributes, so null is unknown while true/false are both usable
     // confirmed inputs that the model must not contradict.
     current_good_with_kids: booleanOrNull(dog.good_with_kids),
+    current_child_compatibility: resolveSourceChildCompatibility(dog),
     current_good_with_dogs: booleanOrNull(dog.good_with_dogs),
     current_good_with_cats: booleanOrNull(dog.good_with_cats),
     current_good_with_small_animals: booleanOrNull(dog.good_with_small_animals),
@@ -739,6 +758,7 @@ Rules:
 - If something is strongly implied but not guaranteed, use "likely".
 - If something is somewhat implied or needs caveats, use "maybe".
 - Existing structured booleans may be true or false. Missing/null means unknown.
+- current_child_compatibility is normalized source evidence. "older_children_only" overrides a broad positive child boolean and must remain age-qualified.
 - Never claim good_with_kids, good_with_cats, good_with_dogs, potty_trained, or first_time_friendly unless there is evidence from the structured fields or rescue-provided bio.
 - Every trait object must include evidence_basis.
 - Use "bio_explicit" only when explicit, dog-specific wording in this dog's rescue biography supports the value.
@@ -2663,7 +2683,6 @@ function normalizeAiTraits(parsed, dogInput) {
   // columns remain the Tier A facts; these mirrored ai_traits values only
   // prevent generated bio interpretations from contradicting those facts.
   for (const [key, sourceValue] of [
-    ["good_with_kids", dogInput.current_good_with_kids],
     ["good_with_dogs", dogInput.current_good_with_dogs],
     ["good_with_cats", dogInput.current_good_with_cats],
     ["good_with_small_animals", dogInput.current_good_with_small_animals],
@@ -2681,13 +2700,27 @@ function normalizeAiTraits(parsed, dogInput) {
     }
   }
 
+  if (dogInput.current_child_compatibility !== "unknown") {
+    const sourceValue = dogInput.current_child_compatibility;
+    setTraitFromBio(
+      "good_with_kids",
+      sourceValue === "yes" ? "true" : sourceValue === "no" ? "false" : "older_children_only",
+      0.95,
+      sourceValue === "older_children_only"
+        ? "Source qualities limit compatibility to older children."
+        : `Existing structured source data says child compatibility is ${sourceValue}.`,
+      "structured_source"
+    );
+  }
+
   let kidsValue = String(normalized.good_with_kids?.value || "").toLowerCase();
 
   const childEvidenceAvailable =
-    dogInput.current_good_with_kids === true || hasPositiveOrConditionalChildEvidence();
+    ["yes", "older_children_only"].includes(dogInput.current_child_compatibility) ||
+    hasPositiveOrConditionalChildEvidence();
 
   if (
-    dogInput.current_good_with_kids === null &&
+    dogInput.current_child_compatibility === "unknown" &&
     hasAgeSpecificChildRestriction()
   ) {
     normalized.good_with_kids = {
@@ -2837,7 +2870,7 @@ function normalizeAiTraits(parsed, dogInput) {
 
     const confirmedFalseByKey = {
       potty_trained: dogInput.current_potty_trained === false,
-      good_with_kids: dogInput.current_good_with_kids === false,
+      good_with_kids: dogInput.current_child_compatibility === "no",
       good_with_dogs: dogInput.current_good_with_dogs === false,
       good_with_cats: dogInput.current_good_with_cats === false,
       good_with_small_animals: dogInput.current_good_with_small_animals === false,
@@ -3839,6 +3872,8 @@ if (require.main === module) {
 // extraction and normalization logic instead of duplicating it (and risking
 // drift from what a real run would actually write).
 module.exports = {
+  hasOlderChildrenOnlySourceQuality,
+  resolveSourceChildCompatibility,
   asDogInput,
   buildPrompt,
   callOpenAI,

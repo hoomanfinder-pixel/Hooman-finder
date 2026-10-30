@@ -1,5 +1,11 @@
 // src/lib/matchingLogic.js
 //
+import {
+  CHILD_COMPATIBILITY,
+  hasConservativelyYoungerChildren,
+  resolveChildCompatibility,
+} from "./childCompatibility.js";
+
 // Match scoring has three deliberately separate layers:
 // 1. rawCompatibilityPct: compatibility after source/confidence adjustment,
 //    calculated only from questions with usable dog evidence.
@@ -486,8 +492,32 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
     case "kids_in_home": {
       const needsKids = normalizeAnswerList(answer).some((value) => !["no_children"].includes(value));
       if (!needsKids) return result(questionId, null, "", { requested: false });
-      const evidence = compatibilityEvidence(dog, "good_with_kids", dog?.good_with_kids, dog?.bio_good_with_kids, answer, matchOptions);
-      return result(questionId, evidence, evidence?.source === "structured" ? `Shelter listing ${evidence.rawCompatibility ? "supports" : "does not support"} a home with children` : `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible" : "does not clearly support"} child compatibility`);
+      const childCompatibility = resolveChildCompatibility(dog);
+      let evidence;
+      let explanation;
+
+      if (childCompatibility.source === "structured") {
+        const rawCompatibility = bioCompatibilityRaw(childCompatibility.value, {
+          field: "good_with_kids",
+          answer,
+          conditionalMode: matchOptions.conditionalMode,
+        });
+        evidence = structuredCredit(rawCompatibility);
+        explanation = childCompatibility.value === CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY
+          ? rawCompatibility > 0.5
+            ? "Shelter listing limits compatibility to older children; confirm the child's age and fit with the shelter"
+            : "Shelter listing limits compatibility to older children and does not support the selected younger age band"
+          : `Shelter listing ${rawCompatibility ? "supports" : "does not support"} a home with children`;
+      } else {
+        evidence = adjustedAiCredit(dog, "good_with_kids", bioCompatibilityRaw(childCompatibility.value, {
+          field: "good_with_kids",
+          answer,
+          conditionalMode: matchOptions.conditionalMode,
+        }));
+        explanation = `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible" : "does not clearly support"} child compatibility`;
+      }
+
+      return result(questionId, evidence, explanation);
     }
     case "pets_in_home": {
       const picks = normalizeAnswerList(answer);
@@ -621,12 +651,23 @@ export function getConfirmedIncompatibilities(dog, answers) {
   const incompatibilities = [];
   const kids = normalizeAnswerList(answers?.kids_in_home);
   const needsKids = kids.some((value) => value !== "no_children");
-  const dogKids = dog?.good_with_kids ?? dog?.kids_ok ?? dog?.kid_friendly ?? dog?.goodWithKids;
-  if (needsKids && falsy(dogKids)) {
+  const childCompatibility = resolveChildCompatibility(dog);
+  if (needsKids && childCompatibility.source === "structured" && childCompatibility.value === CHILD_COMPATIBILITY.NO) {
     incompatibilities.push({
       code: "confirmed_child_incompatibility",
       questionId: "kids_in_home",
       message: "This dog is listed as not compatible with children, but your household includes children.",
+    });
+  } else if (
+    needsKids &&
+    childCompatibility.source === "structured" &&
+    childCompatibility.value === CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY &&
+    hasConservativelyYoungerChildren(kids)
+  ) {
+    incompatibilities.push({
+      code: "confirmed_child_age_restriction",
+      questionId: "kids_in_home",
+      message: "This dog is listed for older children only. Hooman Finder conservatively excludes the selected younger age band; confirm the shelter's exact age guidance.",
     });
   }
 

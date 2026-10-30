@@ -52,6 +52,15 @@ export function getTraitDisplay({ structuredValue, bioValue, evidenceBasis }) {
     };
   }
 
+  const normalizedStructured = normalizeBioValue(structuredValue);
+  if (normalizedStructured !== "unknown") {
+    return {
+      value: displayBioTrait(normalizedStructured),
+      source: "listed",
+      estimated: false,
+    };
+  }
+
   const normalizedBio = normalizeBioValue(bioValue);
 
   if (normalizedBio !== "unknown") {
