@@ -11,6 +11,7 @@ import { formatAge, resolveAgeYears } from "../utils/formatAge";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { truncateAtWord } from "../utils/truncateAtWord";
 import { getTraitDisplay } from "../lib/traitDisplay";
+import { getChildFitChip } from "../lib/childCompatibility";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -303,7 +304,7 @@ function buildLifestyleTags(dog, ageLabel) {
 const FIT_CHIP_FIELDS = [
   { structuredKey: "good_with_dogs", bioKey: "bio_good_with_dogs", label: "good with dogs" },
   { structuredKey: "good_with_cats", bioKey: "bio_good_with_cats", label: "good with cats" },
-  { structuredKey: "good_with_kids", bioKey: "bio_good_with_kids", label: "good with kids" },
+  { structuredKey: "good_with_kids", bioKey: "bio_good_with_kids", label: "good with kids", childCompatibility: true },
   { structuredKey: "potty_trained", bioKey: "bio_potty_trained", label: "potty trained" },
 ];
 
@@ -319,6 +320,12 @@ function buildFitChips(dog) {
   const chips = [];
 
   for (const field of FIT_CHIP_FIELDS) {
+    if (field.childCompatibility) {
+      const childChip = getChildFitChip(dog);
+      if (childChip) chips.push(childChip);
+      continue;
+    }
+
     const trait = getTraitDisplay({
       structuredValue: dog?.[field.structuredKey],
       bioValue: dog?.[field.bioKey],

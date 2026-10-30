@@ -109,6 +109,24 @@ test("version-only and provenance-only enrichment changes are meaningful", () =>
   assert.equal(hasMeaningfulChange(next, changedProvenance), true);
 });
 
+test("source older-kids-only quality survives a conflicting broad child boolean", () => {
+  const input = dogInput({
+    good_with_kids: true,
+    qualities: ["olderKidsOnly"],
+    bio_good_with_kids: "yes",
+  });
+  assert.equal(input.current_good_with_kids, true);
+  assert.equal(input.current_child_compatibility, "older_children_only");
+
+  const aiTraits = normalizeAiTraits(
+    baseParsedTraits({ good_with_kids: trait("true", 0.99, "Broad positive", "structured_source") }),
+    input
+  );
+  assert.equal(aiTraits.good_with_kids.value, "older_children_only");
+  assert.equal(aiTraits.good_with_kids.evidence_basis, "structured_source");
+  assert.equal(buildBioColumns(aiTraits, null).bio_good_with_kids, "older_children_only");
+});
+
 test("unknown answers keep review evidence but never retain answer confidence", () => {
   const metadata = normalizeUnknownMetadata({
     value: "unknown",

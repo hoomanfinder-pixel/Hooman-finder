@@ -208,6 +208,24 @@ test("animal location is retained separately and organization city is not treate
   assert.equal(mapped.placement_state, "CA");
 });
 
+test("RescueGroups preserves older-kids-only source evidence alongside a broad positive boolean", () => {
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "19743030",
+      attributes: {
+        name: "ADELINE",
+        isKidsOk: true,
+        qualities: ["needsCompanionAnimal", "olderKidsOnly", "playful", "timid"],
+      },
+    },
+    [],
+    { ...rescue("Ewenity Farm Border Collie Haven, Inc.", "5510"), state: "FL" }
+  );
+
+  assert.equal(mapped.good_with_kids, true);
+  assert.deepEqual(mapped.qualities, ["needsCompanionAnimal", "olderKidsOnly", "playful", "timid"]);
+});
+
 test("multiple animal locations are not flattened by arbitrary relationship ordering", () => {
   const mapped = mapAnimalToDogRow(
     {
