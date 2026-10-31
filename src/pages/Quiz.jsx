@@ -103,6 +103,7 @@ export default function Quiz() {
 
   const modeParam = searchParams.get("mode") || QUIZ_MODES.DEALBREAKERS;
   const mode = modeParam === QUIZ_MODES.REFINE ? QUIZ_MODES.REFINE : QUIZ_MODES.DEALBREAKERS;
+  const isEditing = searchParams.get("edit") === "1";
 
   const sessionFromUrl = searchParams.get("session");
   const sessionId = useMemo(
@@ -213,11 +214,13 @@ export default function Quiz() {
       setSearchParams(next, { replace: true });
     }
 
-    try {
-      setSaveError("");
-      await saveQuizResponses(sessionId, nextAnswers);
-    } catch (e) {
-      setSaveError(reportQuizError("save", e));
+    if (!isEditing) {
+      try {
+        setSaveError("");
+        await saveQuizResponses(sessionId, nextAnswers);
+      } catch (e) {
+        setSaveError(reportQuizError("save", e));
+      }
     }
   }
 
@@ -238,14 +241,16 @@ export default function Quiz() {
   }
 
   function goRefine() {
-    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}`);
+    const editParam = isEditing ? "&edit=1" : "";
+    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}${editParam}`);
   }
 
   function goDealbreakers() {
-    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}`);
+    const editParam = isEditing ? "&edit=1" : "";
+    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}${editParam}`);
   }
 
-  function goResults() {
+  function navigateToResults() {
     const essentialCompletion = getCompletionCounts(
       QUIZ_MODES.DEALBREAKERS,
       answersById
@@ -262,7 +267,21 @@ export default function Quiz() {
   }
 
   function saveAndSeeMatches() {
-    goResults();
+    navigateToResults();
+  }
+
+  async function updateMatches() {
+    try {
+      setSaveError("");
+      await saveQuizResponses(sessionId, answersById);
+      navigateToResults();
+    } catch (e) {
+      setSaveError(reportQuizError("save", e));
+    }
+  }
+
+  function backToResults() {
+    navigate(`/results?session=${encodeURIComponent(sessionId)}`);
   }
 
   function continueAfterQuestion(nextQuestion) {
@@ -272,7 +291,8 @@ export default function Quiz() {
     }
 
     if (mode === QUIZ_MODES.DEALBREAKERS) goRefine();
-    else goResults();
+    else if (isEditing) scrollToQuizTop();
+    else navigateToResults();
   }
 
   function resetAnswers() {
@@ -323,10 +343,16 @@ export default function Quiz() {
   const hasAnyAnswers = Object.values(answersById).some(hasAnswer);
 
   const pageTitle =
-    mode === QUIZ_MODES.DEALBREAKERS ? "Start your match" : "Refine matches";
+    isEditing
+      ? "Edit your quiz"
+      : mode === QUIZ_MODES.DEALBREAKERS
+        ? "Start your match"
+        : "Refine matches";
 
   const pageSubtitle =
-    mode === QUIZ_MODES.DEALBREAKERS
+    isEditing
+      ? "Review or change any answer. Your existing matches update only when you choose Update Matches."
+      : mode === QUIZ_MODES.DEALBREAKERS
       ? "Start this lifestyle-based dog adoption quiz with the home, routine, and experience details that matter most."
       : "Fine-tune how Hooman Finder ranks adoptable dogs using your lifestyle and care preferences.";
 
@@ -365,9 +391,9 @@ export default function Quiz() {
               <button
                 type="button"
                 className="inline-flex items-center gap-1 text-xs font-black text-[#183D35] hover:opacity-75 sm:text-sm"
-                onClick={() => navigate("/dogs")}
+                onClick={isEditing ? backToResults : () => navigate("/dogs")}
               >
-                ← Back to dogs
+                {isEditing ? "← Back to results" : "← Back to dogs"}
               </button>
             </div>
 
@@ -437,7 +463,9 @@ export default function Quiz() {
                 </p>
 
                 <h1 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-5xl">
-                  {mode === QUIZ_MODES.DEALBREAKERS
+                  {isEditing
+                    ? pageTitle
+                    : mode === QUIZ_MODES.DEALBREAKERS
                     ? "Find an adoptable dog that fits your lifestyle"
                     : pageTitle}
                 </h1>
@@ -549,17 +577,27 @@ export default function Quiz() {
             <div className="grid grid-cols-[1fr_1.1fr] gap-2">
               <button
                 type="button"
-                onClick={saveAndSeeMatches}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35]/18 bg-white px-3 py-2 text-xs font-black text-[#183D35] shadow-sm hover:bg-[#f8f6f1] sm:text-sm"
+                onClick={isEditing ? updateMatches : saveAndSeeMatches}
+                className={[
+                  "inline-flex min-h-11 items-center justify-center rounded-full px-3 py-2 text-xs font-black shadow-sm sm:text-sm",
+                  isEditing
+                    ? "bg-[#183D35] text-[#F3C982] hover:bg-[#12332C]"
+                    : "border border-[#183D35]/18 bg-white text-[#183D35] hover:bg-[#f8f6f1]",
+                ].join(" ")}
               >
-                See my matches
+                {isEditing ? "Update Matches" : "See My Matches"}
               </button>
 
               {mode === QUIZ_MODES.DEALBREAKERS ? (
                 <button
                   type="button"
                   onClick={goRefine}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 py-2 text-center text-xs font-black leading-snug text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:px-4 sm:text-sm"
+                  className={[
+                    "inline-flex min-h-11 items-center justify-center rounded-full px-3 py-2 text-center text-xs font-black leading-snug shadow-sm sm:px-4 sm:text-sm",
+                    isEditing
+                      ? "border border-[#183D35]/18 bg-white text-[#183D35] hover:bg-[#f8f6f1]"
+                      : "bg-[#183D35] text-[#F3C982] hover:bg-[#12332C]",
+                  ].join(" ")}
                 >
                   Deeper questions →
                 </button>
@@ -567,7 +605,12 @@ export default function Quiz() {
                 <button
                   type="button"
                   onClick={goDealbreakers}
-                  className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-3 py-2 text-xs font-black text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:text-sm"
+                  className={[
+                    "inline-flex min-h-11 items-center justify-center rounded-full px-3 py-2 text-xs font-black shadow-sm sm:text-sm",
+                    isEditing
+                      ? "border border-[#183D35]/18 bg-white text-[#183D35] hover:bg-[#f8f6f1]"
+                      : "bg-[#183D35] text-[#F3C982] hover:bg-[#12332C]",
+                  ].join(" ")}
                 >
                   ← Back to essentials
                 </button>
@@ -575,7 +618,11 @@ export default function Quiz() {
             </div>
 
             <div className="mt-1 flex justify-center text-[10px] font-semibold text-[#183D35]/55">
-              <span>Your answers save automatically.</span>
+              <span>
+                {isEditing
+                  ? "Changes are saved when you update matches."
+                  : "Your answers save automatically."}
+              </span>
             </div>
           </div>
         </div>

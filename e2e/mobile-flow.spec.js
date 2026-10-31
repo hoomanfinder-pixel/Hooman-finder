@@ -30,7 +30,7 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
     name: "Any size / flexible",
     exact: true,
   });
-  const seeMatches = page.getByRole("button", { name: "See my matches" });
+  const seeMatches = page.getByRole("button", { name: "See My Matches" });
   await expect(firstAnswer).toBeVisible();
   await expect(firstAnswer).toBeEnabled();
   await expect(seeMatches).toBeVisible();
@@ -47,6 +47,22 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
   ).toBeVisible();
   await expectValidMatchPercentages(page);
   await expectNoHorizontalOverflow(page);
+
+  const editQuiz = page.getByRole("button", { name: "Edit Quiz", exact: true });
+  const filters = page.getByRole("button", { name: "Filters", exact: true });
+  await expect(editQuiz).toBeVisible();
+  await expect(filters).toBeVisible();
+  await expect(filters).toHaveAttribute("aria-expanded", "false");
+  await filters.click();
+  await expect(filters).toHaveAttribute("aria-expanded", "true");
+  await expectNoHorizontalOverflow(page);
+
+  await editQuiz.click();
+  await expect(page).toHaveURL(/mode=dealbreakers&edit=1/);
+  await expect(page.getByRole("button", { name: "Update Matches", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "← Back to results", exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
+  await page.getByRole("button", { name: "← Back to results", exact: true }).click();
 
   const firstCard = getResultCard(page, "Maple");
   await expect(firstCard).toBeVisible();

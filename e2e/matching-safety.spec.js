@@ -5,6 +5,7 @@ import {
   dogCompatibilityDogs,
   deeperQuizDogs,
   evidenceCoverageDogs,
+  olderChildrenEditDogs,
 } from "./fixtures/dogs.js";
 import {
   answerEssentialQuiz,
@@ -121,6 +122,34 @@ test.describe("young children compatibility safety", () => {
   });
 });
 
+test.describe("editing child ages preserves older-children-only exclusions", () => {
+  test.use({ scenario: { dogs: olderChildrenEditDogs } });
+
+  test("updating a mixed-age household removes an older-children-only dog", async ({ page }) => {
+    const sessionId = "e2e-edit-child-safety";
+    await completeEssentialQuiz(page, sessionId, {
+      children: "13+",
+    });
+
+    await expect(getResultCard(page, "Older Child Fit")).toBeVisible();
+    await expect(getResultCard(page, "Family Friendly")).toBeVisible();
+
+    await page.getByRole("button", { name: "Edit Quiz", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=dealbreakers&edit=1`));
+    await page.getByRole("button", { name: "Under 3", exact: true }).click();
+    await page.getByRole("button", { name: "3 to 5", exact: true }).click();
+    await page.getByRole("button", { name: "Update Matches", exact: true }).click();
+
+    await expect(getResultCard(page, "Older Child Fit")).toHaveCount(0);
+    await expect(getResultCard(page, "Family Friendly")).toBeVisible();
+
+    const savedChildAges = await page.evaluate((id) => JSON.parse(
+      window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)
+    ).kids_in_home, sessionId);
+    expect(savedChildAges).toEqual(["13_plus", "under_3", "3_5"]);
+  });
+});
+
 test.describe("cat compatibility safety", () => {
   test.use({ scenario: { dogs: catCompatibilityDogs } });
 
@@ -161,7 +190,7 @@ test.describe("alone-time preference ranking", () => {
     await expect(page).toHaveURL(/mode=refine/);
     await page.getByRole("button", { name: /Care & Lifestyle/ }).click();
     await page.getByRole("button", { name: "8+ hours", exact: true }).click();
-    await page.getByRole("button", { name: "See my matches" }).click();
+    await page.getByRole("button", { name: "See My Matches" }).click();
 
     await expect(page).toHaveURL(/\/results\?session=e2e-alone-time/);
     await expectValidMatchPercentages(page);

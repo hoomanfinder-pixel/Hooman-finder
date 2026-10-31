@@ -131,7 +131,7 @@ test.describe("incremental dog lists", () => {
       waitUntil: "domcontentloaded",
     });
     await answerEssentialQuiz(page);
-    await page.getByRole("button", { name: "See my matches" }).click();
+    await page.getByRole("button", { name: "See My Matches" }).click();
 
     const cards = page.locator('main a[href^="/dog/"]');
     await expect(page.getByText("Showing 24 of 30 matches")).toBeVisible();
@@ -148,7 +148,7 @@ test("essential quiz reaches deterministic results with valid percentages", asyn
   });
 
   await answerEssentialQuiz(page);
-  await page.getByRole("button", { name: "See my matches" }).click();
+  await page.getByRole("button", { name: "See My Matches" }).click();
 
   await expect(page).toHaveURL(/\/results\?session=e2e-quiz-session/);
   await expect(
@@ -209,7 +209,7 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
 
   await page.getByRole("button", { name: "← Back to essentials" }).click();
   await expect(page.getByText("5/5 answered")).toBeVisible();
-  await page.getByRole("button", { name: "See my matches" }).click();
+  await page.getByRole("button", { name: "See My Matches" }).click();
   await expect(page.getByRole("heading", { name: "Your best-fit dogs, ranked." })).toBeVisible();
 
   const mapleCard = getResultCard(page, "Maple");
@@ -223,8 +223,11 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
   ).toBeVisible();
 
   await page.getByRole("link", { name: /back to matches/i }).click();
-  await page.getByRole("button", { name: "Refine", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=refine`));
+  await page.getByRole("button", { name: "Edit Quiz", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=dealbreakers&edit=1`));
+  await expect(page.getByText("5/5 answered")).toBeVisible();
+  await page.getByRole("button", { name: "Deeper questions →" }).click();
+  await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=refine&edit=1`));
   await expect(
     page.locator('[data-quiz-question="dog_social_preference"] [aria-pressed="true"]')
   ).toHaveCount(1);
@@ -245,6 +248,112 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
     "false"
   );
   await expect(page.getByText(/couldn.t save your quiz/i)).toHaveCount(0);
+});
+
+test("edit drafts and all ten result filters persist without crossing quiz sessions", async ({
+  page,
+}) => {
+  const sessionId = "e2e-edit-and-filter-state";
+  await page.goto(`/quiz?session=${sessionId}&mode=dealbreakers`, {
+    waitUntil: "domcontentloaded",
+  });
+  await answerEssentialQuiz(page);
+  await page.getByRole("button", { name: "Deeper questions →" }).click();
+  await page
+    .getByRole("button", { name: "Must be very dog-friendly", exact: true })
+    .click();
+  await page.getByRole("button", { name: "See My Matches" }).click();
+
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.getByLabel("Shelter or rescue").selectOption({ label: "Great Lakes Dog Rescue (2)" });
+  await page.getByLabel("State").selectOption("MI");
+  await page.getByLabel("Age").selectOption("adult");
+  await page.getByLabel("Size").selectOption("Medium");
+  await page.getByLabel("Energy").selectOption("Moderate");
+  for (const label of ["Hypoallergenic", "Potty trained", "Kids", "Cats", "Dogs"]) {
+    await page.getByText(label, { exact: true }).click();
+  }
+
+  const expectedFilters = {
+    rescueFilter: "rescuegroups:e2e-org-1",
+    stateFilter: "MI",
+    ageFilter: "adult",
+    sizeFilter: "Medium",
+    energyFilter: "Moderate",
+    hypoOnly: true,
+    pottyOnly: true,
+    kidsOnly: true,
+    catsOnly: true,
+    dogsOnly: true,
+  };
+  await expect.poll(() => page.evaluate(({ id, expected }) => {
+    const key = `hoomanFinder.resultFilters.local.v1:${id}`;
+    return JSON.stringify(JSON.parse(window.localStorage.getItem(key))) === JSON.stringify(expected);
+  }, { id: sessionId, expected: expectedFilters })).toBe(true);
+
+  await page.getByRole("button", { name: "Edit Quiz", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=dealbreakers&edit=1`));
+  await expect(page.getByRole("button", { name: "Update Matches", exact: true })).toBeVisible();
+  await expect(page.getByText("5/5 answered")).toBeVisible();
+  await page.getByRole("button", { name: "Any size / flexible", exact: true }).click();
+  await page.getByRole("button", { name: "← Back to results", exact: true }).click();
+
+  const answersAfterDiscard = await page.evaluate((id) => JSON.parse(
+    window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)
+  ), sessionId);
+  expect(answersAfterDiscard.size_preference).toEqual(["medium"]);
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await expect(page.getByLabel("Shelter or rescue")).toHaveValue("rescuegroups:e2e-org-1");
+  await expect(page.getByLabel("State")).toHaveValue("MI");
+  await expect(page.getByLabel("Age")).toHaveValue("adult");
+  await expect(page.getByLabel("Size")).toHaveValue("Medium");
+  await expect(page.getByLabel("Energy")).toHaveValue("Moderate");
+  for (const label of ["Hypoallergenic", "Potty trained", "Kids", "Cats", "Dogs"]) {
+    await expect(page.getByLabel(label)).toBeChecked();
+  }
+
+  await page.getByRole("button", { name: "Edit Quiz", exact: true }).click();
+  await page.getByRole("button", { name: "Any size / flexible", exact: true }).click();
+  await page.getByRole("button", { name: "Deeper questions →" }).click();
+  await expect(
+    page.locator('[data-quiz-question="dog_social_preference"] [aria-pressed="true"]')
+  ).toHaveCount(1);
+  await page.getByRole("button", { name: "Update Matches", exact: true }).click();
+
+  const answersAfterUpdate = await page.evaluate((id) => JSON.parse(
+    window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)
+  ), sessionId);
+  expect(answersAfterUpdate.size_preference).toEqual(["flexible"]);
+  expect(answersAfterUpdate.dog_social_preference).toBe("very_dog_friendly");
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await expect(page.getByLabel("Shelter or rescue")).toHaveValue("rescuegroups:e2e-org-1");
+  await expect(page.getByLabel("State")).toHaveValue("MI");
+  await page.getByRole("button", { name: "Reset", exact: true }).click();
+  await expect(page.getByLabel("State")).toHaveValue("all");
+
+  const finalState = await page.evaluate((id) => ({
+    answers: JSON.parse(window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)),
+    filters: JSON.parse(window.localStorage.getItem(`hoomanFinder.resultFilters.local.v1:${id}`)),
+    otherSessionFilters: window.localStorage.getItem(
+      "hoomanFinder.resultFilters.local.v1:e2e-unrelated-session"
+    ),
+  }), sessionId);
+  expect(finalState.answers.size_preference).toEqual(["flexible"]);
+  expect(finalState.filters).toEqual({
+    rescueFilter: "all",
+    stateFilter: "all",
+    ageFilter: "all",
+    sizeFilter: "all",
+    energyFilter: "all",
+    hypoOnly: false,
+    pottyOnly: false,
+    kidsOnly: false,
+    catsOnly: false,
+    dogsOnly: false,
+  });
+  expect(finalState.otherSessionFilters).toBeNull();
 });
 
 test("browse opens a complete dog profile and saved state survives reload", async ({ page }) => {

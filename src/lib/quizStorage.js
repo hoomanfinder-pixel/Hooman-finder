@@ -3,7 +3,26 @@ import { canonicalizeAllergySensitivity } from "./quizQuestions.js";
 
 const SESSION_STORAGE_PREFIX = "hoomanFinder.quizResponses.session.v1";
 const LOCAL_STORAGE_PREFIX = "hoomanFinder.quizResponses.local.v1";
+const RESULT_FILTERS_SESSION_STORAGE_PREFIX = "hoomanFinder.resultFilters.session.v1";
+const RESULT_FILTERS_LOCAL_STORAGE_PREFIX = "hoomanFinder.resultFilters.local.v1";
 const ACTIVE_SESSION_KEY = "hoomanFinderActiveQuizSession";
+
+export const DEFAULT_RESULT_FILTERS = Object.freeze({
+  rescueFilter: "all",
+  stateFilter: "all",
+  ageFilter: "all",
+  sizeFilter: "all",
+  energyFilter: "all",
+  hypoOnly: false,
+  pottyOnly: false,
+  kidsOnly: false,
+  catsOnly: false,
+  dogsOnly: false,
+});
+
+const AGE_FILTER_VALUES = new Set(["all", "puppy", "adult", "senior"]);
+const SIZE_FILTER_VALUES = new Set(["all", "Small", "Medium", "Large"]);
+const ENERGY_FILTER_VALUES = new Set(["all", "Low", "Moderate", "High"]);
 
 function cleanArray(v) {
   if (v == null) return null;
@@ -120,6 +139,63 @@ function normalizeQuizPatch(patch) {
   if ("shedding_levels" in safePatch) safePatch.shedding_levels = cleanArray(safePatch.shedding_levels);
 
   return safePatch;
+}
+
+function normalizedFilterChoice(value, allowedValues) {
+  const normalized = String(value || "").trim();
+  return allowedValues.has(normalized) ? normalized : "all";
+}
+
+export function normalizeResultFilters(filters) {
+  const source = filters && typeof filters === "object" ? filters : {};
+  const rescueFilter = String(source.rescueFilter || "").trim();
+  const stateFilter = String(source.stateFilter || "").trim().toUpperCase();
+
+  return {
+    rescueFilter: rescueFilter || "all",
+    stateFilter: stateFilter === "all" || /^[A-Z]{2}$/.test(stateFilter) ? stateFilter : "all",
+    ageFilter: normalizedFilterChoice(source.ageFilter, AGE_FILTER_VALUES),
+    sizeFilter: normalizedFilterChoice(source.sizeFilter, SIZE_FILTER_VALUES),
+    energyFilter: normalizedFilterChoice(source.energyFilter, ENERGY_FILTER_VALUES),
+    hypoOnly: source.hypoOnly === true,
+    pottyOnly: source.pottyOnly === true,
+    kidsOnly: source.kidsOnly === true,
+    catsOnly: source.catsOnly === true,
+    dogsOnly: source.dogsOnly === true,
+  };
+}
+
+export function loadResultFilters(sessionId) {
+  if (!sessionId) return { ...DEFAULT_RESULT_FILTERS };
+
+  const sessionFilters = readSessionJson(
+    storageKey(RESULT_FILTERS_SESSION_STORAGE_PREFIX, sessionId),
+    null
+  );
+  const localFilters = readLocalJson(
+    storageKey(RESULT_FILTERS_LOCAL_STORAGE_PREFIX, sessionId),
+    null
+  );
+  const filters = normalizeResultFilters(sessionFilters || localFilters || DEFAULT_RESULT_FILTERS);
+
+  if (!sessionFilters && localFilters) {
+    writeSessionJson(storageKey(RESULT_FILTERS_SESSION_STORAGE_PREFIX, sessionId), filters);
+  }
+
+  return filters;
+}
+
+export function saveResultFilters(sessionId, filters) {
+  if (!sessionId) throw new Error("Missing session id");
+
+  const normalized = normalizeResultFilters(filters);
+  writeSessionJson(storageKey(RESULT_FILTERS_SESSION_STORAGE_PREFIX, sessionId), normalized);
+  writeLocalJson(storageKey(RESULT_FILTERS_LOCAL_STORAGE_PREFIX, sessionId), normalized);
+  return normalized;
+}
+
+export function resetResultFilters(sessionId) {
+  return saveResultFilters(sessionId, DEFAULT_RESULT_FILTERS);
 }
 
 /**

@@ -163,6 +163,23 @@ export const childCompatibilityDogs = [
   }),
 ];
 
+export const olderChildrenEditDogs = [
+  scenarioDog({
+    id: "e2e-older-children-only",
+    name: "Older Child Fit",
+    color: "#D7C2E8",
+    good_with_kids: true,
+    qualities: ["olderKidsOnly"],
+  }),
+  scenarioDog({
+    id: "e2e-all-children-fit",
+    name: "Family Friendly",
+    color: "#BFD8BD",
+    good_with_kids: true,
+    qualities: [],
+  }),
+];
+
 export const catCompatibilityDogs = [
   scenarioDog({
     id: "e2e-cat-incompatible",

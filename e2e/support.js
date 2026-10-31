@@ -110,7 +110,7 @@ export async function completeEssentialQuiz(page, sessionId, answers = {}) {
     waitUntil: "domcontentloaded",
   });
   await answerEssentialQuiz(page, answers);
-  await page.getByRole("button", { name: "See my matches" }).click();
+  await page.getByRole("button", { name: "See My Matches" }).click();
 
   await expect(page).toHaveURL(new RegExp(`/results\\?session=${sessionId}`));
   await expect(

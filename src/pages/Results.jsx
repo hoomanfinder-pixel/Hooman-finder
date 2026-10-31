@@ -8,8 +8,11 @@ import SEO from "../components/SEO";
 import SiteFooter from "../components/SiteFooter";
 
 import {
+  DEFAULT_RESULT_FILTERS,
   getActiveQuizSessionId,
+  loadResultFilters,
   loadQuizResponses,
+  saveResultFilters,
   setActiveQuizSessionId,
 } from "../lib/quizStorage";
 import { computeRankedMatches } from "../lib/matchingLogic";
@@ -89,18 +92,36 @@ export default function Results() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [visibleMatchCount, setVisibleMatchCount] = useState(INITIAL_DOG_CARD_COUNT);
   const filtersRef = useRef(null);
+  const [storedFilters, setStoredFilters] = useState(() => ({
+    sessionId,
+    values: loadResultFilters(sessionId),
+  }));
+  const filters = storedFilters.sessionId === sessionId
+    ? storedFilters.values
+    : loadResultFilters(sessionId);
+  const {
+    rescueFilter,
+    stateFilter,
+    ageFilter,
+    sizeFilter,
+    energyFilter,
+    hypoOnly,
+    pottyOnly,
+    kidsOnly,
+    catsOnly,
+    dogsOnly,
+  } = filters;
 
-  const [rescueFilter, setRescueFilter] = useState("all");
-  const [stateFilter, setStateFilter] = useState("all");
-  const [ageFilter, setAgeFilter] = useState("all");
-  const [sizeFilter, setSizeFilter] = useState("all");
-  const [energyFilter, setEnergyFilter] = useState("all");
+  useEffect(() => {
+    setStoredFilters((current) => current.sessionId === sessionId
+      ? current
+      : { sessionId, values: loadResultFilters(sessionId) });
+  }, [sessionId]);
 
-  const [hypoOnly, setHypoOnly] = useState(false);
-  const [pottyOnly, setPottyOnly] = useState(false);
-  const [kidsOnly, setKidsOnly] = useState(false);
-  const [catsOnly, setCatsOnly] = useState(false);
-  const [dogsOnly, setDogsOnly] = useState(false);
+  useEffect(() => {
+    if (!sessionId || storedFilters.sessionId !== sessionId) return;
+    saveResultFilters(sessionId, storedFilters.values);
+  }, [sessionId, storedFilters]);
 
   useEffect(() => {
     if (!sessionId) return;
@@ -279,17 +300,27 @@ export default function Results() {
     dogsOnly,
   ].filter(Boolean).length;
 
+  function setFilter(name, nextValue) {
+    setStoredFilters((current) => {
+      const currentValues = current.sessionId === sessionId
+        ? current.values
+        : loadResultFilters(sessionId);
+      const value = typeof nextValue === "function"
+        ? nextValue(currentValues[name])
+        : nextValue;
+
+      return {
+        sessionId,
+        values: { ...currentValues, [name]: value },
+      };
+    });
+  }
+
   function resetFilters() {
-    setRescueFilter("all");
-    setStateFilter("all");
-    setAgeFilter("all");
-    setSizeFilter("all");
-    setEnergyFilter("all");
-    setHypoOnly(false);
-    setPottyOnly(false);
-    setKidsOnly(false);
-    setCatsOnly(false);
-    setDogsOnly(false);
+    setStoredFilters({
+      sessionId,
+      values: { ...DEFAULT_RESULT_FILTERS },
+    });
   }
 
   function toggleFilters() {
@@ -304,13 +335,9 @@ export default function Results() {
     });
   }
 
-  function goRefine() {
-    navigate(`/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}`);
-  }
-
-  function goDealbreakers() {
+  function goEditQuiz() {
     navigate(
-      `/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}`
+      `/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}&edit=1`
     );
   }
 
@@ -341,23 +368,29 @@ export default function Results() {
             />
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
-              onClick={goRefine}
-              className="hidden rounded-full border border-[#183D35]/15 bg-white/55 px-3.5 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#183D35] hover:bg-white sm:inline-flex"
+              onClick={goEditQuiz}
+              className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-full border border-[#183D35]/15 bg-white/55 px-2.5 py-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#183D35] hover:bg-white sm:min-h-10 sm:px-3.5 sm:tracking-[0.14em]"
             >
-              Refine
+              Edit Quiz
             </button>
 
             <button
               type="button"
               onClick={toggleFilters}
-              className="inline-flex min-h-9 items-center rounded-full bg-[#183D35] px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:min-h-10 sm:px-4 sm:text-[11px]"
+              aria-label="Filters"
+              aria-expanded={filtersOpen}
+              aria-controls="result-filters"
+              className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-[#183D35] px-2.5 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-[#F3C982] shadow-sm hover:bg-[#12332C] sm:min-h-10 sm:px-4 sm:text-[11px] sm:tracking-[0.16em]"
             >
-              Filter
+              Filters
               {activeFilterCount > 0 ? (
-                <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F3C982] px-1.5 text-[10px] text-[#12332C]">
+                <span
+                  aria-hidden="true"
+                  className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#F3C982] px-1.5 text-[10px] text-[#12332C]"
+                >
                   {activeFilterCount}
                 </span>
               ) : null}
@@ -375,14 +408,6 @@ export default function Results() {
             >
               ← Back to browse
             </Link>
-
-            <button
-              type="button"
-              onClick={goDealbreakers}
-              className="inline-flex shrink-0 rounded-full border border-[#183D35]/10 bg-white/70 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#6F6A66] hover:bg-white sm:hidden"
-            >
-              Edit Quiz
-            </button>
           </div>
 
           <div className="mt-1 flex flex-col gap-1.5 sm:mt-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
@@ -418,6 +443,7 @@ export default function Results() {
 
         {filtersOpen ? (
           <section
+            id="result-filters"
             ref={filtersRef}
             className="mt-2 max-w-full min-w-0 scroll-mt-20 overflow-hidden rounded-[1.5rem] border border-[#183D35]/10 bg-white p-4 shadow-lg shadow-[#183D35]/5 sm:p-5"
           >
@@ -445,7 +471,7 @@ export default function Results() {
                 Shelter or rescue
                 <select
                   value={rescueFilter}
-                  onChange={(e) => setRescueFilter(e.target.value)}
+                  onChange={(e) => setFilter("rescueFilter", e.target.value)}
                   className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#183D35]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   <option value="all">All sources</option>
@@ -461,7 +487,7 @@ export default function Results() {
                 State
                 <select
                   value={stateFilter}
-                  onChange={(e) => setStateFilter(e.target.value)}
+                  onChange={(e) => setFilter("stateFilter", e.target.value)}
                   className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#183D35]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   <option value="all">All states</option>
@@ -477,7 +503,7 @@ export default function Results() {
                 Age
                 <select
                   value={ageFilter}
-                  onChange={(e) => setAgeFilter(e.target.value)}
+                  onChange={(e) => setFilter("ageFilter", e.target.value)}
                   className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#183D35]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {AGE_OPTIONS.map((o) => (
@@ -492,7 +518,7 @@ export default function Results() {
                 Size
                 <select
                   value={sizeFilter}
-                  onChange={(e) => setSizeFilter(e.target.value)}
+                  onChange={(e) => setFilter("sizeFilter", e.target.value)}
                   className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#183D35]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {SIZE_OPTIONS.map((o) => (
@@ -507,7 +533,7 @@ export default function Results() {
                 Energy
                 <select
                   value={energyFilter}
-                  onChange={(e) => setEnergyFilter(e.target.value)}
+                  onChange={(e) => setFilter("energyFilter", e.target.value)}
                   className="mt-2 w-full min-w-0 max-w-full rounded-xl border border-[#183D35]/15 bg-[#f5f1e9] px-3 py-3 text-sm font-semibold normal-case tracking-normal text-[#183D35]"
                 >
                   {ENERGY_OPTIONS.map((o) => (
@@ -519,14 +545,14 @@ export default function Results() {
               </label>
             </div>
 
-            <div className="mt-4 flex max-w-full gap-2 overflow-x-auto pb-1">
+            <div className="mt-4 flex max-w-full flex-wrap gap-2 pb-1">
               {[
-                ["Hypoallergenic", hypoOnly, setHypoOnly],
-                ["Potty trained", pottyOnly, setPottyOnly],
-                ["Kids", kidsOnly, setKidsOnly],
-                ["Cats", catsOnly, setCatsOnly],
-                ["Dogs", dogsOnly, setDogsOnly],
-              ].map(([label, checked, setter]) => (
+                ["Hypoallergenic", "hypoOnly", hypoOnly],
+                ["Potty trained", "pottyOnly", pottyOnly],
+                ["Kids", "kidsOnly", kidsOnly],
+                ["Cats", "catsOnly", catsOnly],
+                ["Dogs", "dogsOnly", dogsOnly],
+              ].map(([label, filterName, checked]) => (
                 <label
                   key={label}
                   className={[
@@ -539,7 +565,7 @@ export default function Results() {
                   <input
                     type="checkbox"
                     checked={checked}
-                    onChange={(e) => setter(e.target.checked)}
+                    onChange={(e) => setFilter(filterName, e.target.checked)}
                     className="sr-only"
                   />
                   {label}
@@ -586,21 +612,13 @@ export default function Results() {
               Try clearing filters or refining your quiz answers.
             </p>
 
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-5">
               <button
                 type="button"
                 onClick={resetFilters}
                 className="rounded-2xl bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C]"
               >
                 Clear filters
-              </button>
-
-              <button
-                type="button"
-                onClick={goRefine}
-                className="rounded-2xl border border-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#183D35]"
-              >
-                Refine quiz
               </button>
             </div>
           </div>
