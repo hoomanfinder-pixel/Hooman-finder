@@ -30,6 +30,57 @@ test("a valid authoritative dog URL remains preferred", () => {
   );
 });
 
+test("Back The Blue's exact stale organization URL is replaced", () => {
+  assert.equal(
+    resolveRescueGroupsAdoptionUrl({
+      orgId: "8755",
+      candidates: ["https://backthebluepetrescue.org/adoption-application/"],
+    }),
+    "https://backthebluepetrescue.org/dog-adoption-application/"
+  );
+});
+
+test("the Back The Blue replacement is scoped to the exact organization", () => {
+  const staleUrl = "https://backthebluepetrescue.org/adoption-application/";
+
+  assert.equal(
+    resolveRescueGroupsAdoptionUrl({ orgId: "different-org", candidates: [staleUrl] }),
+    staleUrl
+  );
+});
+
+test("Back The Blue keeps a different valid URL unchanged", () => {
+  const otherValidUrl = "https://backthebluepetrescue.org/our-dogs/";
+
+  assert.equal(
+    resolveRescueGroupsAdoptionUrl({ orgId: "8755", candidates: [otherValidUrl] }),
+    otherValidUrl
+  );
+});
+
+test("missing and malformed Back The Blue candidates do not trigger the replacement", () => {
+  assert.equal(resolveRescueGroupsAdoptionUrl({ orgId: "8755" }), null);
+  assert.equal(
+    resolveRescueGroupsAdoptionUrl({
+      orgId: "8755",
+      candidates: [null, "not a URL", "http://backthebluepetrescue.org/adoption-application/"],
+    }),
+    null
+  );
+});
+
+test("a valid dog-specific URL remains preferred over Back The Blue's stale organization URL", () => {
+  const dogUrl = "https://backthebluepetrescue.org/dogs/scout/";
+
+  assert.equal(
+    resolveRescueGroupsAdoptionUrl({
+      orgId: "8755",
+      candidates: [dogUrl, "https://backthebluepetrescue.org/adoption-application/"],
+    }),
+    dogUrl
+  );
+});
+
 test("configured destinations use exact stable organization IDs", () => {
   assert.equal(
     getVerifiedOrgAdoptionDestination("6172"),

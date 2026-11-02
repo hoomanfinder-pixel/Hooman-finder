@@ -14,6 +14,13 @@ const VERIFIED_ORG_HOME_PAGES = Object.freeze({
   "6454": "https://projecthoperescue.org",
 });
 
+const VERIFIED_STALE_ORG_ADOPTION_URL_REPLACEMENTS = Object.freeze({
+  "8755": Object.freeze({
+    stale: "https://backthebluepetrescue.org/adoption-application/",
+    current: "https://backthebluepetrescue.org/dog-adoption-application/",
+  }),
+});
+
 function clean(value) {
   if (value === null || value === undefined) return null;
   const text = String(value).trim();
@@ -64,9 +71,22 @@ function getVerifiedOrgHomePage(orgId) {
   return VERIFIED_ORG_HOME_PAGES[String(orgId || "")] || null;
 }
 
+function replaceVerifiedStaleOrgAdoptionUrl(orgId, value) {
+  const replacement = VERIFIED_STALE_ORG_ADOPTION_URL_REPLACEMENTS[String(orgId || "")];
+  const candidate = clean(value);
+
+  return replacement && candidate === replacement.stale
+    ? replacement.current
+    : value;
+}
+
 function resolveRescueGroupsAdoptionUrl({ orgId, candidates = [] }) {
+  const correctedCandidates = Array.isArray(candidates)
+    ? candidates.map((candidate) => replaceVerifiedStaleOrgAdoptionUrl(orgId, candidate))
+    : [];
+
   return (
-    firstSafeAuthoritativeUrl(...candidates) ||
+    firstSafeAuthoritativeUrl(...correctedCandidates) ||
     getVerifiedOrgAdoptionDestination(orgId)
   );
 }
