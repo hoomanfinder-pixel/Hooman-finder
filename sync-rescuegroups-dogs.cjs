@@ -808,7 +808,7 @@ function buildRequestBody(rescue) {
           "order",
           "url",
         ],
-        orgs: ["name", "city", "state", "url", "website"],
+        orgs: ["name", "city", "state", "url", "website", "adoptionUrl"],
         locations: LOCATION_FIELDS,
         statuses: ["name", "description"],
       },

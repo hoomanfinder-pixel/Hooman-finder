@@ -359,6 +359,12 @@ test("location collection is privacy-minimized and excluded from AI content hash
   assert.equal(before, after);
 });
 
+test("scheduled requests explicitly include the organization adoption URL", () => {
+  const request = buildRequestBody(rescue("Example Rescue", "159"));
+
+  assert.ok(request.data.fields.orgs.includes("adoptionUrl"));
+});
+
 test("explicit false compatibility values survive mapping and existing-row updates", () => {
   const mapped = mapAnimalToDogRow(
     {
@@ -396,6 +402,30 @@ test("organization adoption URL is a safe fallback when an animal has no listing
   );
 
   assert.equal(mapped.adoption_url, "https://example.org/adopt");
+});
+
+test("Back The Blue's corrected organization form maps to both source and adoption URLs", () => {
+  const currentApplicationUrl = "https://backthebluepetrescue.org/dog-adoption-application/";
+  const mapped = mapAnimalToDogRow(
+    {
+      id: "dog-back-the-blue",
+      attributes: { name: "Scout" },
+      relationships: { orgs: { data: [{ type: "orgs", id: "8755" }] } },
+    },
+    [{
+      type: "orgs",
+      id: "8755",
+      attributes: {
+        name: "Back The Blue Pet Rescue",
+        adoptionUrl: "https://backthebluepetrescue.org/adoption-application/",
+        url: "https://backthebluepetrescue.org/",
+      },
+    }],
+    rescue("Back The Blue Pet Rescue", "8755")
+  );
+
+  assert.equal(mapped.source_url, currentApplicationUrl);
+  assert.equal(mapped.adoption_url, currentApplicationUrl);
 });
 
 test("scheduled mapping preserves valid organization websites and animal adoption URLs", () => {
