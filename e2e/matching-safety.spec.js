@@ -16,6 +16,7 @@ import {
   expectValidMatchPercentages,
   getCardPercentage,
   getResultCard,
+  openResultProfile,
   test,
 } from "./support.js";
 
@@ -45,7 +46,7 @@ async function openResultsWithAnswers(page, sessionId, answersById) {
 }
 
 async function expectConfirmedConflictExcluded(page, incompatibleName, unknownName) {
-  const incompatibleCard = page.getByRole("link", { name: new RegExp(incompatibleName, "i") });
+  const incompatibleCard = getResultCard(page, incompatibleName);
   const unknownCard = getResultCard(page, unknownName);
 
   await expect(incompatibleCard).toHaveCount(0);
@@ -73,8 +74,7 @@ test.describe("young children compatibility safety", () => {
     );
 
     await expectDecodedImage(page.getByRole("img", { name: /Scout, adoptable/i }).first());
-    await unknownCard.focus();
-    await page.keyboard.press("Enter");
+    await openResultProfile(unknownCard);
     await expect(page).toHaveURL(/\/dog\/e2e-child-unknown/);
     await expect(page.getByRole("alert")).toHaveCount(0);
 
@@ -180,8 +180,7 @@ test.describe("alone-time preference ranking", () => {
     );
     await expect(page.getByText("Important compatibility caution")).toHaveCount(0);
 
-    await fittingCard.focus();
-    await page.keyboard.press("Enter");
+    await openResultProfile(fittingCard);
     await expect(page).toHaveURL(/\/dog\/e2e-alone-fit/);
     await expect(page.getByRole("heading", { name: "Harbor", exact: true })).toBeVisible();
     await expect(
@@ -214,8 +213,7 @@ test.describe("match evidence coverage", () => {
     await expect(richCard).not.toContainText("Limited listing information");
     await expect(sparseCard).toContainText("Fit score: 73/100 · Limited listing information");
 
-    await sparseCard.focus();
-    await page.keyboard.press("Enter");
+    await openResultProfile(sparseCard);
     await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
     await expect(
       page.getByRole("button", {
@@ -255,8 +253,7 @@ test.describe("deeper quiz scoring", () => {
     await expect(activeCard).toContainText("#2 potential fit");
     expect(await getCardPercentage(quietCard)).toBeGreaterThan(await getCardPercentage(activeCard));
 
-    await quietCard.focus();
-    await page.keyboard.press("Enter");
+    await openResultProfile(quietCard);
     await expect(page).toHaveURL(/\/dog\/e2e-deep-quiet/);
     await expect(page.getByText("Shelter-listed exercise level fits your daily walking capacity")).toBeVisible();
   });
