@@ -43,7 +43,7 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
 
   await expect(page).toHaveURL(/\/results\?session=/);
   await expect(
-    page.getByRole("heading", { name: "Your best-fit dogs, ranked." })
+    page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })
   ).toBeVisible();
   await expectValidMatchPercentages(page);
   await expectNoHorizontalOverflow(page);

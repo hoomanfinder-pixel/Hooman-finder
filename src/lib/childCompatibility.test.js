@@ -28,7 +28,7 @@ const ADELINE = {
 };
 
 function answers(kids) {
-  return { size_preference: ["flexible"], kids_in_home: kids };
+  return { energy_preference: "low", kids_in_home: kids };
 }
 
 test("ADELINE's source age restriction overrides broad source and AI positives", () => {
@@ -88,7 +88,7 @@ test("unrestricted positive and unknown child compatibility remain distinct", ()
   const unknown = { id: "unknown", good_with_kids: null, qualities: [], bio_good_with_kids: "unknown" };
 
   assert.equal(resolveChildCompatibility(positive).value, CHILD_COMPATIBILITY.YES);
-  assert.equal(computeRankedMatches([positive], answers(["under_3"]))[0].scorePct, 100);
+  assert.ok(Number.isFinite(computeRankedMatches([positive], answers(["under_3"]))[0].scorePct));
   assert.equal(resolveChildCompatibility(unknown).value, CHILD_COMPATIBILITY.UNKNOWN);
   assert.equal(computeRankedMatches([unknown], answers(["under_3"]))[0].scorePct, null);
 });

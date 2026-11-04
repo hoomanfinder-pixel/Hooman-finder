@@ -19,13 +19,6 @@ import {
   test,
 } from "./support.js";
 
-const childWarning =
-  "This dog is listed as not compatible with children, but your household includes children.";
-const catWarning =
-  "This dog is listed as not compatible with cats, but your home includes a cat.";
-const dogWarning =
-  "This dog is listed as not compatible with other dogs, but your home includes a dog.";
-
 async function expectResultImagesDecoded(page, dogs) {
   for (const dog of dogs) {
     await expectDecodedImage(
@@ -48,32 +41,24 @@ async function openResultsWithAnswers(page, sessionId, answersById) {
     { id: sessionId, answers: answersById }
   );
   await page.goto(`/results?session=${sessionId}`, { waitUntil: "domcontentloaded" });
-  await expect(page.getByRole("heading", { name: "Your best-fit dogs, ranked." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })).toBeVisible();
 }
 
-async function expectExplicitConflictOnly(page, incompatibleName, unknownName, warning) {
-  const incompatibleCard = getResultCard(page, incompatibleName);
+async function expectConfirmedConflictExcluded(page, incompatibleName, unknownName) {
+  const incompatibleCard = page.getByRole("link", { name: new RegExp(incompatibleName, "i") });
   const unknownCard = getResultCard(page, unknownName);
 
-  await expect(incompatibleCard).toBeVisible();
+  await expect(incompatibleCard).toHaveCount(0);
   await expect(unknownCard).toBeVisible();
-  const visibleAlert = incompatibleCard.getByRole("alert");
-  await expect(visibleAlert).toBeVisible();
-  await expect(visibleAlert.getByLabel(warning)).toBeVisible();
   await expect(unknownCard.getByRole("alert")).toHaveCount(0);
 
-  const incompatibleScore = await getCardPercentage(incompatibleCard);
-  const unknownScore = await getCardPercentage(unknownCard);
-  expect(incompatibleScore).toBeLessThanOrEqual(49);
-  expect(unknownScore).toBeGreaterThan(49);
-
-  return { incompatibleCard, unknownCard, incompatibleScore, unknownScore };
+  return unknownCard;
 }
 
 test.describe("young children compatibility safety", () => {
   test.use({ scenario: { dogs: childCompatibilityDogs } });
 
-  test("explicit child incompatibility is capped and warned across results and profile", async ({
+  test("confirmed child incompatibility is hard-excluded while unknown remains eligible", async ({
     page,
   }) => {
     await completeEssentialQuiz(page, "e2e-young-children", {
@@ -81,39 +66,25 @@ test.describe("young children compatibility safety", () => {
     });
 
     await expectValidMatchPercentages(page);
-    await expectResultImagesDecoded(page, childCompatibilityDogs);
-    const { incompatibleCard, unknownCard } = await expectExplicitConflictOnly(
+    const unknownCard = await expectConfirmedConflictExcluded(
       page,
       "Juniper",
-      "Scout",
-      childWarning
+      "Scout"
     );
 
-    await incompatibleCard.focus();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/dog\/e2e-child-incompatible/);
-    await expect(page.getByRole("alert").first()).toContainText(childWarning);
-    await expectDecodedImage(
-      page.getByRole("img", { name: /Juniper, adoptable/i }).first()
-    );
-
-    await page
-      .getByRole("button", { name: /Open why you matched\. \d+ percent match/i })
-      .click();
-    const matchDialog = page.getByRole("dialog", { name: "Why you matched" });
-    await expect(matchDialog).toBeVisible();
-    await expect(matchDialog.getByRole("alert")).toContainText(childWarning);
-    await matchDialog.getByRole("button", { name: "Close", exact: true }).click();
-
-    await page.goBack({ waitUntil: "domcontentloaded" });
-    await expect(
-      page.getByRole("heading", { name: "Your best-fit dogs, ranked." })
-    ).toBeVisible();
+    await expectDecodedImage(page.getByRole("img", { name: /Scout, adoptable/i }).first());
     await unknownCard.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/dog\/e2e-child-unknown/);
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await expectDecodedImage(page.getByRole("img", { name: /Scout, adoptable/i }).first());
+
+    await page
+      .getByRole("button", { name: /Open fit score details\. Fit score: \d+\/100/i })
+      .click();
+    const matchDialog = page.getByRole("dialog", { name: "Why this dog may fit" });
+    await expect(matchDialog).toBeVisible();
+    await expect(matchDialog.getByRole("alert")).toHaveCount(0);
+    await matchDialog.getByRole("button", { name: "Close", exact: true }).click();
     await expectNoBareProtocolLinks(page);
     await expect(page.getByRole("link", { name: "View official listing" })).toHaveAttribute(
       "href",
@@ -153,12 +124,12 @@ test.describe("editing child ages preserves older-children-only exclusions", () 
 test.describe("cat compatibility safety", () => {
   test.use({ scenario: { dogs: catCompatibilityDogs } });
 
-  test("only confirmed cat incompatibility creates a warning and score cap", async ({ page }) => {
+  test("confirmed cat incompatibility is hard-excluded while unknown remains eligible", async ({ page }) => {
     await completeEssentialQuiz(page, "e2e-cat-home", { pets: "Cats" });
 
     await expectValidMatchPercentages(page);
-    await expectResultImagesDecoded(page, catCompatibilityDogs);
-    await expectExplicitConflictOnly(page, "Clover", "Wren", catWarning);
+    await expectConfirmedConflictExcluded(page, "Clover", "Wren");
+    await expectDecodedImage(page.getByRole("img", { name: /Wren, adoptable/i }).first());
     await expectNoBareProtocolLinks(page);
   });
 });
@@ -166,12 +137,12 @@ test.describe("cat compatibility safety", () => {
 test.describe("dog compatibility safety", () => {
   test.use({ scenario: { dogs: dogCompatibilityDogs } });
 
-  test("only confirmed dog incompatibility creates a warning and score cap", async ({ page }) => {
+  test("confirmed dog incompatibility is hard-excluded while unknown remains eligible", async ({ page }) => {
     await completeEssentialQuiz(page, "e2e-dog-home", { pets: "Other dogs" });
 
     await expectValidMatchPercentages(page);
-    await expectResultImagesDecoded(page, dogCompatibilityDogs);
-    await expectExplicitConflictOnly(page, "Piper", "Marlow", dogWarning);
+    await expectConfirmedConflictExcluded(page, "Piper", "Marlow");
+    await expectDecodedImage(page.getByRole("img", { name: /Marlow, adoptable/i }).first());
     await expectNoBareProtocolLinks(page);
   });
 });
@@ -202,15 +173,21 @@ test.describe("alone-time preference ranking", () => {
     const lowerSuitabilityScore = await getCardPercentage(lowerSuitabilityCard);
 
     expect(fittingScore).toBeGreaterThan(lowerSuitabilityScore);
-    await expect(fittingCard).toContainText("Top match");
-    await expect(lowerSuitabilityCard).toContainText("#2 match");
+    await expect(fittingCard).toContainText("Top potential fit");
+    await expect(lowerSuitabilityCard).toContainText("#2 potential fit");
+    await expect(lowerSuitabilityCard).toContainText(
+      "Shelter-listed alone-time capacity may not fit your weekday routine"
+    );
     await expect(page.getByText("Important compatibility caution")).toHaveCount(0);
 
     await fittingCard.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/dog\/e2e-alone-fit/);
+    await expect(page.getByRole("heading", { name: "Harbor", exact: true })).toBeVisible();
     await expect(
-      page.getByText("Listed alone-time capacity fits your weekday routine")
+      page.getByText("Shelter-listed alone-time capacity fits your weekday routine", {
+        exact: true,
+      })
     ).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await expectNoBareProtocolLinks(page);
@@ -220,7 +197,7 @@ test.describe("alone-time preference ranking", () => {
 test.describe("match evidence coverage", () => {
   test.use({ scenario: { dogs: evidenceCoverageDogs } });
 
-  test("coverage prevents sparse perfect evidence from displaying as 100 percent", async ({
+  test("coverage prevents sparse perfect evidence from displaying a 100 fit score", async ({
     page,
   }) => {
     await completeEssentialQuiz(page, "e2e-evidence-coverage", {
@@ -233,25 +210,25 @@ test.describe("match evidence coverage", () => {
 
     const richCard = getResultCard(page, "Atlas");
     const sparseCard = getResultCard(page, "Sapphire");
-    await expect(richCard).toContainText("100% match");
-    await expect(richCard).not.toContainText("Limited info");
-    await expect(sparseCard).toContainText("Limited info · 73% match");
+    await expect(richCard).toContainText("Fit score: 100/100");
+    await expect(richCard).not.toContainText("Limited listing information");
+    await expect(sparseCard).toContainText("Fit score: 73/100 · Limited listing information");
 
     await sparseCard.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
     await expect(
       page.getByRole("button", {
-        name: "Open why you matched. Limited information. 73 percent match",
+        name: "Open fit score details. Fit score: 73/100. Limited listing information",
       })
     ).toBeVisible();
     await page
       .getByRole("button", {
-        name: "Open why you matched. Limited information. 73 percent match",
+        name: "Open fit score details. Fit score: 73/100. Limited listing information",
       })
       .click();
-    await expect(page.getByRole("dialog", { name: "Why you matched" })).toContainText(
-      "Limited information"
+    await expect(page.getByRole("dialog", { name: "Why this dog may fit" })).toContainText(
+      "Limited listing information"
     );
   });
 });
@@ -274,13 +251,13 @@ test.describe("deeper quiz scoring", () => {
 
     const quietCard = getResultCard(page, "Quiet Homebody");
     const activeCard = getResultCard(page, "Active Vocal");
-    await expect(quietCard).toContainText("Top match");
-    await expect(activeCard).toContainText("#2 match");
+    await expect(quietCard).toContainText("Top potential fit");
+    await expect(activeCard).toContainText("#2 potential fit");
     expect(await getCardPercentage(quietCard)).toBeGreaterThan(await getCardPercentage(activeCard));
 
     await quietCard.focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/dog\/e2e-deep-quiet/);
-    await expect(page.getByText("Shelter-listed exercise needs fit your daily walking capacity")).toBeVisible();
+    await expect(page.getByText("Shelter-listed exercise level fits your daily walking capacity")).toBeVisible();
   });
 });

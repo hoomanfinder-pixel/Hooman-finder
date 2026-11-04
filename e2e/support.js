@@ -114,31 +114,31 @@ export async function completeEssentialQuiz(page, sessionId, answers = {}) {
 
   await expect(page).toHaveURL(new RegExp(`/results\\?session=${sessionId}`));
   await expect(
-    page.getByRole("heading", { name: "Your best-fit dogs, ranked." })
+    page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })
   ).toBeVisible();
 }
 
 export function getResultCard(page, dogName) {
   return page
     .getByRole("link", { name: new RegExp(dogName, "i") })
-    .filter({ hasText: /\d+% match/ })
+    .filter({ hasText: /Fit score:\s*\d+\/100/ })
     .first();
 }
 
 export async function getCardPercentage(card) {
-  const labels = await card.getByText(/\d+% match/).allTextContents();
-  expect(labels.length, "Expected a visible match percentage on the result card").toBeGreaterThan(0);
-  return Number.parseInt(labels[0].match(/(\d+)% match/)?.[1] || "", 10);
+  const labels = await card.getByText(/Fit score:\s*\d+\/100/).allTextContents();
+  expect(labels.length, "Expected a visible fit score on the result card").toBeGreaterThan(0);
+  return Number.parseInt(labels[0].match(/Fit score:\s*(\d+)\/100/)?.[1] || "", 10);
 }
 
 export async function expectValidMatchPercentages(page) {
-  const matchLabels = page.getByText(/\d+% match/);
+  const matchLabels = page.getByText(/Fit score:\s*\d+\/100/);
   await expect(matchLabels.first()).toBeVisible();
   const labels = await matchLabels.allTextContents();
   expect(labels.length).toBeGreaterThan(0);
 
   for (const label of labels) {
-    const percentage = Number.parseInt(label.match(/(\d+)% match/)?.[1] || "", 10);
+    const percentage = Number.parseInt(label.match(/Fit score:\s*(\d+)\/100/)?.[1] || "", 10);
     expect(percentage).toBeGreaterThanOrEqual(0);
     expect(percentage).toBeLessThanOrEqual(100);
   }
