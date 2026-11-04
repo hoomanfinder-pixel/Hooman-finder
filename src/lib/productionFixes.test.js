@@ -103,7 +103,7 @@ test("confirmed child incompatibility removes the dog from eligible results", ()
 });
 
 test("confirmed dog, cat, and small-animal incompatibilities remove dogs while unknown stays eligible", () => {
-  const answers = { size_preference: ["flexible"], pets_in_home: ["dogs", "cats"] };
+  const answers = { age_preference: ["adult"], pets_in_home: ["dogs", "cats"] };
   const negative = { name: "Confirmed no", good_with_dogs: false, good_with_cats: false };
   const [unknown] = computeRankedMatches([{ name: "Unknown" }], answers);
   assert.deepEqual(computeRankedMatches([negative], answers), []);
@@ -115,7 +115,7 @@ test("confirmed dog, cat, and small-animal incompatibilities remove dogs while u
   assert.equal(unknown.breakdown.emptyReason, "no_dog_evidence");
   assert.deepEqual(unknown.breakdown.compatibilityCautions, []);
 
-  const smallAnimalAnswers = { size_preference: ["flexible"], pets_in_home: ["small_pets"] };
+  const smallAnimalAnswers = { age_preference: ["adult"], pets_in_home: ["small_pets"] };
   const smallAnimalConflict = { name: "No small animals", good_with_small_animals: false };
   const legacySmallAnimalConflict = { name: "Legacy no small animals", good_with_small_pets: false };
   assert.deepEqual(computeRankedMatches([smallAnimalConflict], smallAnimalAnswers), []);
@@ -130,14 +130,15 @@ test("confirmed dog, cat, and small-animal incompatibilities remove dogs while u
 
 test("multi-pet evidence coverage is proportional to documented requested species", () => {
   const answers = {
-    size_preference: ["flexible"],
+    age_preference: ["adult"],
     pets_in_home: ["dogs", "cats", "small_pets"],
   };
   const dogs = [
-    { name: "One known", good_with_dogs: true },
-    { name: "Two known", good_with_dogs: true, good_with_cats: true },
+    { name: "One known", age_years: 4, good_with_dogs: true },
+    { name: "Two known", age_years: 4, good_with_dogs: true, good_with_cats: true },
     {
       name: "All known",
+      age_years: 4,
       good_with_dogs: true,
       good_with_cats: true,
       good_with_small_animals: true,
@@ -147,12 +148,12 @@ test("multi-pet evidence coverage is proportional to documented requested specie
     computeRankedMatches(dogs, answers).map((row) => [row.dog.name, row])
   );
 
-  assert.equal(byName.get("One known").breakdown.evidenceRequestedWeight, 3);
-  assert.equal(byName.get("One known").breakdown.evidenceCoveredWeight, 1);
-  assert.equal(byName.get("One known").breakdown.evidencePresencePct, 33);
-  assert.equal(byName.get("Two known").breakdown.evidenceCoveredWeight, 2);
-  assert.equal(byName.get("Two known").breakdown.evidencePresencePct, 67);
-  assert.equal(byName.get("All known").breakdown.evidenceCoveredWeight, 3);
+  assert.equal(byName.get("One known").breakdown.evidenceRequestedWeight, 6);
+  assert.equal(byName.get("One known").breakdown.evidenceCoveredWeight, 4);
+  assert.equal(byName.get("One known").breakdown.evidencePresencePct, 67);
+  assert.equal(byName.get("Two known").breakdown.evidenceCoveredWeight, 5);
+  assert.equal(byName.get("Two known").breakdown.evidencePresencePct, 83);
+  assert.equal(byName.get("All known").breakdown.evidenceCoveredWeight, 6);
   assert.equal(byName.get("All known").breakdown.evidencePresencePct, 100);
   assert.deepEqual(
     ["One known", "Two known", "All known"].map(
@@ -166,13 +167,13 @@ test("multi-pet evidence coverage is proportional to documented requested specie
 
 test("unknown multi-pet compatibility remains unknown rather than positive or negative", () => {
   const answers = {
-    size_preference: ["flexible"],
+    age_preference: ["adult"],
     pets_in_home: ["dogs", "cats", "small_pets"],
   };
   const [row] = computeRankedMatches([{ name: "Unknown pets" }], answers);
 
   assert.equal(row.scorePct, null);
-  assert.equal(row.breakdown.evidenceRequestedWeight, 3);
+  assert.equal(row.breakdown.evidenceRequestedWeight, 6);
   assert.equal(row.breakdown.evidenceCoveredWeight, 0);
   assert.equal(row.breakdown.emptyReason, "no_dog_evidence");
   assert.deepEqual(row.breakdown.contributions, []);
@@ -257,19 +258,23 @@ test("same raw compatibility ranks broad evidence above sparse evidence", () => 
 });
 
 test("structured evidence outweighs bio-explicit and profile inference", () => {
-  const answers = { size_preference: ["flexible"], energy_preference: "low" };
+  const answers = { size_preference: ["small"], energy_preference: "low" };
   const dogs = [
-    { name: "Structured", energy_level: "Low" },
-    { name: "Bio explicit", bio_energy_level: "low", ai_traits: { energy_level: aiTrait("low", 1, "bio_explicit") } },
-    { name: "Profile", bio_energy_level: "low", ai_traits: { energy_level: aiTrait("low", 1, "profile_inference") } },
+    { name: "Structured", size: "Small", energy_level: "Low" },
+    { name: "Bio explicit", size: "Small", bio_energy_level: "low", ai_traits: { energy_level: aiTrait("low", 1, "bio_explicit") } },
+    { name: "Profile", size: "Small", bio_energy_level: "low", ai_traits: { energy_level: aiTrait("low", 1, "profile_inference") } },
   ];
   const byName = new Map(computeRankedMatches(dogs, answers).map((row) => [row.dog.name, row]));
   assert.equal(byName.get("Structured").scorePct, 100);
   assert.ok(byName.get("Structured").scorePct > byName.get("Bio explicit").scorePct);
   assert.ok(byName.get("Bio explicit").scorePct > byName.get("Profile").scorePct);
-  assert.equal(byName.get("Structured").breakdown.evidenceQualityPct, 100);
-  assert.equal(byName.get("Bio explicit").breakdown.evidenceQualityPct, 65);
-  assert.equal(byName.get("Profile").breakdown.evidenceQualityPct, 25);
+  const energyStrength = (name) => byName.get(name).breakdown.contributions
+    .find(({ questionId }) => questionId === "energy_preference")
+    .evidenceStrength;
+  assert.deepEqual(
+    ["Structured", "Bio explicit", "Profile"].map(energyStrength),
+    [1, 0.65, 0.25]
+  );
 });
 
 test("shedding evidence keeps source, bio, breed-coat, and general inference tiers distinct", () => {
@@ -329,8 +334,55 @@ test("flexible answers add neither points nor requested evidence", () => {
   assert.deepEqual(result.breakdown.contributions, []);
 });
 
+test("one active preference plus one flexible answer cannot unlock a fit score", () => {
+  const [result] = computeRankedMatches(
+    [{ name: "Small adult", size: "Small", age_years: 4 }],
+    { size_preference: ["small"], age_preference: ["flexible"] }
+  );
+
+  assert.equal(result.scorePct, null);
+  assert.equal(result.breakdown.answeredCount, 1);
+  assert.equal(result.breakdown.enoughQuizInfo, false);
+  assert.equal(result.breakdown.emptyReason, "too_few_quiz_answers");
+});
+
+test("two genuinely active preferences remain eligible for a fit score", () => {
+  const [result] = computeRankedMatches(
+    [{ name: "Small adult", size: "Small", age_years: 4 }],
+    { size_preference: ["small"], age_preference: ["adult"] }
+  );
+
+  assert.equal(result.scorePct, 100);
+  assert.equal(result.breakdown.answeredCount, 2);
+  assert.equal(result.breakdown.enoughQuizInfo, true);
+});
+
+test("no active preferences remain scoreless even when neutral answers are complete", () => {
+  const [result] = computeRankedMatches(
+    [{ name: "Small adult", size: "Small", age_years: 4 }],
+    { size_preference: ["flexible"], age_preference: ["flexible"] }
+  );
+
+  assert.equal(result.scorePct, null);
+  assert.equal(result.breakdown.answeredCount, 0);
+  assert.equal(result.breakdown.enoughQuizInfo, false);
+  assert.equal(result.breakdown.emptyReason, "too_few_quiz_answers");
+});
+
+test("two active preferences allow a limited score when dog evidence is sparse", () => {
+  const [result] = computeRankedMatches(
+    [{ name: "Sparse", size: "Small" }],
+    { size_preference: ["small"], age_preference: ["adult"] }
+  );
+
+  assert.equal(result.scorePct, 80);
+  assert.equal(result.breakdown.rawCompatibilityPct, 100);
+  assert.equal(result.breakdown.evidencePresencePct, 50);
+  assert.equal(result.breakdown.limitedInformation, true);
+});
+
 test("AI behavioral negatives never create hard exclusions", () => {
-  const answers = { size_preference: ["flexible"], kids_in_home: ["under_3"] };
+  const answers = { age_preference: ["adult"], kids_in_home: ["under_3"] };
   for (const evidenceBasis of ["bio_explicit", "profile_inference"]) {
     const [result] = computeRankedMatches([{
       name: evidenceBasis,
@@ -485,6 +537,10 @@ test("alone-time capacity cannot duplicate separation-anxiety scoring", () => {
   const [hoursOnly] = computeRankedMatches([{ name: "Hours only", max_alone_hours: 6 }], answers);
   assert.deepEqual(hoursOnly.breakdown.contributions.map((entry) => entry.questionId), ["alone_time"]);
   assert.equal(hoursOnly.breakdown.evidenceCoveredWeight, MATCH_WEIGHTS.alone_time);
+  assert.match(hoursOnly.breakdown.contributions[0].explanation, /fits your weekday routine/);
+
+  const [insufficientHours] = computeRankedMatches([{ name: "Insufficient hours", max_alone_hours: 2 }], answers);
+  assert.match(insufficientHours.breakdown.contributions[0].explanation, /may not fit your weekday routine/);
 
   const [explicitConcern] = computeRankedMatches([{
     name: "Explicit concern",
@@ -497,6 +553,138 @@ test("alone-time capacity cannot duplicate separation-anxiety scoring", () => {
   assert.equal(separation.source, "bio_explicit");
   assert.ok(separation.adjustedCompatibility < 0.5);
   assert.equal(separation.positive, false);
+});
+
+test("low-compatibility tradeoffs never use misleading positive wording", () => {
+  const cases = [
+    {
+      questionId: "dog_social_preference",
+      answers: { dog_social_preference: "very_dog_friendly" },
+      dog: { only_dog: true },
+      expected: "Shelter-listed social style may not fit your preference around other dogs",
+    },
+    {
+      questionId: "separation_anxiety_willingness",
+      answers: { separation_anxiety_willingness: "no" },
+      dog: { separation_anxiety: true },
+      expected: "Shelter-listed separation-anxiety information may not fit your stated limit",
+    },
+    {
+      questionId: "training_commitment_level",
+      answers: { training_commitment_level: "low" },
+      dog: { obedience_training: "needs training" },
+      expected: "Shelter-listed training level may not fit your available training commitment",
+    },
+    {
+      questionId: "daily_walk_minutes",
+      answers: { daily_walk_minutes: "0_15" },
+      dog: { exercise_needs: "High" },
+      expected: "Shelter-listed exercise level may not fit your daily walking capacity",
+    },
+    {
+      questionId: "energy_preference",
+      answers: { energy_preference: "low" },
+      dog: { energy_level: "High" },
+      expected: "Shelter-listed energy level may not fit your preference",
+    },
+    {
+      questionId: "shedding_preference",
+      answers: { shedding_preference: "minimal" },
+      dog: { shedding_level: "High" },
+      expected: "Shelter-listed shedding level may not fit your preference",
+    },
+  ];
+
+  for (const { questionId, answers, dog, expected } of cases) {
+    const [result] = computeRankedMatches(
+      [{ name: questionId, size: "Small", ...dog }],
+      { size_preference: ["small"], ...answers }
+    );
+    const contribution = result.breakdown.contributions.find(
+      (entry) => entry.questionId === questionId
+    );
+    assert.equal(contribution.positive, false);
+    assert.equal(contribution.explanation, expected);
+  }
+});
+
+test("estimated tradeoffs remain uncertain rather than becoming shelter restrictions", () => {
+  const [result] = computeRankedMatches(
+    [{
+      name: "Estimated training",
+      size: "Small",
+      bio_training_needs: "high",
+      ai_traits: {
+        training_needs: aiTrait("high", 1, "profile_inference"),
+      },
+    }],
+    {
+      size_preference: ["small"],
+      training_commitment_level: "low",
+    }
+  );
+  const contribution = result.breakdown.contributions.find(
+    (entry) => entry.questionId === "training_commitment_level"
+  );
+  assert.equal(contribution.source, "profile_inference");
+  assert.equal(contribution.positive, false);
+  assert.equal(
+    contribution.explanation,
+    "Estimated training needs may not fit your available training commitment"
+  );
+});
+
+test("positive structured compatibility retains supportive wording", () => {
+  const cases = [
+    {
+      questionId: "dog_social_preference",
+      answers: { dog_social_preference: "very_dog_friendly" },
+      dog: { dog_social_style: "highly social" },
+      expected: "Shelter-listed social style fits your preference around other dogs",
+    },
+    {
+      questionId: "separation_anxiety_willingness",
+      answers: { separation_anxiety_willingness: "no" },
+      dog: { separation_anxiety: false },
+      expected: "Shelter-listed separation-anxiety information fits your stated limit",
+    },
+    {
+      questionId: "training_commitment_level",
+      answers: { training_commitment_level: "low" },
+      dog: { obedience_training: "well trained" },
+      expected: "Shelter-listed training level fits your available training commitment",
+    },
+    {
+      questionId: "daily_walk_minutes",
+      answers: { daily_walk_minutes: "0_15" },
+      dog: { exercise_needs: "Low" },
+      expected: "Shelter-listed exercise level fits your daily walking capacity",
+    },
+    {
+      questionId: "energy_preference",
+      answers: { energy_preference: "low" },
+      dog: { energy_level: "Low" },
+      expected: "Shelter-listed energy level fits your preference",
+    },
+    {
+      questionId: "shedding_preference",
+      answers: { shedding_preference: "minimal" },
+      dog: { shedding_level: "Low" },
+      expected: "Shelter-listed shedding level fits your preference",
+    },
+  ];
+
+  for (const { questionId, answers, dog, expected } of cases) {
+    const [result] = computeRankedMatches(
+      [{ name: questionId, size: "Small", ...dog }],
+      { size_preference: ["small"], ...answers }
+    );
+    const contribution = result.breakdown.contributions.find(
+      (entry) => entry.questionId === questionId
+    );
+    assert.equal(contribution.positive, true);
+    assert.equal(contribution.explanation, expected);
+  }
 });
 
 test("allergy scoring does not duplicate shedding-only evidence", () => {

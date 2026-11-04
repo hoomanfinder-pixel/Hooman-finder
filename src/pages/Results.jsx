@@ -421,11 +421,11 @@ export default function Results() {
                     ✓
                   </span>
                 ) : null}
-                Your matches
+                Your fit results
               </p>
 
               <h1 className="mt-1 max-w-2xl font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-5xl">
-                Your best-fit dogs, ranked.
+                Dogs that may fit your lifestyle.
               </h1>
 
               <p className="mt-1 max-w-2xl text-[13px] font-semibold leading-5 text-[#6f6a66] sm:mt-1.5 sm:text-base sm:leading-6">
@@ -626,7 +626,7 @@ export default function Results() {
           <section className="mt-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#6F6A66]">
-                Ranked matches
+                Potential fits
               </h2>
 
               {activeFilterCount > 0 ? (

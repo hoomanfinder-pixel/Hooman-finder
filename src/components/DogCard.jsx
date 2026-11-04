@@ -12,6 +12,12 @@ import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { truncateAtWord } from "../utils/truncateAtWord";
 import { getTraitDisplay } from "../lib/traitDisplay";
 import { getChildFitChip } from "../lib/childCompatibility";
+import {
+  formatFitScore,
+  getEvidenceLabels,
+  getTradeoffEvidenceItems,
+  hasRealFitScore,
+} from "../lib/matchPresentation";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 
@@ -46,13 +52,8 @@ function toggleSavedId(id) {
   return next.includes(sid);
 }
 
-function isRealMatchScore(scorePct, breakdown) {
-  if (breakdown?.enoughQuizInfo === false) return false;
-  return Number.isFinite(Number(scorePct));
-}
-
 function matchTier(scorePct, breakdown) {
-  if (!isRealMatchScore(scorePct, breakdown)) {
+  if (!hasRealFitScore(scorePct, breakdown)) {
     return {
       label: "Quiz needed",
       className: "bg-white/90 text-[#183D35]",
@@ -68,9 +69,9 @@ function matchTier(scorePct, breakdown) {
 
   const n = Number(scorePct);
 
-  if (n >= 85) return { label: "Strong match", className: "bg-white text-[#183D35]" };
-  if (n >= 70) return { label: "Good match", className: "bg-white/90 text-[#183D35]" };
-  return { label: "Potential match", className: "bg-white/85 text-[#183D35]" };
+  if (n >= 85) return { label: "Strong potential fit", className: "bg-white text-[#183D35]" };
+  if (n >= 70) return { label: "Good potential fit", className: "bg-white/90 text-[#183D35]" };
+  return { label: "Potential fit", className: "bg-white/85 text-[#183D35]" };
 }
 
 function urgencyStyle(level) {
@@ -161,31 +162,36 @@ function hasStructuredDogInfo(dog) {
 }
 
 function getMatchState({ dog, scorePct, breakdown }) {
-  const hasScore = isRealMatchScore(scorePct, breakdown);
+  const hasScore = hasRealFitScore(scorePct, breakdown);
   const limitedInformation = breakdown?.limitedInformation === true;
   const topReasons = getCleanTopReasons(breakdown);
   const cautions = getCompatibilityCautions(breakdown);
+  const tradeoffs = getTradeoffEvidenceItems(breakdown, 1);
+  const evidenceLabels = getEvidenceLabels(breakdown);
   const answeredCount = Number(breakdown?.answeredCount || 0);
+  const scoreLabel = formatFitScore(scorePct);
 
   if (hasScore) {
     return {
       kind: "match",
-      eyebrow: "Why this match",
+      eyebrow: "Why this dog may fit",
       headline: dog?.name || "This dog",
       subhead: limitedInformation
-        ? `${Math.round(Number(scorePct))}% match · Limited listing information`
-        : `${Math.round(Number(scorePct))}% match`,
-      reasonsTitle: "Why this dog may match you",
+        ? `${scoreLabel} · Limited listing information`
+        : scoreLabel,
+      reasonsTitle: "Why this dog may fit your lifestyle",
       reasons: topReasons,
       cautions,
+      tradeoffs,
+      evidenceLabels,
       note: limitedInformation
-        ? "This percentage uses the dog details currently available, but several of your quiz factors are still unknown."
+        ? "This score uses the dog details currently available, but several active preferences could not be assessed."
         : topReasons.length
           ? "These reasons are based on your quiz answers and available rescue/shelter info."
           : "We found a possible fit, but there are not enough confirmed details for specific highlights yet.",
       pillText: limitedInformation
-        ? `Limited info · ${Math.round(Number(scorePct))}% match`
-        : `${Math.round(Number(scorePct))}% match`,
+        ? `${scoreLabel} · Limited listing information`
+        : scoreLabel,
       showScoreCircle: true,
     };
   }
@@ -644,7 +650,11 @@ export default function DogCard({
   }
 
   if (cardVariant === "match") {
-    const rankLabel = rank === 1 && matchState.kind === "match" ? "Top match" : `#${rank || "?"} match`;
+    const rankLabel = matchState.kind === "match"
+      ? rank === 1
+        ? "Top potential fit"
+        : `#${rank || "?"} potential fit`
+      : "";
 
     return (
       <>
@@ -671,9 +681,11 @@ export default function DogCard({
 
             <div className="absolute left-2 right-2 top-2 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
               <div className="flex min-w-0 flex-wrap gap-1">
-                <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-[#183D35] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]">
-                  {rankLabel}
-                </span>
+                {rankLabel ? (
+                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-[#183D35] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]">
+                    {rankLabel}
+                  </span>
+                ) : null}
 
                 {showMatch && tier ? (
                   <span
@@ -726,6 +738,15 @@ export default function DogCard({
                 </div>
               ) : null}
 
+              {matchState.tradeoffs?.length ? (
+                <p
+                  className="mb-1.5 truncate rounded-lg bg-white/90 px-2 py-1 text-[8px] font-bold leading-[1.25] text-[#183D35] shadow-sm"
+                  title={matchState.tradeoffs[0].explanation}
+                >
+                  Consider: {matchState.tradeoffs[0].explanation}
+                </p>
+              ) : null}
+
               <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-white/75">
                 {shelterName(dog)}
               </p>
@@ -737,6 +758,12 @@ export default function DogCard({
               {[ageLabel, dog?.size].filter(Boolean).length ? (
                 <p className="mt-0.5 truncate text-[10px] font-medium leading-4 text-white/85">
                   {[ageLabel, dog?.size].filter(Boolean).join(" · ")}
+                </p>
+              ) : null}
+
+              {matchState.evidenceLabels?.length ? (
+                <p className="mt-0.5 truncate text-[8px] font-semibold text-white/75">
+                  {matchState.evidenceLabels.join(" · ")}
                 </p>
               ) : null}
             </div>
@@ -770,6 +797,19 @@ export default function DogCard({
               ))}
             </div>
 
+            {matchState.evidenceLabels?.length ? (
+              <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Match evidence sources">
+                {matchState.evidenceLabels.map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-full bg-[#eef3e8] px-2.5 py-1 text-[10px] font-bold text-[#183D35]"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+
             {matchState.cautions?.length ? (
               <div
                 className="mt-3 rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-950"
@@ -785,6 +825,16 @@ export default function DogCard({
                     </li>
                   ))}
                 </ul>
+              </div>
+            ) : null}
+
+            {matchState.tradeoffs?.length ? (
+              <div className="mt-3 rounded-xl border border-[#183D35]/10 bg-[#f5f1e9] px-3 py-2 text-[11px] leading-4 text-[#6F6A66]">
+                <div className="font-black uppercase tracking-[0.12em] text-[#183D35]">
+                  Thing to consider
+                </div>
+                <p className="mt-1 font-semibold">{matchState.tradeoffs[0].explanation}</p>
+                <p className="mt-1 text-[10px] font-bold">{matchState.tradeoffs[0].sourceLabel}</p>
               </div>
             ) : null}
 

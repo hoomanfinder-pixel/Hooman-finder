@@ -29,6 +29,13 @@ import { FALLBACK_DOG_IMAGE, normalizeImageUrl } from "../lib/urlSafety";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { hasUsefulBioValue, getTraitDisplay } from "../lib/traitDisplay";
 import { getChildTraitDisplay } from "../lib/childCompatibility";
+import {
+  formatFitScore,
+  getEvidenceLabels,
+  getPositiveEvidenceItems,
+  getTradeoffEvidenceItems,
+  hasRealFitScore,
+} from "../lib/matchPresentation";
 
 const SAVED_KEY = "hooman_saved_dog_ids_v1";
 const BIO_PREVIEW_LENGTH = 520;
@@ -316,15 +323,7 @@ function getAiDisclosure(aiTraits) {
 }
 
 function isRealMatchScore(match) {
-  if (match?.breakdown?.enoughQuizInfo === false) return false;
-  return Number.isFinite(Number(match?.scorePct));
-}
-
-function getMatchReasons(match) {
-  const supportedReasons = Array.isArray(match?.breakdown?.matchReasons)
-    ? match.breakdown.matchReasons.filter(Boolean)
-    : [];
-  return supportedReasons.slice(0, 6);
+  return hasRealFitScore(match?.scorePct, match?.breakdown);
 }
 
 export default function DogDetail() {
@@ -644,8 +643,10 @@ export default function DogDetail() {
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);
   const limitedMatchInformation = quizMatch?.breakdown?.limitedInformation === true;
-  const evidenceCoveragePct = Number(quizMatch?.breakdown?.evidenceCoveragePct);
-  const matchReasons = getMatchReasons(quizMatch);
+  const fitScoreLabel = formatFitScore(matchScorePct);
+  const matchReasons = getPositiveEvidenceItems(quizMatch?.breakdown, 6);
+  const matchTradeoffs = getTradeoffEvidenceItems(quizMatch?.breakdown, 2);
+  const matchEvidenceLabels = getEvidenceLabels(quizMatch?.breakdown);
   const matchCautions = Array.isArray(quizMatch?.breakdown?.compatibilityCautions)
     ? quizMatch.breakdown.compatibilityCautions.filter(Boolean)
     : [];
@@ -689,7 +690,7 @@ export default function DogDetail() {
                       id="match-modal-title"
                       className="text-3xl font-extrabold leading-none text-[#183D35]"
                     >
-                      Why you matched
+                      Why this dog may fit
                     </h2>
                   </div>
 
@@ -697,7 +698,7 @@ export default function DogDetail() {
                     type="button"
                     onClick={() => setMatchInfoOpen(false)}
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-xl font-bold leading-none text-[#6F6A66] shadow-sm ring-1 ring-[#183D35]/5 hover:bg-[#EFE8DC] hover:text-[#183D35]"
-                    aria-label="Close why you matched"
+                    aria-label="Close fit score details"
                   >
                     ×
                   </button>
@@ -705,9 +706,22 @@ export default function DogDetail() {
 
                 <p className="mt-4 text-sm font-semibold leading-6 text-[#6F6A66]">
                   {limitedMatchInformation
-                    ? `Limited information: this score uses the dog details currently available, but${Number.isFinite(evidenceCoveragePct) ? ` only ${Math.round(evidenceCoveragePct)}% of` : " several of"} your active quiz factors have usable evidence.`
-                    : "This score is based on your quiz answers and the dog details currently available from the shelter or rescue."}
+                    ? "Limited listing information: this fit score uses the dog details currently available, but several active preferences could not be assessed."
+                    : "This fit score is based on your quiz answers and the dog details currently available from the shelter or rescue."}
                 </p>
+
+                {matchEvidenceLabels.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2" aria-label="Fit score evidence sources">
+                    {matchEvidenceLabels.map((label) => (
+                      <span
+                        key={label}
+                        className="rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-bold text-[#183D35] ring-1 ring-[#183D35]/10"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 {matchCautions.length ? (
                   <div className="mt-5 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
@@ -722,6 +736,22 @@ export default function DogDetail() {
                   </div>
                 ) : null}
 
+                {matchTradeoffs.length ? (
+                  <div className="mt-5 rounded-2xl border border-[#183D35]/10 bg-white/70 px-4 py-3 text-sm leading-5 text-[#6F6A66]">
+                    <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#183D35]">
+                      Things to consider
+                    </div>
+                    <ul className="mt-2 space-y-2">
+                      {matchTradeoffs.map((tradeoff) => (
+                        <li key={tradeoff.explanation}>
+                          <div className="font-semibold">{tradeoff.explanation}</div>
+                          <div className="mt-0.5 text-[11px] font-bold">{tradeoff.sourceLabel}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+
                 {matchReasons.length ? (
                   <div className="mt-5">
                     <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">
@@ -730,13 +760,16 @@ export default function DogDetail() {
                     <ul className="mt-3 space-y-2">
                       {matchReasons.map((reason) => (
                         <li
-                          key={reason}
+                          key={reason.explanation}
                           className="flex gap-2.5 rounded-2xl border border-[#183D35]/10 bg-white/80 px-3.5 py-3 text-sm font-bold leading-5 text-[#183D35] shadow-sm"
                         >
                           <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-[#183D35]">
                             ✓
                           </span>
-                          <span>{reason}</span>
+                          <span>
+                            <span className="block">{reason.explanation}</span>
+                            <span className="mt-0.5 block text-[11px] text-[#6F6A66]">{reason.sourceLabel}</span>
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -951,12 +984,12 @@ export default function DogDetail() {
                     onClick={() => setMatchInfoOpen(true)}
                     className="inline-flex rounded-full border border-[#183D35]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#183D35] shadow-sm hover:bg-[#eef3e8]"
                     aria-label={limitedMatchInformation
-                      ? `Open why you matched. Limited information. ${Math.round(matchScorePct)} percent match`
-                      : `Open why you matched. ${Math.round(matchScorePct)} percent match`}
+                      ? `Open fit score details. ${fitScoreLabel}. Limited listing information`
+                      : `Open fit score details. ${fitScoreLabel}`}
                   >
                     {limitedMatchInformation
-                      ? `Limited info · ${Math.round(matchScorePct)}% match`
-                      : `${Math.round(matchScorePct)}% match`}
+                      ? `${fitScoreLabel} · Limited listing information`
+                      : fitScoreLabel}
                   </button>
                 ) : null}
               </div>
@@ -1018,7 +1051,7 @@ export default function DogDetail() {
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">
-                    Why you matched
+                    Why this dog may fit
                   </div>
                   <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold leading-tight text-[#183D35]">
                     {name} may fit parts of your home and routine.
@@ -1043,20 +1076,52 @@ export default function DogDetail() {
                 </div>
               ) : null}
 
+              {matchTradeoffs.length ? (
+                <div className="mt-4 rounded-2xl border border-[#183D35]/10 bg-white/70 px-4 py-3 text-sm leading-5 text-[#6F6A66]">
+                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#183D35]">
+                    Things to consider
+                  </div>
+                  <ul className="mt-2 space-y-2">
+                    {matchTradeoffs.map((tradeoff) => (
+                      <li key={tradeoff.explanation}>
+                        <div className="font-semibold">{tradeoff.explanation}</div>
+                        <div className="mt-0.5 text-[11px] font-bold">{tradeoff.sourceLabel}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               {matchReasons.length ? (
                 <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {matchReasons.slice(0, 4).map((reason) => (
                     <li
-                      key={reason}
+                      key={reason.explanation}
                       className="flex gap-2.5 rounded-2xl border border-[#183D35]/10 bg-white/80 px-3.5 py-3 text-sm font-semibold leading-5 text-[#6F6A66]"
                     >
                       <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-[#183D35]">
                         ✓
                       </span>
-                      <span>{reason}</span>
+                      <span>
+                        <span className="block">{reason.explanation}</span>
+                        <span className="mt-0.5 block text-[11px] font-bold text-[#6F6A66]">{reason.sourceLabel}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>
+              ) : null}
+
+              {matchEvidenceLabels.length ? (
+                <div className="mt-4 flex flex-wrap gap-2" aria-label="Fit score evidence sources">
+                  {matchEvidenceLabels.map((label) => (
+                    <span
+                      key={label}
+                      className="rounded-full bg-white/80 px-3 py-1.5 text-[11px] font-bold text-[#183D35] ring-1 ring-[#183D35]/10"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
               ) : null}
 
               <p className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-xs font-semibold leading-5 text-[#6F6A66] ring-1 ring-[#183D35]/5">

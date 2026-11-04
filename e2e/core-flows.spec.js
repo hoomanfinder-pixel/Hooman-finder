@@ -152,7 +152,7 @@ test("essential quiz reaches deterministic results with valid percentages", asyn
 
   await expect(page).toHaveURL(/\/results\?session=e2e-quiz-session/);
   await expect(
-    page.getByRole("heading", { name: "Your best-fit dogs, ranked." })
+    page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })
   ).toBeVisible();
 
   await expectValidMatchPercentages(page);
@@ -210,7 +210,7 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
   await page.getByRole("button", { name: "← Back to essentials" }).click();
   await expect(page.getByText("5/5 answered")).toBeVisible();
   await page.getByRole("button", { name: "See My Matches" }).click();
-  await expect(page.getByRole("heading", { name: "Your best-fit dogs, ranked." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })).toBeVisible();
 
   const mapleCard = getResultCard(page, "Maple");
   const resultsScore = await getCardPercentage(mapleCard);
@@ -218,7 +218,7 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
   await expect(page).toHaveURL(new RegExp(`/dog/e2e-dog-maple\\?session=${sessionId}`));
   await expect(
     page.getByRole("button", {
-      name: new RegExp(`${resultsScore} percent match`, "i"),
+      name: new RegExp(`Fit score: ${resultsScore}/100`, "i"),
     })
   ).toBeVisible();
 

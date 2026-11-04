@@ -184,7 +184,7 @@ export function getMatchReasons(dog, answers, limit = 3) {
   // --- Allergies
   const allergy = normStr(answers.allergy_sensitivity);
   if ((allergy === "have_allergies" || allergy === "needs_low_shedding") && dog.hypoallergenic === true) {
-    pushUnique(reasons, `Better fit for allergy-sensitive homes`);
+    pushUnique(reasons, "Shelter listing identifies this dog as hypoallergenic; individual allergy responses vary and must be confirmed directly");
   }
 
   return reasons.slice(0, limit);

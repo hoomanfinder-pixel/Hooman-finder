@@ -474,6 +474,11 @@ function result(questionId, evidence, explanation, { requested = true } = {}) {
   return { questionId, weight, requested: true, evidence, contribution };
 }
 
+function compatibilityFitLanguage(evidence, { cautious = false } = {}) {
+  if (evidence?.adjustedCompatibility > 0.5) return cautious ? "may fit" : "fits";
+  return "may not fit";
+}
+
 function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions = {}) {
   if (isEmptyAnswer(answer) || isNoPreferenceValue(answer)) return result(questionId, null, "", { requested: false });
 
@@ -543,7 +548,16 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
     case "dog_social_preference": {
       const preference = String(answer).toLowerCase();
       const evidence = dogSocialStyleEvidence(dog, preference);
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed social style fits your preference around other dogs" : "Bio-explicit dog social style cautiously informs your preference");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed social style ${fitLanguage} your preference around other dogs`
+          : `Biography-derived social style ${fitLanguage} your preference around other dogs`
+      );
     }
     case "first_time_owner": {
       if (String(answer).toLowerCase() !== "yes") return result(questionId, null, "", { requested: false });
@@ -565,13 +579,31 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
     case "separation_anxiety_willingness": {
       if (String(answer).toLowerCase() !== "no") return result(questionId, null, "", { requested: false });
       const evidence = separationAnxietyEvidence(dog);
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed separation-anxiety information fits your stated limit" : "Bio-explicit separation-anxiety information cautiously informs this fit");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed separation-anxiety information ${fitLanguage} your stated limit`
+          : `Biography-derived separation-anxiety information ${fitLanguage} your stated limit`
+      );
     }
     case "training_commitment_level": {
       const structured = dog?.obedience_training;
       const ai = dog?.bio_training_needs ?? parseAiTraits(dog?.ai_traits)?.training_needs?.value;
       const evidence = evidenceFromStructuredOrAi({ dog, field: "training_needs", structuredValue: structured, aiValue: ai, rawForValue: (value) => needLevelRaw(answer, /needs? training|untrained/i.test(String(value)) ? "medium_high" : /well trained|advanced/i.test(String(value)) ? "low" : /basic|some training/i.test(String(value)) ? "medium_low" : value) });
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed training status fits your available training commitment" : "Estimated training needs cautiously inform this fit");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed training level ${fitLanguage} your available training commitment`
+          : `Estimated training needs ${fitLanguage} your available training commitment`
+      );
     }
     case "noise_preference": {
       const evidence = evidenceFromStructuredOrAi({ dog, field: "barking_level", structuredValue: dog?.barking_level, aiValue: dog?.bio_barking_level ?? parseAiTraits(dog?.ai_traits)?.barking_level?.value, rawForValue: (value) => barkingRaw(answer, value) });
@@ -581,12 +613,30 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
       const structured = dog?.exercise_needs ?? dog?.activity_level ?? dog?.energy_level;
       const ai = dog?.bio_exercise_needs ?? parseAiTraits(dog?.ai_traits)?.exercise_needs?.value;
       const evidence = evidenceFromStructuredOrAi({ dog, field: "exercise_needs", structuredValue: structured, aiValue: ai, rawForValue: (value) => exerciseRaw(answer, value) });
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed exercise needs fit your daily walking capacity" : "Estimated exercise needs cautiously inform daily-walk fit");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed exercise level ${fitLanguage} your daily walking capacity`
+          : `Estimated exercise needs ${fitLanguage} your daily walking capacity`
+      );
     }
     case "energy_preference": {
       const structured = dog?.energy_level ?? dog?.activity_level;
       const evidence = evidenceFromStructuredOrAi({ dog, field: "energy_level", structuredValue: structured, aiValue: dog?.bio_energy_level, rawForValue: (value) => energyRaw(answer, value) });
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed energy level fits your preference" : "Estimated energy level cautiously informs your preference");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed energy level ${fitLanguage} your preference`
+          : `Estimated energy level ${fitLanguage} your preference`
+      );
     }
     case "yard": {
       const hasYard = String(answer).toLowerCase() === "yes";
@@ -601,12 +651,19 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
       const needed = aloneTimeNeededHours(answer);
       const confirmedRaw = hoursRaw(dog?.max_alone_hours, needed);
       const evidence = confirmedRaw !== null ? structuredCredit(confirmedRaw) : adjustedAiCredit(dog, "max_alone_hours", hoursRaw(dog?.bio_max_alone_hours, needed));
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed alone-time capacity fits your weekday routine" : "Estimated alone-time capacity cautiously informs your weekday fit");
+      const fitLanguage = evidence?.rawCompatibility > 0.5 ? "fits" : "may not fit";
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed alone-time capacity ${fitLanguage} your weekday routine`
+          : `Estimated alone-time capacity ${fitLanguage} your weekday routine`
+      );
     }
     case "allergy_sensitivity": {
       const sensitivity = String(answer).toLowerCase();
       if (sensitivity === "no_allergies") return result(questionId, null, "", { requested: false });
-      if (dog?.hypoallergenic === true) return result(questionId, structuredCredit(1), "Shelter listing identifies a confirmed hypoallergenic fit");
+      if (dog?.hypoallergenic === true) return result(questionId, structuredCredit(1), "Shelter listing identifies this dog as hypoallergenic; individual allergy responses vary and must be confirmed directly");
       if (dog?.hypoallergenic === false) {
         const raw = sensitivity === "mild_allergies" ? 0.5 : 0;
         return result(questionId, structuredCredit(raw), "Shelter listing does not identify this dog as hypoallergenic");
@@ -640,7 +697,16 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
       if (String(answer).toLowerCase() === "heavy_ok") return result(questionId, null, "", { requested: false });
       const structured = normalizeShedding(dog?.shedding_level);
       const evidence = structured ? structuredCredit(sheddingRaw(answer, structured)) : adjustedAiCredit(dog, "shedding_level", sheddingRaw(answer, dog?.bio_shedding_level));
-      return result(questionId, evidence, evidence?.source === "structured" ? "Shelter-listed shedding level fits your preference" : "Estimated shedding level cautiously informs your preference");
+      const fitLanguage = compatibilityFitLanguage(evidence, {
+        cautious: evidence?.source !== "structured",
+      });
+      return result(
+        questionId,
+        evidence,
+        evidence?.source === "structured"
+          ? `Shelter-listed shedding level ${fitLanguage} your preference`
+          : `Estimated shedding level ${fitLanguage} your preference`
+      );
     }
     default:
       return { questionId, weight: 0, requested: false, evidence: null, contribution: null };
@@ -708,12 +774,12 @@ function confirmedYardRequirementCautions(dog, answers) {
     : "This dog is listed as requiring a yard or outdoor space, but your quiz says you do not have yard access."];
 }
 
-function meaningfulAnsweredCount(answers) {
+function completedScoreableAnswerCount(answers) {
   return Object.keys(MATCH_WEIGHTS).filter((questionId) => {
     const answer = answers?.[questionId];
-    // This count gates whether the adopter has taken enough of the quiz to
-    // display a score. Flexible answers count as completed responses here but
-    // remain absent from points, requested evidence, and coverage below.
+    // This distinguishes an untouched quiz from one where the adopter has
+    // responded. Score eligibility is based on active requested preferences
+    // below, so flexible/no-preference answers cannot unlock a score.
     return !isEmptyAnswer(answer);
   }).length;
 }
@@ -722,14 +788,14 @@ export function matchTierFromActivePct(scorePct, { limitedInformation = false } 
   const percentage = Number(scorePct);
   if (!Number.isFinite(percentage)) return { label: "Quiz needed", pillClass: "bg-white text-stone-950" };
   if (limitedInformation) return { label: "Limited information", pillClass: "bg-amber-100 text-amber-950" };
-  if (percentage >= 85) return { label: "Strong match", pillClass: "bg-emerald-700 text-white" };
-  if (percentage >= 70) return { label: "Good match", pillClass: "bg-indigo-600 text-white" };
-  return { label: "Potential match", pillClass: "bg-gray-800 text-white" };
+  if (percentage >= 85) return { label: "Strong potential fit", pillClass: "bg-emerald-700 text-white" };
+  if (percentage >= 70) return { label: "Good potential fit", pillClass: "bg-indigo-600 text-white" };
+  return { label: "Potential fit", pillClass: "bg-gray-800 text-white" };
 }
 
 export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
   const dogList = Array.isArray(dogs) ? dogs : [];
-  const answeredCount = meaningfulAnsweredCount(answersById);
+  const completedAnswerCount = completedScoreableAnswerCount(answersById);
 
   const rows = dogList
     .filter((dog) => getConfirmedIncompatibilities(dog, answersById).length === 0)
@@ -752,7 +818,8 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
       0
     );
 
-    const hasEnoughQuizInfo = answeredCount >= MIN_ANSWERED_FOR_REAL_MATCH;
+    const activePreferenceCount = requested.length;
+    const hasEnoughQuizInfo = activePreferenceCount >= MIN_ANSWERED_FOR_REAL_MATCH;
     const meaningfulScoreAvailable = hasEnoughQuizInfo && requestedWeight > 0 && knownWeight > 0;
     const rawCompatibility = meaningfulScoreAvailable ? earned / knownWeight : null;
     const evidencePresence = requestedWeight > 0 ? knownWeight / requestedWeight : null;
@@ -808,7 +875,8 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
         tierLabel: tier.label,
         limitedInformation,
         evidenceCoverageLabel: limitedInformation ? "Limited information" : "Sufficient information",
-        answeredCount,
+        answeredCount: activePreferenceCount,
+        completedAnswerCount,
         possible: knownWeight,
         enoughQuizInfo: meaningfulScoreAvailable,
         contributions,
@@ -818,7 +886,7 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
         matchTradeoffs,
         topReasons: matchReasons,
         compatibilityCautions,
-        emptyReason: answeredCount === 0
+        emptyReason: completedAnswerCount === 0
           ? "no_quiz_answers"
           : !hasEnoughQuizInfo
             ? "too_few_quiz_answers"
