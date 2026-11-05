@@ -46,6 +46,7 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
     page.getByRole("heading", { name: "Dogs that may fit your lifestyle." })
   ).toBeVisible();
   await expectValidMatchPercentages(page);
+  await expect(page.getByRole("button", { name: "Refine your matches", exact: true })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   const editQuiz = page.getByRole("button", { name: "Edit Quiz", exact: true });

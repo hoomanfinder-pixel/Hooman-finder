@@ -55,6 +55,7 @@ export default function OptionSelect({
   number = null,
   icon = "🐾",
   statusText = "",
+  rankingDisclosure = "",
   inputMode = "text",
   placeholder = "",
   type = "single",
@@ -128,6 +129,12 @@ export default function OptionSelect({
               {description ? (
                 <p className="mt-0.5 text-xs font-semibold leading-4 text-[#6f6a66]">
                   {description}
+                </p>
+              ) : null}
+
+              {rankingDisclosure ? (
+                <p className="mt-1 text-[11px] font-semibold leading-4 text-[#6f6a66]">
+                  {rankingDisclosure}
                 </p>
               ) : null}
             </div>

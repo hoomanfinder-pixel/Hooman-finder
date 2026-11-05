@@ -65,6 +65,30 @@ const REASON_LABELS = {
   shedding_preference: "Shedding preference",
 };
 
+const ACTIVE_PREFERENCE_LABELS = {
+  size_preference: "size",
+  age_preference: "age",
+  kids_in_home: "children in the home",
+  pets_in_home: "other pets in the home",
+  potty_requirement: "potty training",
+  dog_social_preference: "social fit with other dogs",
+  first_time_owner: "first-time ownership",
+  housing_type: "home type",
+  separation_anxiety_willingness: "separation anxiety",
+  training_commitment_level: "training commitment",
+  noise_preference: "noise level",
+  daily_walk_minutes: "daily exercise",
+  energy_preference: "energy level",
+  yard: "yard access",
+  alone_time: "alone time",
+  allergy_sensitivity: "allergy needs",
+  shedding_preference: "shedding",
+};
+
+export function questionAffectsMatchRanking(questionId) {
+  return Object.hasOwn(MATCH_WEIGHTS, questionId);
+}
+
 const DEFAULT_AI_CONFIDENCE = 0.35;
 const BIO_EXPLICIT_STRENGTH = 0.65;
 const BREED_COAT_INFERENCE_STRENGTH = 0.5;
@@ -819,6 +843,10 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
     );
 
     const activePreferenceCount = requested.length;
+    const activePreferenceIds = requested.map((entry) => entry.questionId);
+    const activePreferenceLabels = activePreferenceIds.map(
+      (questionId) => ACTIVE_PREFERENCE_LABELS[questionId] || REASON_LABELS[questionId] || questionId
+    );
     const hasEnoughQuizInfo = activePreferenceCount >= MIN_ANSWERED_FOR_REAL_MATCH;
     const meaningfulScoreAvailable = hasEnoughQuizInfo && requestedWeight > 0 && knownWeight > 0;
     const rawCompatibility = meaningfulScoreAvailable ? earned / knownWeight : null;
@@ -876,6 +904,9 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
         limitedInformation,
         evidenceCoverageLabel: limitedInformation ? "Limited information" : "Sufficient information",
         answeredCount: activePreferenceCount,
+        activePreferenceCount,
+        activePreferenceIds,
+        activePreferenceLabels,
         completedAnswerCount,
         possible: knownWeight,
         enoughQuizInfo: meaningfulScoreAvailable,

@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MATCH_WEIGHTS, computeRankedMatches, getConfirmedIncompatibilities } from "./matchingLogic.js";
+import {
+  MATCH_WEIGHTS,
+  computeRankedMatches,
+  getConfirmedIncompatibilities,
+  questionAffectsMatchRanking,
+} from "./matchingLogic.js";
 import { ALL_QUESTIONS, canonicalizeAllergySensitivity } from "./quizQuestions.js";
 import { normalizeExternalUrl } from "./urlSafety.js";
 
@@ -91,7 +96,10 @@ test("the refined scoreable set excludes weekend activity and unsupported questi
     "weekend_activity_style",
   ]) {
     assert.equal(Object.hasOwn(MATCH_WEIGHTS, unsupported), false, `${unsupported} must remain unscored`);
+    assert.equal(questionAffectsMatchRanking(unsupported), false, `${unsupported} must be disclosed as unscored`);
   }
+  assert.equal(questionAffectsMatchRanking("size_preference"), true);
+  assert.equal(questionAffectsMatchRanking("daily_walk_minutes"), true);
 });
 
 test("confirmed child incompatibility removes the dog from eligible results", () => {
@@ -342,6 +350,8 @@ test("one active preference plus one flexible answer cannot unlock a fit score",
 
   assert.equal(result.scorePct, null);
   assert.equal(result.breakdown.answeredCount, 1);
+  assert.deepEqual(result.breakdown.activePreferenceIds, ["size_preference"]);
+  assert.deepEqual(result.breakdown.activePreferenceLabels, ["size"]);
   assert.equal(result.breakdown.enoughQuizInfo, false);
   assert.equal(result.breakdown.emptyReason, "too_few_quiz_answers");
 });
@@ -354,6 +364,8 @@ test("two genuinely active preferences remain eligible for a fit score", () => {
 
   assert.equal(result.scorePct, 100);
   assert.equal(result.breakdown.answeredCount, 2);
+  assert.deepEqual(result.breakdown.activePreferenceIds, ["size_preference", "age_preference"]);
+  assert.deepEqual(result.breakdown.activePreferenceLabels, ["size", "age"]);
   assert.equal(result.breakdown.enoughQuizInfo, true);
 });
 

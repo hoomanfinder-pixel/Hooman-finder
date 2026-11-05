@@ -23,6 +23,11 @@ import {
   INITIAL_DOG_CARD_COUNT,
 } from "../lib/incrementalDogRendering";
 import { getDogSourceFilterId, getDogSourceName } from "../lib/dogSource";
+import {
+  getFitScoreScope,
+  getRankingSignalKey,
+  hasRealFitScore,
+} from "../lib/matchPresentation";
 import { trackQuizComplete, trackResultsView } from "../lib/googleAnalytics";
 import { fetchAllPublicDogs } from "../lib/publicDogsQuery";
 import { supabase } from "../lib/supabase";
@@ -287,6 +292,25 @@ export default function Results() {
     [filteredRows, visibleMatchCount]
   );
 
+  const exactTieCounts = useMemo(() => {
+    const counts = new Map();
+    filteredRows.forEach((row) => {
+      if (!hasRealFitScore(row.scorePct, row.breakdown)) return;
+      const key = getRankingSignalKey(row);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return counts;
+  }, [filteredRows]);
+
+  const scoredResult = rankedRows.find((row) => hasRealFitScore(row.scorePct, row.breakdown));
+  const fitScoreScope = getFitScoreScope(scoredResult?.breakdown);
+  const leadingTieCount = filteredRows.length && hasRealFitScore(
+    filteredRows[0]?.scorePct,
+    filteredRows[0]?.breakdown
+  )
+    ? exactTieCounts.get(getRankingSignalKey(filteredRows[0])) || 1
+    : 1;
+
   const activeFilterCount = [
     rescueFilter !== "all",
     stateFilter !== "all",
@@ -338,6 +362,12 @@ export default function Results() {
   function goEditQuiz() {
     navigate(
       `/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.DEALBREAKERS}&edit=1`
+    );
+  }
+
+  function goRefineQuiz() {
+    navigate(
+      `/quiz?session=${encodeURIComponent(sessionId)}&mode=${QUIZ_MODES.REFINE}&edit=1`
     );
   }
 
@@ -435,6 +465,26 @@ export default function Results() {
               <p className="mt-2 max-w-2xl text-xs leading-5 text-[#6f6a66] sm:text-[13px]">
                 Matches reflect currently available shelter or foster information and responsible estimates. A dog’s behavior may change as they decompress and adjust to a new home, so confirm important traits directly with the shelter or foster.
               </p>
+
+              {fitScoreScope.summary ? (
+                <div className="mt-3 flex max-w-2xl flex-col items-start gap-3 rounded-2xl border border-[#183D35]/10 bg-white/65 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                  <div className="min-w-0 text-xs font-semibold leading-5 text-[#6F6A66] sm:text-sm">
+                    <p className="text-[#183D35]">{fitScoreScope.summary}</p>
+                    {leadingTieCount > 1 ? (
+                      <p className="mt-1">
+                        {leadingTieCount} dogs share the leading fit score. Their order within this tied group does not indicate a stronger fit.
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goRefineQuiz}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border border-[#183D35]/20 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#183D35] hover:bg-[#eef3e8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
+                  >
+                    Refine your matches
+                  </button>
+                </div>
+              ) : null}
 
             </div>
           </div>
@@ -651,6 +701,7 @@ export default function Results() {
                   sessionId={sessionId}
                   variant="match"
                   rank={idx + 1}
+                  isExactTie={(exactTieCounts.get(getRankingSignalKey(row)) || 0) > 1}
                 />
               ))}
             </div>

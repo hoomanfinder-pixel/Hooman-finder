@@ -234,6 +234,53 @@ test.describe("match evidence coverage", () => {
 test.describe("deeper quiz scoring", () => {
   test.use({ scenario: { dogs: deeperQuizDogs } });
 
+  test("exact ties are disclosed and refinement preserves the current session", async ({ page }) => {
+    const sessionId = "e2e-honest-ties";
+    await openResultsWithAnswers(page, sessionId, {
+      size_preference: ["medium"],
+      age_preference: ["adult"],
+      potty_requirement: "flexible",
+    });
+
+    await expect(page.getByText("Based on 2 scored preferences: size and age.")).toBeVisible();
+    await expect(page.getByText(/2 dogs share the leading fit score/)).toBeVisible();
+    await expect(getResultCard(page, "Quiet Homebody")).toContainText("Tied fit score");
+    await expect(getResultCard(page, "Quiet Homebody")).toContainText(
+      "2 scored preferences · Information available"
+    );
+    await expect(getResultCard(page, "Active Vocal")).toContainText("Tied fit score");
+    await expect(page.getByText("Top potential fit")).toHaveCount(0);
+    await expect(page.getByText("#2 potential fit")).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Refine your matches", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`session=${sessionId}&mode=refine&edit=1`));
+    await page.getByRole("button", { name: /Care & Lifestyle/ }).click();
+
+    const unscoredQuestion = page.locator('[data-quiz-question="weekend_activity_style"]');
+    await expect(unscoredQuestion).toContainText(
+      "Saved for context · does not currently affect fit scores or ranking."
+    );
+    await page.getByRole("button", { name: "15 to 30 minutes/day", exact: true }).click();
+    await page.getByRole("button", { name: "Update Matches", exact: true }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/results\\?session=${sessionId}`));
+    await expect(
+      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.")
+    ).toBeVisible();
+    const savedAnswers = await page.evaluate((id) => JSON.parse(
+      window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)
+    ), sessionId);
+    expect(savedAnswers.size_preference).toEqual(["medium"]);
+    expect(savedAnswers.age_preference).toEqual(["adult"]);
+    expect(savedAnswers.daily_walk_minutes).toBe("15_30");
+
+    await openResultProfile(getResultCard(page, "Quiet Homebody"));
+    await expect(
+      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.")
+    ).toBeVisible();
+    await expect(page.getByText("Information is available for all scored preferences.")).toBeVisible();
+  });
+
   test("supported deeper answers change ranking and explanations use scored traits", async ({ page }) => {
     await openResultsWithAnswers(page, "e2e-deeper-ranking", {
       size_preference: ["small"],

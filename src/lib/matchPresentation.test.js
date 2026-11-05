@@ -5,7 +5,9 @@ import {
   evidenceSourceLabel,
   formatFitScore,
   getEvidenceLabels,
+  getFitScoreScope,
   getPositiveEvidenceItems,
+  getRankingSignalKey,
   getTradeoffEvidenceItems,
   hasRealFitScore,
 } from "./matchPresentation.js";
@@ -16,6 +18,55 @@ test("fit-score language does not imply a percentage match", () => {
   assert.equal(formatFitScore(null), "Fit score unavailable");
   assert.equal(hasRealFitScore(82, { enoughQuizInfo: true }), true);
   assert.equal(hasRealFitScore(null, { enoughQuizInfo: false }), false);
+});
+
+test("fit-score scope names scored preferences without inventing confidence", () => {
+  assert.deepEqual(
+    getFitScoreScope({
+      activePreferenceCount: 2,
+      activePreferenceLabels: ["size", "age"],
+      evidenceRequestedWeight: 6,
+      evidenceCoveredWeight: 6,
+      limitedInformation: false,
+    }),
+    {
+      count: 2,
+      labels: ["size", "age"],
+      summary: "Based on 2 scored preferences: size and age.",
+      evidenceSummary: "Information is available for all scored preferences.",
+      compact: "2 scored preferences · Information available",
+      limited: false,
+    }
+  );
+
+  assert.equal(
+    getFitScoreScope({
+      activePreferenceCount: 2,
+      activePreferenceLabels: ["size", "age"],
+      evidenceRequestedWeight: 6,
+      evidenceCoveredWeight: 3,
+      limitedInformation: true,
+    }).evidenceSummary,
+    "Limited listing information for these scored preferences."
+  );
+});
+
+test("exact ranking ties use score, evidence coverage, and raw compatibility only", () => {
+  const alpha = {
+    dog: { name: "Alpha" },
+    scorePct: 100,
+    breakdown: { coverageComponent: 1, rawCompatibility: 1 },
+  };
+  const zulu = { ...alpha, dog: { name: "Zulu" } };
+  const lowerCoverage = {
+    ...alpha,
+    breakdown: { coverageComponent: 0.8, rawCompatibility: 1 },
+  };
+  const lowerScore = { ...alpha, scorePct: 99 };
+
+  assert.equal(getRankingSignalKey(alpha), getRankingSignalKey(zulu));
+  assert.notEqual(getRankingSignalKey(alpha), getRankingSignalKey(lowerCoverage));
+  assert.notEqual(getRankingSignalKey(alpha), getRankingSignalKey(lowerScore));
 });
 
 test("evidence labels distinguish listed, biography, estimated, and unknown data", () => {
