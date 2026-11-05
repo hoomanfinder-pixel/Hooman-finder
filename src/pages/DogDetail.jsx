@@ -32,6 +32,7 @@ import { getChildTraitDisplay } from "../lib/childCompatibility";
 import {
   formatFitScore,
   getEvidenceLabels,
+  getFitScoreScope,
   getPositiveEvidenceItems,
   getTradeoffEvidenceItems,
   hasRealFitScore,
@@ -647,6 +648,7 @@ export default function DogDetail() {
   const matchReasons = getPositiveEvidenceItems(quizMatch?.breakdown, 6);
   const matchTradeoffs = getTradeoffEvidenceItems(quizMatch?.breakdown, 2);
   const matchEvidenceLabels = getEvidenceLabels(quizMatch?.breakdown);
+  const fitScoreScope = getFitScoreScope(quizMatch?.breakdown);
   const matchCautions = Array.isArray(quizMatch?.breakdown?.compatibilityCautions)
     ? quizMatch.breakdown.compatibilityCautions.filter(Boolean)
     : [];
@@ -709,6 +711,13 @@ export default function DogDetail() {
                     ? "Limited listing information: this fit score uses the dog details currently available, but several active preferences could not be assessed."
                     : "This fit score is based on your quiz answers and the dog details currently available from the shelter or rescue."}
                 </p>
+
+                {fitScoreScope.summary ? (
+                  <div className="mt-4 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold leading-6 text-[#6F6A66] ring-1 ring-[#183D35]/5">
+                    <p className="text-[#183D35]">{fitScoreScope.summary}</p>
+                    <p>{fitScoreScope.evidenceSummary}</p>
+                  </div>
+                ) : null}
 
                 {matchEvidenceLabels.length ? (
                   <div className="mt-4 flex flex-wrap gap-2" aria-label="Fit score evidence sources">
@@ -1059,6 +1068,12 @@ export default function DogDetail() {
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6F6A66]">
                     These highlights come from your quiz answers and the dog details currently available from the shelter or rescue.
                   </p>
+                  {fitScoreScope.summary ? (
+                    <div className="mt-3 text-sm font-semibold leading-6 text-[#527166]">
+                      <p>{fitScoreScope.summary}</p>
+                      <p>{fitScoreScope.evidenceSummary}</p>
+                    </div>
+                  ) : null}
                 </div>
 
               </div>

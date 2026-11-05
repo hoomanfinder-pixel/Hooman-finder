@@ -15,6 +15,7 @@ import { getChildFitChip } from "../lib/childCompatibility";
 import {
   formatFitScore,
   getEvidenceLabels,
+  getFitScoreScope,
   getTradeoffEvidenceItems,
   hasRealFitScore,
 } from "../lib/matchPresentation";
@@ -356,6 +357,7 @@ export default function DogCard({
   sessionId = null,
   variant = "grid",
   rank = null,
+  isExactTie = false,
 }) {
   const [openModal, setOpenModal] = useState(false);
   const [saved, setSaved] = useState(() => isSavedId(dog?.id));
@@ -375,6 +377,10 @@ export default function DogCard({
   const matchState = useMemo(
     () => getMatchState({ dog, scorePct, breakdown }),
     [dog, scorePct, breakdown]
+  );
+  const fitScoreScope = useMemo(
+    () => getFitScoreScope(breakdown),
+    [breakdown]
   );
 
   const tier = useMemo(
@@ -642,7 +648,9 @@ export default function DogCard({
 
   if (cardVariant === "match") {
     const rankLabel = matchState.kind === "match"
-      ? rank === 1
+      ? isExactTie
+        ? "Tied fit score"
+        : rank === 1
         ? "Top potential fit"
         : `#${rank || "?"} potential fit`
       : "";
@@ -727,6 +735,12 @@ export default function DogCard({
             <p className="mt-2 text-sm leading-5 text-[#6F6A66]">
               <span aria-hidden="true">📍 </span>{locationLabel}
             </p>
+
+            {matchState.kind === "match" && fitScoreScope.compact ? (
+              <p className="mt-3 text-xs font-semibold leading-5 text-[#527166]">
+                {fitScoreScope.compact}
+              </p>
+            ) : null}
 
             {breakdown?.limitedInformation === true ? (
               <p className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs font-bold leading-5 text-amber-950">

@@ -1,6 +1,7 @@
 // src/components/QuestionCard.jsx
 import React from "react";
 import OptionSelect from "./OptionSelect";
+import { questionAffectsMatchRanking } from "../lib/matchingLogic";
 
 function questionIcon(question) {
   const id = String(question?.id || "").toLowerCase();
@@ -50,6 +51,9 @@ export default function QuestionCard({
       number={number}
       icon={question.icon || questionIcon(question)}
       statusText={statusText}
+      rankingDisclosure={questionAffectsMatchRanking(question.id)
+        ? ""
+        : "Saved for context · does not currently affect fit scores or ranking."}
       inputMode={question.inputMode}
       placeholder={question.placeholder}
       type={question.type}

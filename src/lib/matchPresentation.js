@@ -18,6 +18,57 @@ export function formatFitScore(scorePct) {
     : "Fit score unavailable";
 }
 
+function naturalList(items) {
+  const labels = items.filter(Boolean);
+  if (labels.length <= 1) return labels[0] || "";
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels.slice(0, -1).join(", ")}, and ${labels.at(-1)}`;
+}
+
+export function getFitScoreScope(breakdown) {
+  const labels = Array.isArray(breakdown?.activePreferenceLabels)
+    ? breakdown.activePreferenceLabels.filter(Boolean)
+    : [];
+  const countValue = breakdown?.activePreferenceCount ?? breakdown?.answeredCount;
+  const count = Number.isFinite(Number(countValue)) ? Number(countValue) : labels.length;
+  const preferenceNoun = count === 1 ? "preference" : "preferences";
+  const namedPreferences = labels.length ? `: ${naturalList(labels)}` : "";
+  const summary = count > 0
+    ? `Based on ${count} scored ${preferenceNoun}${namedPreferences}.`
+    : "";
+
+  const requestedWeight = Number(breakdown?.evidenceRequestedWeight);
+  const coveredWeight = Number(breakdown?.evidenceCoveredWeight);
+  const hasMissingEvidence = breakdown?.limitedInformation === true || (
+    Number.isFinite(requestedWeight) &&
+    Number.isFinite(coveredWeight) &&
+    coveredWeight < requestedWeight
+  );
+  const evidenceSummary = count > 0
+    ? hasMissingEvidence
+      ? "Limited listing information for these scored preferences."
+      : "Information is available for all scored preferences."
+    : "";
+
+  return {
+    count,
+    labels,
+    summary,
+    evidenceSummary,
+    compact: count > 0
+      ? `${count} scored ${preferenceNoun} · ${hasMissingEvidence ? "Limited information" : "Information available"}`
+      : "",
+    limited: hasMissingEvidence,
+  };
+}
+
+export function getRankingSignalKey(row) {
+  const score = Number.isFinite(Number(row?.scorePct)) ? Number(row.scorePct) : -1;
+  const coverage = Number(row?.breakdown?.coverageComponent || 0);
+  const rawCompatibility = Number(row?.breakdown?.rawCompatibility || 0);
+  return JSON.stringify([score, coverage, rawCompatibility]);
+}
+
 export function evidenceSourceLabel(source) {
   return SOURCE_LABELS[source] || "Source not specified";
 }
