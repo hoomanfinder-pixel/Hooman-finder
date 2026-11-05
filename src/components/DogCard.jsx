@@ -295,18 +295,6 @@ function buildDescription(dog) {
   return clean.length > 120 ? `${clean.slice(0, 117)}...` : clean;
 }
 
-function buildLifestyleTags(dog, ageLabel) {
-  const tags = [];
-
-  if (ageLabel) tags.push(ageLabel);
-  if (dog?.breed) tags.push(dog.breed);
-  else tags.push("Mixed breed");
-  if (dog?.size) tags.push(dog.size);
-  if (dog?.energy_level) tags.push(`${dog.energy_level} energy`);
-
-  return tags.filter(Boolean).slice(0, 4);
-}
-
 const FIT_CHIP_FIELDS = [
   { structuredKey: "good_with_dogs", bioKey: "bio_good_with_dogs", label: "good with dogs" },
   { structuredKey: "good_with_cats", bioKey: "bio_good_with_cats", label: "good with cats" },
@@ -401,7 +389,6 @@ export default function DogCard({
     return "";
   }, [dog?.age_years, dog?.age_text]);
 
-  const lifestyleTags = useMemo(() => buildLifestyleTags(dog, ageLabel), [dog, ageLabel]);
   const descriptionPreview = useMemo(() => buildDescription(dog), [dog]);
   const fitChips = useMemo(() => buildFitChips(dog), [dog]);
   const fullName = dog?.name || "Unnamed";
@@ -463,8 +450,12 @@ export default function DogCard({
       type="button"
       onClick={onToggleSaved}
       className={[
-        "inline-flex shrink-0 items-center justify-center rounded-full font-black shadow-sm backdrop-blur transition",
-        cardVariant === "saved" ? "h-9 w-9 text-lg" : "h-8 w-8 text-base sm:h-9 sm:w-9 sm:text-lg",
+        "inline-flex shrink-0 items-center justify-center rounded-full font-black shadow-sm backdrop-blur transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F3C982]",
+        cardVariant === "saved"
+          ? "h-9 w-9 text-lg"
+          : cardVariant === "match"
+            ? "h-11 w-11 text-xl"
+            : "h-8 w-8 text-base sm:h-9 sm:w-9 sm:text-lg",
         saved
           ? "bg-white text-rose-600"
           : "bg-black/35 text-white ring-1 ring-white/30 hover:bg-white hover:text-[#183D35]",
@@ -655,20 +646,21 @@ export default function DogCard({
         ? "Top potential fit"
         : `#${rank || "?"} potential fit`
       : "";
+    const primaryReason = matchState.reasons?.[0] || "";
+    const locationLabel = displayLocation(dog);
 
     return (
       <>
-        <Link
-          to={dogLink}
-          state={linkState}
-          className="group relative aspect-square min-w-0 overflow-hidden rounded-2xl border border-[#183D35]/10 bg-[#EFE8DC] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:aspect-auto sm:flex sm:h-full sm:flex-col sm:rounded-[1.5rem] sm:bg-white sm:duration-300 sm:hover:shadow-xl"
+        <article
+          aria-label={`${fullName} match result`}
+          className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-[#183D35]/10 bg-white shadow-[0_12px_34px_rgba(24,61,53,0.09)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(24,61,53,0.14)] focus-within:ring-2 focus-within:ring-[#C79A36] focus-within:ring-offset-2 focus-within:ring-offset-[#F5F1E9]"
         >
-          <div className="absolute inset-0 overflow-hidden bg-[#EFE8DC] sm:relative sm:inset-auto sm:aspect-[4/3] sm:w-full">
+          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EFE8DC]">
             {imgSrc ? (
               <img
                 src={imgSrc}
                 alt={imgAlt}
-                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.035]"
+                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.025]"
                 loading="lazy"
                 onError={() => setImageFailed(true)}
               />
@@ -676,13 +668,12 @@ export default function DogCard({
               <PlaceholderPhoto name={dog?.name} />
             )}
 
-            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/35 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 h-[62%] bg-gradient-to-t from-[#102d27]/95 via-[#102d27]/55 to-transparent sm:hidden" />
+            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" aria-hidden="true" />
 
-            <div className="absolute left-2 right-2 top-2 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5 sm:gap-2">
-              <div className="flex min-w-0 flex-wrap gap-1">
+            <div className="pointer-events-none absolute left-3 right-[4.75rem] top-3 flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-wrap gap-2">
                 {rankLabel ? (
-                  <span className="inline-flex items-center rounded-full bg-[#dfe7d7] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-[#183D35] shadow-sm sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]">
+                  <span className="inline-flex min-h-7 items-center rounded-full bg-[#dfe7d7] px-3 py-1 text-[10px] font-black uppercase tracking-[0.13em] text-[#183D35] shadow-sm">
                     {rankLabel}
                   </span>
                 ) : null}
@@ -690,7 +681,7 @@ export default function DogCard({
                 {showMatch && tier ? (
                   <span
                     className={[
-                      "inline-flex items-center rounded-full px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] shadow-sm backdrop-blur sm:px-2.5 sm:py-1 sm:text-[10px] sm:tracking-[0.14em]",
+                      "inline-flex min-h-7 items-center rounded-full px-3 py-1 text-[11px] font-black tracking-[0.04em] shadow-sm backdrop-blur",
                       tier.className,
                     ].join(" ")}
                     title={matchState.pillText}
@@ -702,7 +693,7 @@ export default function DogCard({
                 {urgency !== "Standard" ? (
                   <span
                     className={[
-                      "hidden items-center rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.14em] shadow-sm sm:inline-flex sm:px-2.5 sm:py-1 sm:text-[10px]",
+                      "inline-flex min-h-7 items-center rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.13em] shadow-sm",
                       urgencyStyle(urgency),
                     ].join(" ")}
                   >
@@ -711,98 +702,57 @@ export default function DogCard({
                 ) : null}
               </div>
 
-              {heartButton}
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:hidden">
-              {matchState.cautions?.length ? (
-                <div
-                  className="mb-1.5 rounded-lg border border-amber-300/80 bg-amber-50/95 px-2 py-1 text-[8px] font-bold leading-[1.25] text-amber-950 shadow-sm"
-                  role="alert"
-                >
-                  <div className="font-black uppercase tracking-[0.1em] text-amber-800">
-                    Compatibility caution
-                  </div>
-                  <ul className="mt-0.5 space-y-0.5">
-                    {matchState.cautions.map((caution) => (
-                      <li
-                        key={caution}
-                        className="truncate"
-                        title={caution}
-                        aria-label={caution}
-                      >
-                        {compactCompatibilityCaution(caution)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {matchState.tradeoffs?.length ? (
-                <p
-                  className="mb-1.5 truncate rounded-lg bg-white/90 px-2 py-1 text-[8px] font-bold leading-[1.25] text-[#183D35] shadow-sm"
-                  title={matchState.tradeoffs[0].explanation}
-                >
-                  Consider: {matchState.tradeoffs[0].explanation}
-                </p>
-              ) : null}
-
-              <p className="truncate text-[8px] font-black uppercase tracking-[0.14em] text-white/75">
-                {shelterName(dog)}
-              </p>
-
-              <h2 className="mt-0.5 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-lg font-semibold leading-tight">
-                {compactName}
-              </h2>
-
-              {[ageLabel, dog?.size].filter(Boolean).length ? (
-                <p className="mt-0.5 truncate text-[10px] font-medium leading-4 text-white/85">
-                  {[ageLabel, dog?.size].filter(Boolean).join(" · ")}
-                </p>
-              ) : null}
-
-              {matchState.evidenceLabels?.length ? (
-                <p className="mt-0.5 truncate text-[8px] font-semibold text-white/75">
-                  {matchState.evidenceLabels.join(" · ")}
-                </p>
-              ) : null}
-            </div>
+            <div className="absolute right-3 top-3">{heartButton}</div>
           </div>
 
-          <div className="hidden flex-1 flex-col sm:flex sm:p-4">
+          <div className="flex flex-1 flex-col p-5 sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="truncate text-[10px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">
+                <p className="line-clamp-2 text-[11px] font-black uppercase leading-4 tracking-[0.16em] text-[#6F6A66]">
                   {shelterName(dog)}
                 </p>
 
-                <h2 className="mt-1 overflow-hidden whitespace-nowrap font-['Fraunces',serif] text-2xl font-semibold leading-none text-[#183D35] sm:text-3xl">
-                  {cardName}
+                <h2 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-[2.15rem]">
+                  {fullName}
                 </h2>
               </div>
             </div>
 
-            <p className="mt-3 hidden line-clamp-2 text-sm leading-5 text-[#6F6A66] sm:block">
-              {descriptionPreview}
+            <p className="mt-2 text-sm font-semibold leading-5 text-[#6F6A66]">
+              {[ageLabel, displayBreed(dog), dog?.size].filter(Boolean).join(" · ")}
             </p>
 
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {lifestyleTags.slice(0, 4).map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex max-w-full items-center truncate rounded-full bg-[#f5f1e9] px-2.5 py-1 text-[10px] font-bold text-[#6F6A66] ring-1 ring-[#183D35]/5"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+            <p className="mt-2 text-sm leading-5 text-[#6F6A66]">
+              <span aria-hidden="true">📍 </span>{locationLabel}
+            </p>
+
+            {breakdown?.limitedInformation === true ? (
+              <p className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs font-bold leading-5 text-amber-950">
+                Limited listing information — some active preferences could not be assessed.
+              </p>
+            ) : null}
+
+            {primaryReason ? (
+              <div className="mt-4 rounded-2xl bg-[#eef3e8] px-4 py-3 text-sm leading-5 text-[#183D35]">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#527166]">
+                  Why this dog may fit
+                </div>
+                <p className="mt-1 font-semibold">{primaryReason}</p>
+              </div>
+            ) : (
+              <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#6F6A66]">
+                {descriptionPreview}
+              </p>
+            )}
 
             {matchState.evidenceLabels?.length ? (
-              <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Match evidence sources">
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="Match evidence sources">
                 {matchState.evidenceLabels.map((label) => (
                   <span
                     key={label}
-                    className="rounded-full bg-[#eef3e8] px-2.5 py-1 text-[10px] font-bold text-[#183D35]"
+                    className="inline-flex min-h-7 items-center rounded-full bg-[#eef3e8] px-3 py-1 text-[11px] font-bold leading-4 text-[#183D35] ring-1 ring-[#183D35]/10"
                   >
                     {label}
                   </span>
@@ -812,11 +762,11 @@ export default function DogCard({
 
             {matchState.cautions?.length ? (
               <div
-                className="mt-3 rounded-xl border border-amber-400 bg-amber-50 px-3 py-2 text-[11px] font-bold leading-4 text-amber-950"
+                className="mt-4 rounded-2xl border-2 border-amber-500 bg-amber-50 px-3.5 py-3 text-sm font-bold leading-5 text-amber-950"
                 role="alert"
               >
-                <div className="font-black uppercase tracking-[0.12em] text-amber-800">
-                  Compatibility caution
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800">
+                  Important compatibility caution
                 </div>
                 <ul className="mt-1 space-y-1">
                   {matchState.cautions.map((caution) => (
@@ -829,22 +779,27 @@ export default function DogCard({
             ) : null}
 
             {matchState.tradeoffs?.length ? (
-              <div className="mt-3 rounded-xl border border-[#183D35]/10 bg-[#f5f1e9] px-3 py-2 text-[11px] leading-4 text-[#6F6A66]">
-                <div className="font-black uppercase tracking-[0.12em] text-[#183D35]">
+              <div className="mt-3 rounded-2xl border border-[#183D35]/10 bg-[#F5F1E9] px-4 py-3 text-sm leading-5 text-[#6F6A66]">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#183D35]">
                   Thing to consider
                 </div>
                 <p className="mt-1 font-semibold">{matchState.tradeoffs[0].explanation}</p>
-                <p className="mt-1 text-[10px] font-bold">{matchState.tradeoffs[0].sourceLabel}</p>
+                <p className="mt-1 text-[11px] font-bold text-[#527166]">{matchState.tradeoffs[0].sourceLabel}</p>
               </div>
             ) : null}
 
-            <div className="mt-auto pt-4">
-              <span className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-[#183D35] px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-[#F3C982] transition group-hover:bg-[#12332C]">
+            <div className="mt-auto pt-5">
+              <Link
+                to={dogLink}
+                state={linkState}
+                className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-[#183D35] px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#F3C982] shadow-sm transition hover:bg-[#12332C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C79A36]"
+                aria-label={`View profile for ${fullName}`}
+              >
                 View Profile
-              </span>
+              </Link>
             </div>
           </div>
-        </Link>
+        </article>
 
         {modals}
       </>

@@ -584,7 +584,7 @@ export default function Results() {
         ) : null}
 
         {loading ? (
-          <DogGridSkeleton count={6} label="Loading matches." />
+          <DogGridSkeleton count={6} label="Loading matches." variant="match" />
         ) : err ? (
           <div className="mt-5 rounded-[1.6rem] border border-red-200 bg-red-50 p-5">
             <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">
@@ -640,7 +640,7 @@ export default function Results() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
               {visibleRows.map((row, idx) => (
                 <DogCard
                   key={row.dog?.id ?? idx}

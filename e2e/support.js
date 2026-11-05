@@ -120,9 +120,16 @@ export async function completeEssentialQuiz(page, sessionId, answers = {}) {
 
 export function getResultCard(page, dogName) {
   return page
-    .getByRole("link", { name: new RegExp(dogName, "i") })
+    .getByRole("article", { name: new RegExp(`${dogName} match result`, "i") })
     .filter({ hasText: /Fit score:\s*\d+\/100/ })
     .first();
+}
+
+export async function openResultProfile(card) {
+  const profileLink = card.getByRole("link", { name: /View profile for/i });
+  await profileLink.focus();
+  await expect(profileLink).toBeFocused();
+  await profileLink.press("Enter");
 }
 
 export async function getCardPercentage(card) {

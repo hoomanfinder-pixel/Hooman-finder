@@ -4,6 +4,7 @@ import {
   expectDecodedImage,
   getCardPercentage,
   getResultCard,
+  openResultProfile,
   expectValidMatchPercentages,
   test,
 } from "./support.js";
@@ -214,7 +215,7 @@ test("anonymous quiz stays local across refresh, results, profile, edit, and res
 
   const mapleCard = getResultCard(page, "Maple");
   const resultsScore = await getCardPercentage(mapleCard);
-  await mapleCard.click();
+  await openResultProfile(mapleCard);
   await expect(page).toHaveURL(new RegExp(`/dog/e2e-dog-maple\\?session=${sessionId}`));
   await expect(
     page.getByRole("button", {
