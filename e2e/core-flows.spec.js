@@ -27,9 +27,9 @@ test("homepage loads and navigates to the quiz", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await expect(
-    page.getByRole("heading", { name: /Find adoptable dogs that fit your real life/i })
+    page.getByRole("heading", { name: /Find a dog who fits your life. Not just your search./i })
   ).toBeVisible();
-  await page.getByRole("link", { name: "Take the Quiz", exact: true }).first().click();
+  await page.getByRole("link", { name: "Find my potential matches", exact: true }).first().click();
 
   await expect(page).toHaveURL(/\/quiz$/);
   await expect(
@@ -39,13 +39,38 @@ test("homepage loads and navigates to the quiz", async ({ page }) => {
 
 test("homepage navigates to browse dogs", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByRole("link", { name: "Browse Dogs", exact: true }).first().click();
+  await page.getByRole("link", { name: "Browse adoptable dogs", exact: true }).click();
 
   await expect(page).toHaveURL(/\/dogs$/);
   await expect(
     page.getByRole("heading", { name: "Browse current adoptable rescue dogs." }),
   ).toBeVisible();
   await expect(page.getByText("2 available dogs")).toBeVisible();
+});
+
+test("homepage preserves brand, attribution, profiles, and official adoption destinations", async ({
+  page,
+}) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByRole("img", { name: "Hooman Finder" }).first()).toHaveAttribute(
+    "src",
+    "/logo.png"
+  );
+  await expect(page.getByText(`Listed by ${shelterFixture.name}`).first()).toBeVisible();
+
+  await page.getByRole("link", { name: "Maple, an adoptable dog profile" }).click();
+  await expect(page).toHaveURL(/\/dog\/e2e-dog-maple$/);
+  await expect(page.getByRole("heading", { name: "Maple" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View official listing" })).toHaveAttribute(
+    "href",
+    dogFixtures[0].adoption_url
+  );
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByRole("link", { name: "How it works", exact: true }).click();
+  await expect(page).toHaveURL(/\/about$/);
+  await expect(page.getByRole("heading", { name: "About Hooman Finder" })).toBeVisible();
 });
 
 test("browse preserves prerendered dogs after a failed fetch and recovers on retry", async ({
