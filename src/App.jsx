@@ -2,7 +2,7 @@
 import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { Routes, Route, useLocation } from "react-router-dom";
 
-import Home from "./pages/Home.jsx";
+import Home from "./pages/HomeWarmIntelligence.jsx";
 
 const Quiz = lazy(() => import("./pages/Quiz.jsx"));
 const Results = lazy(() => import("./pages/Results.jsx"));

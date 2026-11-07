@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 
-import Home from "./pages/Home.jsx";
+import Home from "./pages/HomeWarmIntelligence.jsx";
 import Dogs from "./pages/Dogs.jsx";
 import Quiz from "./pages/Quiz.jsx";
 import About from "./pages/About.jsx";

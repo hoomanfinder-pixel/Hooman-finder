@@ -16,11 +16,11 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
 }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(
-    page.getByRole("heading", { name: /Find adoptable dogs that fit your real life/i })
+    page.getByRole("heading", { name: /Find a dog who fits your life. Not just your search./i })
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole("link", { name: "Take the Quiz", exact: true }).first().click();
+  await page.getByRole("link", { name: "Find my potential matches", exact: true }).first().click();
   await expect(page).toHaveURL(/\/quiz$/);
   await expect(
     page.getByRole("heading", { name: "Find an adoptable dog that fits your lifestyle" })
