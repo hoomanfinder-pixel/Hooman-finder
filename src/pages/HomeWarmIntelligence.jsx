@@ -147,14 +147,14 @@ export default function HomeWarmIntelligence() {
     <div className="min-h-screen overflow-hidden bg-[#F7F5F0] font-['Inter',sans-serif] text-[#111D26] selection:bg-[#2490C0]/20">
       <SEO title="Find a Dog Who Fits Your Life | Hooman Finder" description="Discover real adoptable dogs through transparent, lifestyle-based matching with Hooman Finder." canonicalPath="/" ogImage="/home-hero-adopter-dog-hd.jpg" ogImageAlt="A woman sharing a warm moment with a rescue dog" />
       <header className="relative z-30 border-b border-[#111D26]/10 bg-[#F7F5F0]/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[74px] max-w-[1280px] items-center justify-between px-5 sm:h-[86px] sm:px-8 lg:px-12">
+        <div className="mx-auto flex h-[68px] max-w-[1280px] items-center justify-between px-4 sm:h-[86px] sm:px-8 lg:px-12">
           <Link to="/" aria-label="Hooman Finder home" className="flex items-center">
-            <img src="/logo.png" alt="Hooman Finder" width="753" height="705" className="h-[50px] w-auto object-contain sm:h-[60px]" />
+            <img src="/logo.png" alt="Hooman Finder" width="753" height="705" className="h-11 w-auto object-contain sm:h-[60px]" />
           </Link>
-          <nav aria-label="Primary navigation" className="flex items-center gap-6 text-[13px] font-semibold sm:gap-8">
+          <nav aria-label="Primary navigation" className="flex items-center gap-4 text-[13px] font-semibold sm:gap-8">
             <Link to="/dogs" className="hidden rounded-sm hover:text-[#2490C0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2490C0] sm:inline">Browse dogs</Link>
             <Link to="/about" className="hidden rounded-sm hover:text-[#2490C0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2490C0] md:inline">How it works</Link>
-            <Link to="/quiz" aria-label="Find my potential matches" className="inline-flex min-h-11 items-center rounded-full bg-[#111D26] px-5 text-white hover:bg-[#2490C0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2490C0] sm:px-6"><span className="sm:hidden">Find matches</span><span className="hidden sm:inline">Find my potential matches</span></Link>
+            <Link to="/quiz" aria-label="Find my potential matches" className="inline-flex min-h-11 items-center rounded-full bg-[#111D26] px-4 text-white hover:bg-[#2490C0] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2490C0] sm:px-6"><span className="sm:hidden">Find matches</span><span className="hidden sm:inline">Find my potential matches</span></Link>
           </nav>
         </div>
       </header>
@@ -162,45 +162,45 @@ export default function HomeWarmIntelligence() {
       <main>
         <section className="relative">
           <div className="mx-auto grid max-w-[1280px] lg:min-h-[690px] lg:grid-cols-[0.92fr_1.08fr]">
-            <div className="relative flex flex-col justify-center px-5 pb-10 pt-10 sm:px-8 sm:pb-16 sm:pt-20 lg:px-12 lg:py-24">
+            <div className="relative flex flex-col justify-center px-5 pb-7 pt-7 sm:px-8 sm:pb-16 sm:pt-20 lg:px-12 lg:py-24">
               <div className="pointer-events-none absolute left-0 top-0 hidden h-full w-px bg-[#111D26]/10 lg:block" />
               <p className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-[0.2em] text-[#466071]">
                 <span className="h-px w-8 bg-[#2490C0]" /> Lifestyle-first dog matching
               </p>
-              <h1 className="mt-7 max-w-2xl font-['Fraunces',serif] text-[3.25rem] font-medium leading-[0.95] tracking-[-0.045em] text-[#111D26] sm:text-[4.7rem] lg:text-[5.2rem]">
+              <h1 className="mt-5 max-w-2xl font-['Fraunces',serif] text-[clamp(2.35rem,11.1vw,2.75rem)] font-medium leading-[0.98] tracking-[-0.04em] text-[#111D26] sm:mt-7 sm:text-[4.7rem] sm:leading-[0.95] sm:tracking-[-0.045em] lg:text-[5.2rem]">
                 Find a dog who fits your life. <span className="text-[#2490C0]">Not just your search.</span>
               </h1>
-              <p className="mt-7 max-w-xl text-[15px] leading-7 text-[#52616B] sm:text-[17px] sm:leading-8">
+              <p className="mt-5 max-w-xl text-[15px] leading-6 text-[#52616B] sm:mt-7 sm:text-[17px] sm:leading-8">
                 A thoughtful way to discover real shelter and rescue dogs—using what is known, clearly labeling what is estimated, and keeping unknowns honest.
               </p>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Link to="/quiz" className="group inline-flex min-h-14 items-center justify-center gap-4 rounded-full bg-[#2490C0] px-7 text-sm font-bold text-white shadow-[0_14px_34px_rgba(36,144,192,0.22)] hover:bg-[#147EAC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#111D26]">
+              <div className="mt-6 flex flex-col gap-2 sm:mt-9 sm:flex-row sm:items-center sm:gap-3">
+                <Link to="/quiz" className="group inline-flex min-h-12 items-center justify-center gap-4 rounded-full bg-[#2490C0] px-6 text-sm font-bold text-white shadow-[0_14px_34px_rgba(36,144,192,0.22)] hover:bg-[#147EAC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#111D26] sm:min-h-14 sm:px-7">
                   Find my potential matches <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Link>
-                <Link to="/dogs" className="inline-flex min-h-14 items-center justify-center px-5 text-sm font-bold text-[#111D26] hover:text-[#2490C0]">Browse adoptable dogs</Link>
+                <Link to="/dogs" className="inline-flex min-h-11 items-center justify-center px-5 text-sm font-bold text-[#111D26] hover:text-[#2490C0] sm:min-h-14">Browse adoptable dogs</Link>
               </div>
-              <div className="mt-10 flex flex-wrap gap-x-7 gap-y-3 border-t border-[#111D26]/10 pt-5 text-[11px] font-semibold uppercase tracking-[0.13em] text-[#68757E]">
+              <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2.5 border-t border-[#111D26]/10 pt-4 text-[11px] font-semibold uppercase tracking-[0.11em] text-[#68757E] sm:mt-10 sm:gap-x-7 sm:gap-y-3 sm:pt-5 sm:tracking-[0.13em]">
                 <span className="flex items-center gap-2"><CheckIcon /> Free to use</span>
                 <span className="flex items-center gap-2"><CheckIcon /> No account required</span>
                 <span className="flex items-center gap-2"><CheckIcon /> Real listings</span>
               </div>
             </div>
 
-            <div className="relative min-h-[430px] overflow-hidden bg-[#DDE5E9] sm:min-h-[650px] lg:min-h-full">
+            <div className="relative min-h-[340px] overflow-hidden bg-[#DDE5E9] sm:min-h-[650px] lg:min-h-full">
               <picture>
                 <source type="image/avif" srcSet="/home-hero-adopter-dog-672.avif 672w, /home-hero-adopter-dog-768.avif 768w, /home-hero-adopter-dog.avif 1537w" />
-                <img src="/home-hero-adopter-dog-hd.jpg" alt="A woman warmly greeting a rescue dog" width="1537" height="1023" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover object-[45%_50%]" />
+                <img src="/home-hero-adopter-dog-hd.jpg" alt="A woman warmly greeting a rescue dog" width="1537" height="1023" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover object-[45%_46%] sm:object-[45%_50%]" />
               </picture>
               <div className="absolute inset-0 bg-gradient-to-t from-[#111D26]/25 via-transparent to-transparent" />
-              <div className="absolute inset-x-4 bottom-4 rounded-[1.35rem] border border-white/60 bg-[#FDFCF9]/92 p-4 shadow-[0_22px_55px_rgba(17,29,38,0.18)] backdrop-blur-xl sm:bottom-8 sm:left-8 sm:right-auto sm:w-[355px] sm:p-5">
+              <div className="absolute inset-x-3 bottom-3 rounded-[1.15rem] border border-white/60 bg-[#FDFCF9]/92 p-3.5 shadow-[0_22px_55px_rgba(17,29,38,0.18)] backdrop-blur-xl sm:bottom-8 sm:left-8 sm:right-auto sm:w-[355px] sm:rounded-[1.35rem] sm:p-5">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#627581]">How evidence is shown</p>
                   <span className="rounded-full bg-[#E5F3F8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.1em] text-[#147EAC]">Transparent</span>
                 </div>
-                <div className="mt-4 space-y-3">
+                <div className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">
                   {EVIDENCE_LEVELS.slice(0, 3).map((item) => (
                     <div key={item.label} className="flex items-center gap-3">
-                      <span className={`h-2.5 w-2.5 rounded-full ${item.tone}`} />
+                      <span className={`h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5 ${item.tone}`} />
                       <span className="text-xs font-semibold text-[#26343D]">{item.label}</span>
                       <span className="ml-auto text-[11px] text-[#7A858C]">labeled</span>
                     </div>
@@ -212,11 +212,11 @@ export default function HomeWarmIntelligence() {
         </section>
 
         <section className="border-y border-[#111D26]/10 bg-white">
-          <div className="mx-auto grid max-w-[1280px] grid-cols-2 divide-x divide-[#111D26]/10 px-5 py-6 sm:px-8 lg:grid-cols-4 lg:px-12">
-            <div className="px-3 py-2 sm:px-6"><p className="font-['Fraunces',serif] text-2xl">{platformStats.public_dog_count}</p><p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7A858C]">Current dogs</p></div>
-            <div className="px-3 py-2 sm:px-6"><p className="font-['Fraunces',serif] text-2xl">{platformStats.public_shelter_count}</p><p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7A858C]">Listing sources</p></div>
-            <div className="mt-5 border-t border-[#111D26]/10 px-3 pt-5 sm:px-6 lg:mt-0 lg:border-t-0 lg:pt-2"><p className="font-['Fraunces',serif] text-2xl">Free</p><p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7A858C]">For adopters</p></div>
-            <div className="mt-5 border-t border-[#111D26]/10 px-3 pt-5 sm:px-6 lg:mt-0 lg:border-t-0 lg:pt-2"><p className="font-['Fraunces',serif] text-2xl">Direct</p><p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#7A858C]">Official adoption links</p></div>
+          <div className="mx-auto grid max-w-[1280px] grid-cols-2 px-5 py-4 sm:px-8 lg:grid-cols-4 lg:divide-x lg:divide-[#111D26]/10 lg:px-12 lg:py-6">
+            <div className="border-b border-[#111D26]/10 px-2 pb-3 lg:border-b-0 lg:px-6 lg:py-2"><p className="font-['Fraunces',serif] text-[1.4rem] sm:text-2xl">{platformStats.public_dog_count}</p><p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#7A858C] sm:mt-1 sm:tracking-[0.12em]">Current dogs</p></div>
+            <div className="border-b border-l border-[#111D26]/10 px-3 pb-3 lg:border-b-0 lg:border-l-0 lg:px-6 lg:py-2"><p className="font-['Fraunces',serif] text-[1.4rem] sm:text-2xl">{platformStats.public_shelter_count}</p><p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#7A858C] sm:mt-1 sm:tracking-[0.12em]">Listing sources</p></div>
+            <div className="px-2 pt-3 lg:px-6 lg:py-2"><p className="font-['Fraunces',serif] text-[1.4rem] sm:text-2xl">Free</p><p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#7A858C] sm:mt-1 sm:tracking-[0.12em]">For adopters</p></div>
+            <div className="border-l border-[#111D26]/10 px-3 pt-3 lg:border-l-0 lg:px-6 lg:py-2"><p className="font-['Fraunces',serif] text-[1.4rem] sm:text-2xl">Direct</p><p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.1em] text-[#7A858C] sm:mt-1 sm:tracking-[0.12em]">Official adoption links</p></div>
           </div>
         </section>
 
@@ -333,7 +333,7 @@ export default function HomeWarmIntelligence() {
                   </Link>
                 ))}
               </div>
-              <Link to="/dogs" className="mt-6 inline-flex items-center gap-3 text-sm font-bold sm:hidden">View all dogs <ArrowIcon /></Link>
+              <Link to="/dogs" className="mt-4 inline-flex min-h-11 items-center gap-3 text-sm font-bold sm:hidden">View all dogs <ArrowIcon /></Link>
             </HomeFeaturedDogsView>
           </div>
         </section>
@@ -363,24 +363,24 @@ export default function HomeWarmIntelligence() {
             </div>
             <div className="mt-12 flex flex-col gap-4 border-t border-white/15 pt-6 text-xs leading-5 text-white/50 sm:flex-row sm:items-center sm:justify-between">
               <p>Always confirm availability, behavior, requirements, and fit directly with the shelter or rescue.</p>
-              <Link to="/about" className="shrink-0 font-bold text-white hover:text-[#77C5E5]">How Hooman Finder works →</Link>
+              <Link to="/about" className="inline-flex min-h-11 shrink-0 items-center font-bold text-white hover:text-[#77C5E5] sm:min-h-0">How Hooman Finder works →</Link>
             </div>
           </div>
         </section>
 
-        <section className="px-5 py-8 sm:px-8 sm:py-16 lg:px-12">
-          <div className="mx-auto grid max-w-[1180px] overflow-hidden rounded-[1.75rem] bg-[#2490C0] lg:grid-cols-[1.08fr_0.92fr]">
-            <div className="flex flex-col justify-center p-7 text-white sm:p-12 lg:p-16">
+        <section className="px-5 py-6 sm:px-8 sm:py-16 lg:px-12">
+          <div className="mx-auto grid max-w-[1180px] overflow-hidden rounded-[1.5rem] bg-[#2490C0] sm:rounded-[1.75rem] lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="flex flex-col justify-center p-6 text-white sm:p-12 lg:p-16">
               <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">Your shortlist starts here</p>
-              <h2 className="mt-5 max-w-xl font-['Fraunces',serif] text-4xl font-medium leading-[1.02] tracking-[-0.03em] sm:text-5xl">Make the search feel more human—and more informed.</h2>
-              <p className="mt-5 max-w-lg text-sm leading-7 text-white/78">Answer a short lifestyle quiz, review the evidence behind each result, and continue with the official adoption source.</p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link to="/quiz" className="group inline-flex min-h-14 items-center justify-center gap-4 rounded-full bg-white px-7 text-sm font-bold text-[#147EAC] hover:bg-[#EAF5F9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#111D26]">Find my potential matches <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
-                <Link to="/dogs" className="inline-flex min-h-14 items-center justify-center rounded-full border border-white/50 px-7 text-sm font-bold text-white hover:bg-white hover:text-[#147EAC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">Browse dogs</Link>
+              <h2 className="mt-4 max-w-xl font-['Fraunces',serif] text-[2rem] font-medium leading-[1.04] tracking-[-0.03em] sm:mt-5 sm:text-5xl sm:leading-[1.02]">Make the search feel more human—and more informed.</h2>
+              <p className="mt-4 max-w-lg text-sm leading-6 text-white/78 sm:mt-5 sm:leading-7">Answer a short lifestyle quiz, review the evidence behind each result, and continue with the official adoption source.</p>
+              <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:gap-3">
+                <Link to="/quiz" className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-bold text-[#147EAC] hover:bg-[#EAF5F9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#111D26] sm:min-h-14 sm:gap-4 sm:px-7 sm:text-sm">Find my potential matches <ArrowIcon className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
+                <Link to="/dogs" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/50 px-6 text-sm font-bold text-white hover:bg-white hover:text-[#147EAC] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:min-h-14 sm:px-7">Browse dogs</Link>
               </div>
             </div>
-            <div className="relative min-h-[300px] lg:min-h-[470px]">
-              <img src="/home-cta-dog.jpg" alt="A dog looking attentively to the side" width="700" height="350" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-center" />
+            <div className="relative min-h-[220px] sm:min-h-[300px] lg:min-h-[470px]">
+              <img src="/home-cta-dog.jpg" alt="A dog looking attentively to the side" width="700" height="350" loading="lazy" className="absolute inset-0 h-full w-full object-cover object-[50%_46%] sm:object-center" />
               <div className="absolute inset-0 bg-gradient-to-r from-[#2490C0]/35 to-transparent" />
             </div>
           </div>
@@ -393,13 +393,13 @@ export default function HomeWarmIntelligence() {
               <Link to="/" aria-label="Hooman Finder home" className="inline-flex"><img src="/logo.png" alt="Hooman Finder" width="753" height="705" loading="lazy" className="h-16 w-auto" /></Link>
               <p className="mt-4 max-w-md text-sm leading-6 text-[#68757E]">Lifestyle-based discovery for real adoptable dogs. Free for adopters, with the adoption process managed by each listing shelter or rescue.</p>
             </div>
-            <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 gap-y-3 text-sm font-semibold text-[#43525B] sm:grid-cols-3">
-              <Link to="/dogs" className="hover:text-[#2490C0]">Browse dogs</Link>
-              <Link to="/about" className="hover:text-[#2490C0]">About</Link>
-              <Link to="/contact" className="hover:text-[#2490C0]">Contact</Link>
-              <Link to="/shelters/join" className="hover:text-[#2490C0]">For shelters</Link>
-              <Link to="/privacy" className="hover:text-[#2490C0]">Privacy</Link>
-              <Link to="/terms" className="hover:text-[#2490C0]">Terms</Link>
+            <nav aria-label="Footer" className="grid grid-cols-2 gap-x-10 text-sm font-semibold text-[#43525B] sm:grid-cols-3 sm:gap-y-3">
+              <Link to="/dogs" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">Browse dogs</Link>
+              <Link to="/about" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">About</Link>
+              <Link to="/contact" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">Contact</Link>
+              <Link to="/shelters/join" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">For shelters</Link>
+              <Link to="/privacy" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">Privacy</Link>
+              <Link to="/terms" className="inline-flex min-h-11 items-center hover:text-[#2490C0] sm:min-h-0">Terms</Link>
             </nav>
           </div>
           <div className="mt-10 flex flex-col gap-3 border-t border-[#111D26]/10 pt-5 text-[11px] leading-5 text-[#7A858C] sm:flex-row sm:items-center sm:justify-between">
