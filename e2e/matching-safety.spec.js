@@ -91,6 +91,32 @@ test.describe("young children compatibility safety", () => {
       /greatlakesdogrescue\.example\.org\/dogs\/e2e-child-unknown\/apply/
     );
   });
+
+  test("generic child-positive evidence stays eligible but does not confirm under-3 compatibility", async ({
+    page,
+  }) => {
+    await completeEssentialQuiz(page, "e2e-under-three-general-positive", {
+      children: "Under 3",
+    });
+
+    const generalCard = getResultCard(page, "Harper");
+    await expect(generalCard).toBeVisible();
+    await expect(generalCard).toContainText("3 scored preferences · Limited information");
+    await expect(generalCard).not.toContainText(/supports a home with children/i);
+    await expect(
+      generalCard.getByLabel(/Fit score: \d+\/100.*Based on 3 scored preferences/i)
+    ).toBeVisible();
+
+    await openResultProfile(generalCard);
+    await expect(page).toHaveURL(/\/dog\/e2e-child-general-positive/);
+    await expect(page.getByText("General shelter fact; child ages are not specified.")).toBeVisible();
+    await expect(page.getByText(/supports a home with children/i)).toHaveCount(0);
+    await expect(
+      page.getByRole("button", {
+        name: /Open fit score details.*Fit score: \d+\/100.*Based on 3 scored preferences/i,
+      })
+    ).toBeVisible();
+  });
 });
 
 test.describe("editing child ages preserves older-children-only exclusions", () => {
@@ -209,20 +235,22 @@ test.describe("match evidence coverage", () => {
 
     const richCard = getResultCard(page, "Atlas");
     const sparseCard = getResultCard(page, "Sapphire");
-    await expect(richCard).toContainText("Fit score: 100/100");
-    await expect(richCard).not.toContainText("Limited listing information");
+    await expect(richCard).toContainText("Fit score: 87/100");
+    await expect(richCard).toContainText("3 scored preferences · Limited information");
+    await expect(richCard).toContainText("Based on 3 scored preferences");
+    await expect(richCard).not.toContainText(/supports a home with children/i);
     await expect(sparseCard).toContainText("Fit score: 73/100 · Limited listing information");
 
     await openResultProfile(sparseCard);
     await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
     await expect(
       page.getByRole("button", {
-        name: "Open fit score details. Fit score: 73/100. Limited listing information",
+        name: "Open fit score details. Fit score: 73/100. Based on 3 scored preferences. Limited listing information",
       })
     ).toBeVisible();
     await page
       .getByRole("button", {
-        name: "Open fit score details. Fit score: 73/100. Limited listing information",
+        name: "Open fit score details. Fit score: 73/100. Based on 3 scored preferences. Limited listing information",
       })
       .click();
     await expect(page.getByRole("dialog", { name: "Why this dog may fit" })).toContainText(
@@ -248,6 +276,11 @@ test.describe("deeper quiz scoring", () => {
     await expect(getResultCard(page, "Quiet Homebody")).toContainText(
       "2 scored preferences · Information available"
     );
+    await expect(
+      getResultCard(page, "Quiet Homebody").getByLabel(
+        /Fit score: 100\/100.*Based on 2 scored preferences/i
+      )
+    ).toBeVisible();
     await expect(getResultCard(page, "Active Vocal")).toContainText("Tied fit score");
     await expect(page.getByText("Top potential fit")).toHaveCount(0);
     await expect(page.getByText("#2 potential fit")).toHaveCount(0);
@@ -303,5 +336,41 @@ test.describe("deeper quiz scoring", () => {
     await openResultProfile(quietCard);
     await expect(page).toHaveURL(/\/dog\/e2e-deep-quiet/);
     await expect(page.getByText("Shelter-listed exercise level fits your daily walking capacity")).toBeVisible();
+  });
+});
+
+test.describe("prominent fit-score scope presentation", () => {
+  test.use({ scenario: { dogs: deeperQuizDogs } });
+
+  test("keeps score scope visible and accessible on mobile and desktop", async ({ page }) => {
+    for (const [label, viewport] of [
+      ["mobile", { width: 390, height: 844 }],
+      ["desktop", { width: 1440, height: 900 }],
+    ]) {
+      await page.setViewportSize(viewport);
+      await openResultsWithAnswers(page, `e2e-score-scope-${label}`, {
+        size_preference: ["medium"],
+        age_preference: ["adult"],
+      });
+
+      const card = getResultCard(page, "Quiet Homebody");
+      const cardScore = card.getByLabel(
+        /Fit score: 100\/100.*Based on 2 scored preferences/i
+      );
+      await expect(cardScore).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth)
+      ).toBeLessThanOrEqual(viewport.width);
+
+      await openResultProfile(card);
+      await expect(
+        page.getByRole("button", {
+          name: /Open fit score details.*Fit score: 100\/100.*Based on 2 scored preferences/i,
+        })
+      ).toBeVisible();
+      expect(
+        await page.evaluate(() => document.documentElement.scrollWidth)
+      ).toBeLessThanOrEqual(viewport.width);
+    }
   });
 });

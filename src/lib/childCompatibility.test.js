@@ -42,6 +42,7 @@ test("ADELINE's source age restriction overrides broad source and AI positives",
     value: "Older children only",
     source: "listed",
     estimated: false,
+    note: "Shelter-listed age restriction.",
   });
   assert.deepEqual(getChildFitChip(ADELINE), {
     label: "Older children only",
@@ -83,14 +84,164 @@ test("all-child incompatibility remains stricter than an older-child quality", (
   assert.deepEqual(computeRankedMatches([dog], answers(["13_plus"])), []);
 });
 
-test("unrestricted positive and unknown child compatibility remain distinct", () => {
-  const positive = { id: "positive", good_with_kids: true, qualities: [], bio_good_with_kids: "no" };
-  const unknown = { id: "unknown", good_with_kids: null, qualities: [], bio_good_with_kids: "unknown" };
+test("specific source-backed age restrictions outrank generic source positives", () => {
+  const dog = {
+    id: "source-backed-restriction",
+    good_with_kids: true,
+    qualities: [],
+    bio_good_with_kids: "older_children_only",
+    ai_traits: {
+      good_with_kids: {
+        value: "older_children_only",
+        confidence: 1,
+        evidence_basis: "structured_source",
+      },
+    },
+  };
+
+  assert.deepEqual(resolveChildCompatibility(dog), {
+    value: CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY,
+    source: "structured",
+    confirmed: true,
+    evidence: "bio_good_with_kids",
+    evidenceBasis: "structured_source",
+  });
+  assert.equal(
+    getConfirmedIncompatibilities(dog, answers(["under_3"]))[0]?.code,
+    "confirmed_child_age_restriction"
+  );
+});
+
+test("biography-interpreted age restrictions stay cautious and cannot hard-exclude", () => {
+  const dog = {
+    id: "bio-restriction",
+    energy_level: "Low",
+    good_with_kids: true,
+    qualities: [],
+    bio_good_with_kids: "older_children_only",
+    ai_traits: {
+      good_with_kids: {
+        value: "older_children_only",
+        confidence: 1,
+        evidence_basis: "bio_explicit",
+      },
+    },
+  };
+
+  const resolved = resolveChildCompatibility(dog);
+  assert.equal(resolved.value, CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY);
+  assert.equal(resolved.source, "bio");
+  assert.equal(resolved.confirmed, false);
+  assert.deepEqual(getConfirmedIncompatibilities(dog, answers(["under_3"])), []);
+
+  const [row] = computeRankedMatches([dog], answers(["under_3"]));
+  const children = row.breakdown.contributions.find(({ questionId }) => questionId === "kids_in_home");
+  assert.equal(children.source, "bio_explicit");
+  assert.ok(children.adjustedCompatibility < 0.5);
+});
+
+test("generic child-positive facts remain general and do not score specific age bands", () => {
+  const positive = {
+    id: "positive",
+    energy_level: "Low",
+    good_with_kids: true,
+    qualities: [],
+    bio_good_with_kids: "no",
+  };
 
   assert.equal(resolveChildCompatibility(positive).value, CHILD_COMPATIBILITY.YES);
-  assert.ok(Number.isFinite(computeRankedMatches([positive], answers(["under_3"]))[0].scorePct));
+  assert.deepEqual(getChildTraitDisplay(positive), {
+    value: "Yes",
+    source: "listed",
+    estimated: false,
+    note: "General shelter fact; child ages are not specified.",
+  });
+
+  for (const age of ["under_3", "3_5", "6_9", "10_12", "13_plus"]) {
+    const [row] = computeRankedMatches([positive], answers([age]));
+    assert.equal(row.dog.id, "positive", age);
+    assert.equal(
+      row.breakdown.contributions.some(({ questionId }) => questionId === "kids_in_home"),
+      false,
+      age
+    );
+    assert.equal(row.breakdown.limitedInformation, true, age);
+    assert.equal(
+      row.breakdown.matchReasons.some((reason) => /supports a home with children/i.test(reason)),
+      false,
+      age
+    );
+  }
+});
+
+test("unknown child-age compatibility stays eligible without child evidence coverage", () => {
+  const unknown = {
+    id: "unknown",
+    energy_level: "Low",
+    good_with_kids: null,
+    qualities: [],
+    bio_good_with_kids: "unknown",
+  };
+
   assert.equal(resolveChildCompatibility(unknown).value, CHILD_COMPATIBILITY.UNKNOWN);
-  assert.equal(computeRankedMatches([unknown], answers(["under_3"]))[0].scorePct, null);
+  for (const age of ["under_3", "3_5", "6_9", "10_12", "13_plus"]) {
+    const [row] = computeRankedMatches([unknown], answers([age]));
+    assert.equal(row.dog.id, "unknown", age);
+    assert.equal(
+      row.breakdown.contributions.some(({ questionId }) => questionId === "kids_in_home"),
+      false,
+      age
+    );
+  }
+});
+
+test("general child facts can address visiting children without claiming their ages", () => {
+  const dog = { id: "visits", energy_level: "Low", good_with_kids: true, qualities: [] };
+  const [row] = computeRankedMatches([dog], answers(["children_visit"]));
+  const children = row.breakdown.contributions.find(({ questionId }) => questionId === "kids_in_home");
+
+  assert.equal(children.rawCompatibility, 1);
+  assert.equal(children.source, "structured");
+  assert.match(children.explanation, /general child compatibility/i);
+  assert.match(children.explanation, /ages are not specified/i);
+});
+
+test("confirmed child negatives exclude every child-present option but not child-free homes", () => {
+  const dog = { id: "no-kids", good_with_kids: false };
+  for (const age of ["under_3", "3_5", "6_9", "10_12", "13_plus", "children_visit"]) {
+    assert.equal(
+      getConfirmedIncompatibilities(dog, answers([age]))[0]?.code,
+      "confirmed_child_incompatibility",
+      age
+    );
+  }
+  assert.deepEqual(getConfirmedIncompatibilities(dog, answers(["no_children"])), []);
+});
+
+test("biography and AI child positives stay distinct from age-specific source facts", () => {
+  const dog = {
+    id: "bio-positive",
+    energy_level: "Low",
+    good_with_kids: null,
+    bio_good_with_kids: "yes",
+    ai_traits: {
+      good_with_kids: {
+        value: "true",
+        confidence: 1,
+        evidence_basis: "bio_explicit",
+      },
+    },
+  };
+
+  for (const age of ["under_3", "3_5", "6_9", "10_12", "13_plus"]) {
+    const [row] = computeRankedMatches([dog], answers([age]));
+    assert.equal(
+      row.breakdown.contributions.some(({ questionId }) => questionId === "kids_in_home"),
+      false,
+      age
+    );
+    assert.deepEqual(getConfirmedIncompatibilities(dog, answers([age])), [], age);
+  }
 });
 
 test("kids filter includes only unrestricted source-confirmed positives", () => {

@@ -991,14 +991,24 @@ export default function DogDetail() {
                   <button
                     type="button"
                     onClick={() => setMatchInfoOpen(true)}
-                    className="inline-flex rounded-full border border-[#183D35]/10 bg-[#dfe7d7] px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.14em] text-[#183D35] shadow-sm hover:bg-[#eef3e8]"
-                    aria-label={limitedMatchInformation
-                      ? `Open fit score details. ${fitScoreLabel}. Limited listing information`
-                      : `Open fit score details. ${fitScoreLabel}`}
+                    className="inline-flex flex-col items-start rounded-2xl border border-[#183D35]/10 bg-[#dfe7d7] px-3 py-1.5 text-left text-[11px] font-black uppercase leading-tight tracking-[0.14em] text-[#183D35] shadow-sm hover:bg-[#eef3e8]"
+                    aria-label={[
+                      "Open fit score details",
+                      fitScoreLabel,
+                      fitScoreScope.prominent,
+                      limitedMatchInformation ? "Limited listing information" : "",
+                    ].filter(Boolean).join(". ")}
                   >
-                    {limitedMatchInformation
-                      ? `${fitScoreLabel} · Limited listing information`
-                      : fitScoreLabel}
+                    <span>
+                      {limitedMatchInformation
+                        ? `${fitScoreLabel} · Limited listing information`
+                        : fitScoreLabel}
+                    </span>
+                    {fitScoreScope.prominent ? (
+                      <span className="mt-0.5 text-[9px] font-bold normal-case tracking-normal text-[#527166]">
+                        {fitScoreScope.prominent}
+                      </span>
+                    ) : null}
                   </button>
                 ) : null}
               </div>
@@ -1421,7 +1431,7 @@ function TraitCard({ label, trait }) {
         ) : null}
       </div>
 
-      {trait.estimated ? (
+      {trait.estimated || trait.note ? (
         <div className="mt-1 text-[11px] font-semibold leading-4 text-[#6F6A66]">
           {trait.note || "From bio"}
         </div>

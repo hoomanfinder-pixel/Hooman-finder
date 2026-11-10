@@ -49,12 +49,16 @@ export function getFitScoreScope(breakdown) {
       ? "Limited listing information for these scored preferences."
       : "Information is available for all scored preferences."
     : "";
+  const prominent = count > 0
+    ? `Based on ${count} scored ${preferenceNoun}`
+    : "";
 
   return {
     count,
     labels,
     summary,
     evidenceSummary,
+    prominent,
     compact: count > 0
       ? `${count} scored ${preferenceNoun} · ${hasMissingEvidence ? "Limited information" : "Information available"}`
       : "",

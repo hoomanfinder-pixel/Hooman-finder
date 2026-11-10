@@ -34,9 +34,20 @@ test("fit-score scope names scored preferences without inventing confidence", ()
       labels: ["size", "age"],
       summary: "Based on 2 scored preferences: size and age.",
       evidenceSummary: "Information is available for all scored preferences.",
+      prominent: "Based on 2 scored preferences",
       compact: "2 scored preferences · Information available",
       limited: false,
     }
+  );
+
+  assert.equal(
+    getFitScoreScope({
+      activePreferenceCount: 1,
+      activePreferenceLabels: ["age"],
+      evidenceRequestedWeight: 3,
+      evidenceCoveredWeight: 3,
+    }).prominent,
+    "Based on 1 scored preference"
   );
 
   assert.equal(

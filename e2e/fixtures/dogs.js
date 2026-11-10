@@ -161,6 +161,13 @@ export const childCompatibilityDogs = [
     shelter_website: "http://",
     shelters: malformedLinkShelter,
   }),
+  scenarioDog({
+    id: "e2e-child-general-positive",
+    name: "Harper",
+    color: "#F3C982",
+    good_with_kids: true,
+    qualities: [],
+  }),
 ];
 
 export const olderChildrenEditDogs = [
