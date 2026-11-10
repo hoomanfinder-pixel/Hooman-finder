@@ -8,6 +8,13 @@ export const CHILD_COMPATIBILITY = Object.freeze({
 });
 
 const YOUNGER_CHILD_AGE_BANDS = new Set(["under_3", "3_5", "6_9"]);
+const SPECIFIC_CHILD_AGE_BANDS = new Set([
+  "under_3",
+  "3_5",
+  "6_9",
+  "10_12",
+  "13_plus",
+]);
 
 function normalizeAnswerList(answer) {
   if (Array.isArray(answer)) return answer.map((value) => String(value).toLowerCase());
@@ -45,6 +52,8 @@ function parseAiTraits(value) {
 // fact and must win over the broad boolean and every AI/bio fallback.
 export function resolveChildCompatibility(dog) {
   const structuredValue = dog?.good_with_kids ?? dog?.kids_ok ?? dog?.kid_friendly ?? dog?.goodWithKids;
+  const bioValue = normalizeBioValue(dog?.bio_good_with_kids);
+  const evidenceBasis = parseAiTraits(dog?.ai_traits)?.good_with_kids?.evidence_basis;
 
   // Keep an explicit all-child incompatibility conservative even when the
   // upstream source also sends a contradictory conditional quality.
@@ -61,13 +70,30 @@ export function resolveChildCompatibility(dog) {
     };
   }
 
+  // Preserve a more specific age restriction even when an upstream source
+  // also supplied a broad positive boolean. Only a restriction explicitly
+  // preserved from structured source data becomes a confirmed hard fact;
+  // biography-derived interpretations remain cautious and cannot exclude.
+  if (bioValue === CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY) {
+    const sourceBacked = evidenceBasis === "structured_source";
+    return {
+      value: CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY,
+      source: sourceBacked
+        ? "structured"
+        : evidenceBasis === "bio_explicit"
+          ? "bio"
+          : "profile_inference",
+      confirmed: sourceBacked,
+      evidence: "bio_good_with_kids",
+      evidenceBasis,
+    };
+  }
+
   if (structuredValue === true || String(structuredValue).toLowerCase() === "true") {
     return { value: CHILD_COMPATIBILITY.YES, source: "structured", confirmed: true, evidence: "good_with_kids" };
   }
 
-  const bioValue = normalizeBioValue(dog?.bio_good_with_kids);
   if (bioValue !== CHILD_COMPATIBILITY.UNKNOWN) {
-    const evidenceBasis = parseAiTraits(dog?.ai_traits)?.good_with_kids?.evidence_basis;
     return {
       value: bioValue,
       source: evidenceBasis === "bio_explicit" ? "bio" : "profile_inference",
@@ -84,10 +110,27 @@ export function hasConservativelyYoungerChildren(answer) {
   return normalizeAnswerList(answer).some((age) => YOUNGER_CHILD_AGE_BANDS.has(age));
 }
 
+export function hasSpecificChildAgeBand(answer) {
+  return normalizeAnswerList(answer).some((age) => SPECIFIC_CHILD_AGE_BANDS.has(age));
+}
+
 export function getChildTraitDisplay(dog) {
   const resolved = resolveChildCompatibility(dog);
   if (resolved.source === "structured") {
-    return getTraitDisplay({ structuredValue: resolved.value });
+    const trait = getTraitDisplay({ structuredValue: resolved.value });
+    if (resolved.value === CHILD_COMPATIBILITY.YES) {
+      return {
+        ...trait,
+        note: "General shelter fact; child ages are not specified.",
+      };
+    }
+    if (resolved.value === CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY) {
+      return {
+        ...trait,
+        note: "Shelter-listed age restriction.",
+      };
+    }
+    return trait;
   }
 
   return getTraitDisplay({

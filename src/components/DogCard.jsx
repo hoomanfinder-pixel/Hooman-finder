@@ -689,12 +689,18 @@ export default function DogCard({
                 {showMatch && tier ? (
                   <span
                     className={[
-                      "inline-flex min-h-7 items-center rounded-full px-3 py-1 text-[11px] font-black tracking-[0.04em] shadow-sm backdrop-blur",
+                      "inline-flex min-h-7 flex-col items-start justify-center rounded-2xl px-3 py-1.5 text-[11px] font-black leading-tight tracking-[0.04em] shadow-sm backdrop-blur",
                       tier.className,
                     ].join(" ")}
-                    title={matchState.pillText}
+                    title={[matchState.pillText, fitScoreScope.prominent].filter(Boolean).join(". ")}
+                    aria-label={[matchState.pillText, fitScoreScope.prominent].filter(Boolean).join(". ")}
                   >
-                    {matchState.pillText}
+                    <span>{matchState.pillText}</span>
+                    {matchState.kind === "match" && fitScoreScope.prominent ? (
+                      <span className="mt-0.5 text-[9px] font-bold tracking-normal opacity-80">
+                        {fitScoreScope.prominent}
+                      </span>
+                    ) : null}
                   </span>
                 ) : null}
 

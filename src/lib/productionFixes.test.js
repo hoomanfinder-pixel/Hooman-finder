@@ -232,6 +232,47 @@ test("confirmed compatible dogs remain eligible", () => {
   assert.deepEqual(computeRankedMatches([dog], answers).map((row) => row.dog.name), ["Confirmed compatible"]);
 });
 
+test("unknown child-age evidence preserves independent pet and potty safety behavior", () => {
+  const petCases = [
+    ["dogs", "good_with_dogs"],
+    ["cats", "good_with_cats"],
+    ["small_pets", "good_with_small_animals"],
+  ];
+
+  for (const [petAnswer, petField] of petCases) {
+    const answers = {
+      age_preference: ["adult"],
+      kids_in_home: ["under_3", "13_plus"],
+      pets_in_home: [petAnswer],
+      potty_requirement: "must_be_trained",
+    };
+    const compatible = {
+      name: `${petAnswer} compatible`,
+      age_years: 4,
+      good_with_kids: true,
+      [petField]: true,
+      potty_trained: true,
+    };
+    const [row] = computeRankedMatches([compatible], answers);
+
+    assert.equal(row.dog.name, compatible.name, petAnswer);
+    assert.equal(
+      row.breakdown.contributions.some(({ questionId }) => questionId === "kids_in_home"),
+      false,
+      petAnswer
+    );
+    assert.deepEqual(
+      row.breakdown.contributions.map(({ questionId }) => questionId),
+      ["age_preference", "pets_in_home", "potty_requirement"],
+      petAnswer
+    );
+
+    const incompatible = { ...compatible, [petField]: false };
+    assert.deepEqual(computeRankedMatches([incompatible], answers), [], petAnswer);
+    assert.equal(getConfirmedIncompatibilities(incompatible, answers).length, 1, petAnswer);
+  }
+});
+
 test("unrelated preference mismatches remain scored instead of excluded", () => {
   const dog = { name: "Large active dog", size: "Large", energy_level: "High" };
   const answers = { size_preference: ["small"], energy_preference: "low" };

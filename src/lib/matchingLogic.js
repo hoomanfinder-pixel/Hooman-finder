@@ -3,6 +3,7 @@
 import {
   CHILD_COMPATIBILITY,
   hasConservativelyYoungerChildren,
+  hasSpecificChildAgeBand,
   resolveChildCompatibility,
 } from "./childCompatibility.js";
 
@@ -519,31 +520,61 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
       return result(questionId, evidence, `Listed age ${evidence?.rawCompatibility === 1 ? "fits" : "does not fit"} your preference`);
     }
     case "kids_in_home": {
-      const needsKids = normalizeAnswerList(answer).some((value) => !["no_children"].includes(value));
+      const childAnswers = normalizeAnswerList(answer);
+      const needsKids = childAnswers.some((value) => !["no_children"].includes(value));
       if (!needsKids) return result(questionId, null, "", { requested: false });
       const childCompatibility = resolveChildCompatibility(dog);
+      const needsSpecificAgeEvidence = hasSpecificChildAgeBand(childAnswers);
       let evidence;
       let explanation;
 
       if (childCompatibility.source === "structured") {
+        // A broad shelter boolean such as isKidsOk=true is a valid general
+        // child-compatibility fact, but it does not identify which child ages
+        // were assessed. Keep the dog eligible while leaving an age-specific
+        // preference unknown. Explicit negatives and source age restrictions
+        // continue through the established exclusion and scoring paths.
+        if (
+          needsSpecificAgeEvidence &&
+          childCompatibility.value === CHILD_COMPATIBILITY.YES
+        ) {
+          return result(questionId, null, "");
+        }
+
         const rawCompatibility = bioCompatibilityRaw(childCompatibility.value, {
           field: "good_with_kids",
-          answer,
+          answer: childAnswers,
           conditionalMode: matchOptions.conditionalMode,
         });
         evidence = structuredCredit(rawCompatibility);
         explanation = childCompatibility.value === CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY
-          ? rawCompatibility > 0.5
-            ? "Shelter listing limits compatibility to older children; confirm the child's age and fit with the shelter"
-            : "Shelter listing limits compatibility to older children and does not support the selected younger age band"
-          : `Shelter listing ${rawCompatibility ? "supports" : "does not support"} a home with children`;
+          ? childAnswers.includes("children_visit") && !needsSpecificAgeEvidence
+            ? "Shelter listing limits compatibility to older children; visiting children's ages are not specified"
+            : rawCompatibility > 0.5
+              ? "Shelter listing limits compatibility to older children; confirm the child's age and fit with the shelter"
+              : "Shelter listing limits compatibility to older children and does not support the selected younger age band"
+          : childAnswers.includes("children_visit") && !needsSpecificAgeEvidence
+            ? `Shelter listing ${rawCompatibility ? "supports general" : "does not support"} child compatibility; visiting children's ages are not specified`
+            : `Shelter listing ${rawCompatibility ? "supports" : "does not support"} a home with children`;
       } else {
+        if (
+          needsSpecificAgeEvidence &&
+          ![
+            CHILD_COMPATIBILITY.NO,
+            CHILD_COMPATIBILITY.OLDER_CHILDREN_ONLY,
+          ].includes(childCompatibility.value)
+        ) {
+          return result(questionId, null, "");
+        }
+
         evidence = adjustedAiCredit(dog, "good_with_kids", bioCompatibilityRaw(childCompatibility.value, {
           field: "good_with_kids",
-          answer,
+          answer: childAnswers,
           conditionalMode: matchOptions.conditionalMode,
         }));
-        explanation = `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible" : "does not clearly support"} child compatibility`;
+        explanation = childAnswers.includes("children_visit") && !needsSpecificAgeEvidence
+          ? `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible general" : "does not clearly support"} child compatibility; visiting children's ages are not specified`
+          : `Available listing evidence ${evidence?.rawCompatibility > 0.5 ? "suggests possible" : "does not clearly support"} child compatibility`;
       }
 
       return result(questionId, evidence, explanation);
