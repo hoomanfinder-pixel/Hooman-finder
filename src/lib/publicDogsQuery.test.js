@@ -102,7 +102,7 @@ test("matching intentionally excludes confirmed incompatibilities without changi
 
   const dogs = await fetchAllPublicDogs(mockSupabase(publicDogs), { select: "*" });
   const ranked = computeRankedMatches(dogs, {
-    size_preference: ["any"],
+    size_preference: ["flexible"],
     age_preference: ["any"],
     kids_in_home: ["no_children"],
     pets_in_home: ["dogs"],

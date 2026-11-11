@@ -6,6 +6,7 @@ import {
   deeperQuizDogs,
   evidenceCoverageDogs,
   olderChildrenEditDogs,
+  sizePreferenceDogs,
 } from "./fixtures/dogs.js";
 import {
   answerEssentialQuiz,
@@ -316,7 +317,7 @@ test.describe("deeper quiz scoring", () => {
 
   test("supported deeper answers change ranking and explanations use scored traits", async ({ page }) => {
     await openResultsWithAnswers(page, "e2e-deeper-ranking", {
-      size_preference: ["small"],
+      size_preference: ["medium"],
       age_preference: ["adult"],
       housing_type: "apartment",
       separation_anxiety_willingness: "no",
@@ -372,5 +373,47 @@ test.describe("prominent fit-score scope presentation", () => {
         await page.evaluate(() => document.documentElement.scrollWidth)
       ).toBeLessThanOrEqual(viewport.width);
     }
+  });
+});
+
+test.describe("quiz size preferences constrain eligible results", () => {
+  test.use({ scenario: { dogs: sizePreferenceDogs } });
+
+  test("extra large selection keeps only confirmed extra large and unknown sizes, without an overall score", async ({ page }) => {
+    for (const [label, viewport] of [
+      ["mobile", { width: 390, height: 844 }],
+      ["desktop", { width: 1440, height: 900 }],
+    ]) {
+      await page.setViewportSize(viewport);
+      await openResultsWithAnswers(page, `e2e-only-extra-large-${label}`, {
+        size_preference: ["extra_large"],
+      });
+      const xlarge = page.getByRole("article", { name: "Extra Large Pup match result", exact: true });
+      const unknown = page.getByRole("article", { name: "Size Unknown Pup match result", exact: true });
+      await expect(xlarge).toBeVisible();
+      await expect(unknown).toBeVisible();
+      for (const name of ["Small Pup", "Medium Pup", "Large Pup"]) {
+        await expect(page.getByRole("article", { name: `${name} match result`, exact: true })).toHaveCount(0);
+      }
+      await expect(xlarge.getByLabel(/Size match · X-Large/)).toBeVisible();
+      await expect(unknown.getByLabel(/Size not listed · Unverified/)).toBeVisible();
+      await expect(xlarge).not.toContainText(/\d+\/100/);
+      await expect(unknown).not.toContainText(/\d+\/100/);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    }
+  });
+
+  test("multiple selected sizes and manual size filter intersect without admitting confirmed mismatches", async ({ page }) => {
+    await openResultsWithAnswers(page, "e2e-size-combination", {
+      size_preference: ["large", "extra_large"],
+    });
+    await expect(page.getByRole("article", { name: "Large Pup match result", exact: true })).toBeVisible();
+    await expect(page.getByRole("article", { name: "Extra Large Pup match result", exact: true })).toBeVisible();
+    await expect(page.getByRole("article", { name: "Small Pup match result", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("article", { name: "Medium Pup match result", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Filters", exact: true }).click();
+    await page.getByRole("combobox", { name: "Size", exact: true }).selectOption("Large");
+    await expect(page.getByRole("article", { name: "Large Pup match result", exact: true })).toBeVisible();
+    await expect(page.getByRole("article", { name: "Extra Large Pup match result", exact: true })).toHaveCount(0);
   });
 });

@@ -129,11 +129,21 @@ function isNoPreferenceValue(value) {
 function normalizeSize(value) {
   const normalized = String(value ?? "").toLowerCase().trim();
   if (!normalized) return "";
-  if (normalized.includes("extra") || normalized === "xl") return "extra_large";
+  if (normalized.includes("extra") || normalized === "xl" || normalized === "x-large" || normalized === "x_large") return "extra_large";
   if (normalized.includes("medium")) return "medium";
   if (normalized.includes("large")) return "large";
   if (normalized.includes("small")) return "small";
   return normalized;
+}
+
+function hasSpecificSizePreference(answer) {
+  return normalizeAnswerList(answer).some((value) => !isNoPreferenceValue(value));
+}
+
+function matchesSelectedSize(dog, answer) {
+  if (!hasSpecificSizePreference(answer) || !dog?.size) return true;
+  const selected = normalizeAnswerList(answer).map(normalizeSize);
+  return selected.includes(normalizeSize(dog.size));
 }
 
 function parsedAgeYearsFromText(ageText) {
@@ -854,6 +864,9 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
 
   const rows = dogList
     .filter((dog) => getConfirmedIncompatibilities(dog, answersById).length === 0)
+    // A specific quiz size choice is a strict constraint for confirmed source
+    // sizes. Unknown sizes remain eligible and are presented as unverified.
+    .filter((dog) => matchesSelectedSize(dog, answersById?.size_preference))
     .map((dog) => {
     const questionResults = Object.keys(MATCH_WEIGHTS).map((questionId) => scoreQuestion(questionId, answersById?.[questionId], dog, answersById, matchOptions));
     const requested = questionResults.filter((entry) => entry.requested);
