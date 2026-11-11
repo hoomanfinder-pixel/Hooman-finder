@@ -172,6 +172,34 @@ function getMatchState({ dog, scorePct, breakdown }) {
   const answeredCount = Number(breakdown?.answeredCount || 0);
   const scoreLabel = formatFitScore(scorePct);
 
+  if (
+    answeredCount === 1 &&
+    breakdown?.activePreferenceIds?.[0] === "size_preference"
+  ) {
+    const sizeEvidence = breakdown?.contributions?.find(
+      (contribution) => contribution.questionId === "size_preference"
+    );
+    const confirmedSize = String(dog?.size || "").trim();
+    return {
+      kind: "criterion_match",
+      eyebrow: "Your selected size",
+      headline: dog?.name || "This dog",
+      subhead: confirmedSize
+        ? `Size match · ${confirmedSize}`
+        : "Size not listed · Unverified",
+      reasonsTitle: "Your size preference",
+      reasons: [],
+      cautions,
+      tradeoffs,
+      evidenceLabels,
+      note: "Answer a few more questions for a fuller lifestyle fit assessment.",
+      pillText: confirmedSize && sizeEvidence
+        ? `Size match · ${confirmedSize}`
+        : "Size not listed · Unverified",
+      showScoreCircle: false,
+    };
+  }
+
   if (hasScore) {
     return {
       kind: "match",

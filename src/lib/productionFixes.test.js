@@ -275,11 +275,11 @@ test("unknown child-age evidence preserves independent pet and potty safety beha
 
 test("unrelated preference mismatches remain scored instead of excluded", () => {
   const dog = { name: "Large active dog", size: "Large", energy_level: "High" };
-  const answers = { size_preference: ["small"], energy_preference: "low" };
+  const answers = { size_preference: ["flexible"], energy_preference: "low" };
   const [result] = computeRankedMatches([dog], answers);
   assert.equal(result.dog.name, "Large active dog");
   assert.equal(getConfirmedIncompatibilities(dog, answers).length, 0);
-  assert.equal(result.breakdown.tradeoffContributions.length, 2);
+  assert.equal(result.breakdown.tradeoffContributions.length, 1);
   assert.ok(result.scorePct < 50);
 });
 
@@ -395,6 +395,30 @@ test("one active preference plus one flexible answer cannot unlock a fit score",
   assert.deepEqual(result.breakdown.activePreferenceLabels, ["size"]);
   assert.equal(result.breakdown.enoughQuizInfo, false);
   assert.equal(result.breakdown.emptyReason, "too_few_quiz_answers");
+});
+
+test("specific size preferences strictly exclude confirmed nonmatching sizes and retain unknown", () => {
+  const choices = ["small", "medium", "large", "extra_large"];
+  const sizes = ["Small", "Medium", "Large", "X-Large"];
+  const dogs = [
+    ...sizes.map((size) => ({ name: size, size })),
+    { name: "Unknown size", size: null, bio_size: "X-Large" },
+  ];
+
+  for (const [choice, expected] of choices.map((choice, index) => [choice, sizes[index]])) {
+    const rows = computeRankedMatches(dogs, { size_preference: [choice] });
+    assert.deepEqual(rows.map(({ dog }) => dog.name), [expected, "Unknown size"], choice);
+    assert.equal(rows.find(({ dog }) => dog.name === expected).scorePct, null, choice);
+    assert.equal(rows.find(({ dog }) => dog.name === "Unknown size").scorePct, null, choice);
+  }
+
+  const combination = computeRankedMatches(dogs, {
+    size_preference: ["large", "extra_large"],
+  });
+  assert.deepEqual(combination.map(({ dog }) => dog.name), ["Large", "X-Large", "Unknown size"]);
+
+  const flexible = computeRankedMatches(dogs, { size_preference: ["flexible"] });
+  assert.equal(flexible.length, dogs.length);
 });
 
 test("two genuinely active preferences remain eligible for a fit score", () => {

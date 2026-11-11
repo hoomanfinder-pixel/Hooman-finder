@@ -288,3 +288,11 @@ export const deeperQuizDogs = [
     },
   }),
 ];
+
+export const sizePreferenceDogs = [
+  scenarioDog({ id: "size-small", name: "Small Pup", color: "#C7D4BB", size: "Small" }),
+  scenarioDog({ id: "size-medium", name: "Medium Pup", color: "#F3C982", size: "Medium" }),
+  scenarioDog({ id: "size-large", name: "Large Pup", color: "#D7C2E8", size: "Large" }),
+  scenarioDog({ id: "size-xlarge", name: "Extra Large Pup", color: "#B9D7EA", size: "X-Large" }),
+  scenarioDog({ id: "size-unknown", name: "Size Unknown Pup", color: "#E8B4A2", size: null }),
+];
