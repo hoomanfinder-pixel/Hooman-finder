@@ -27,9 +27,9 @@ test("homepage loads and navigates to the quiz", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   await expect(
-    page.getByRole("heading", { name: /Find a dog who fits your life. Not just your search./i })
+    page.getByRole("heading", { name: "Find a rescue dog who fits your life." })
   ).toBeVisible();
-  await page.getByRole("link", { name: "Find my potential matches", exact: true }).first().click();
+  await page.getByRole("link", { name: "Take the Matching Quiz", exact: true }).click();
 
   await expect(page).toHaveURL(/\/quiz$/);
   await expect(
@@ -61,14 +61,14 @@ test("homepage preserves brand, attribution, profiles, and official adoption des
 
   await page.getByRole("link", { name: "Maple, an adoptable dog profile" }).click();
   await expect(page).toHaveURL(/\/dog\/e2e-dog-maple$/);
-  await expect(page.getByRole("heading", { name: "Maple" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Maple", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: "View official listing" })).toHaveAttribute(
     "href",
     dogFixtures[0].adoption_url
   );
 
   await page.goto("/", { waitUntil: "domcontentloaded" });
-  await page.getByRole("link", { name: "How it works", exact: true }).click();
+  await page.getByRole("link", { name: "About", exact: true }).click();
   await expect(page).toHaveURL(/\/about$/);
   await expect(page.getByRole("heading", { name: "About Hooman Finder" })).toBeVisible();
 });

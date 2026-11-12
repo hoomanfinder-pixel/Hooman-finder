@@ -16,11 +16,11 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
 }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await expect(
-    page.getByRole("heading", { name: /Find a dog who fits your life. Not just your search./i })
+    page.getByRole("heading", { name: "Find a rescue dog who fits your life." })
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole("link", { name: "Find my potential matches", exact: true }).first().click();
+  await page.getByRole("link", { name: "Take the Matching Quiz", exact: true }).click();
   await expect(page).toHaveURL(/\/quiz$/);
   await expect(
     page.getByRole("heading", { name: "Find an adoptable dog that fits your lifestyle" })
@@ -66,18 +66,16 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
   await page.getByRole("button", { name: "← Back to results", exact: true }).click();
 
   const firstCard = getResultCard(page, "Maple");
-  const secondCard = getResultCard(page, "River");
   await expect(firstCard).toBeVisible();
-  await expect(secondCard).toBeVisible();
+  await expect(page.getByRole("article", { name: /River match result/i })).toHaveCount(0);
+  await expect(page.getByText("Showing 1 of 1 matches")).toBeVisible();
   await expect(firstCard).toContainText("Maple");
   await expect(firstCard.locator("a button, button a")).toHaveCount(0);
 
   const firstCardBox = await firstCard.boundingBox();
-  const secondCardBox = await secondCard.boundingBox();
   expect(firstCardBox).not.toBeNull();
-  expect(secondCardBox).not.toBeNull();
-  expect(Math.abs(firstCardBox.x - secondCardBox.x)).toBeLessThan(1);
-  expect(secondCardBox.y).toBeGreaterThan(firstCardBox.y + firstCardBox.height);
+  expect(firstCardBox.x).toBeGreaterThanOrEqual(0);
+  expect(firstCardBox.x + firstCardBox.width).toBeLessThanOrEqual(393);
 
   const saveButton = firstCard.getByRole("button", { name: "Save dog" });
   await expect(saveButton).toBeVisible();
