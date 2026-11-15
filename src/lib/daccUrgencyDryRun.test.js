@@ -11,6 +11,8 @@ const {
   emitDryRunSummary,
   runSingleOrganizationUrgencyDryRun,
   safeDryRunFailureMessage,
+  safeRequestFailureCategory,
+  safeRequestFailureStage,
   summarizeRoster,
 } = require("../../scripts/dry-run-rescuegroups-urgency-source.cjs");
 
@@ -291,12 +293,55 @@ test("retry and failure logs sanitize response bodies and animal identifiers", a
       status: 500,
       text: async () => "AnimalID=private-record API_KEY=upstream-echo",
     }),
-  }), /private-record/);
+  }), (error) => {
+    assert.match(error.message, /private-record/);
+    assert.equal(
+      safeDryRunFailureMessage(error),
+      "RescueGroups roster could not be verified as complete (stage=available_dogs, category=http_500); no results were emitted."
+    );
+    return true;
+  });
   assert.doesNotMatch(warnings.join("\n"), /private-record|upstream-echo|AnimalID|API_KEY/);
   assert.doesNotMatch(
     safeDryRunFailureMessage(new Error("AnimalID=private-record API_KEY=upstream-echo")),
     /private-record|upstream-echo|AnimalID|API_KEY/
   );
+});
+
+test("safe failure diagnostics expose only bounded stage and status category", () => {
+  const upstreamFailure = new Error("private upstream response body");
+  upstreamFailure.status = 503;
+  upstreamFailure.safeRequestStage = "urgent_view";
+  assert.equal(safeRequestFailureCategory(upstreamFailure), "http_503");
+  assert.equal(safeRequestFailureStage(upstreamFailure), "urgent_view");
+  assert.equal(
+    safeDryRunFailureMessage(upstreamFailure),
+    "RescueGroups roster could not be verified as complete (stage=urgent_view, category=http_503); no results were emitted."
+  );
+
+  const rateLimitFailure = new Error("private rate-limit response body");
+  rateLimitFailure.status = 429;
+  assert.equal(safeRequestFailureCategory(rateLimitFailure), "http_429");
+
+  const networkFailure = new TypeError("private connection details");
+  assert.equal(safeRequestFailureCategory(networkFailure), "network");
+
+  const timeoutFailure = new Error("private timeout details");
+  timeoutFailure.name = "AbortError";
+  assert.equal(safeRequestFailureCategory(timeoutFailure), "timeout");
+
+  const verificationFailure = new Error("private animal identifier");
+  verificationFailure.name = "IncompleteRosterError";
+  assert.equal(safeRequestFailureCategory(verificationFailure), "response_verification");
+  verificationFailure.safeRequestStage = "private stage value";
+  assert.equal(safeRequestFailureStage(verificationFailure), "unknown");
+
+  for (const error of [upstreamFailure, rateLimitFailure, networkFailure, timeoutFailure, verificationFailure]) {
+    assert.doesNotMatch(
+      safeDryRunFailureMessage(error),
+      /private|response body|connection details|timeout details|animal identifier/
+    );
+  }
 });
 
 test("workflow is manual, read-only, fixed-scope, and secret-minimal", () => {
