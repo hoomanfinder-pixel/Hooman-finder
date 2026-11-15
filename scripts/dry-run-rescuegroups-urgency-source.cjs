@@ -17,6 +17,16 @@ const ANIMAL_FIELDS = [
 ];
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 20;
+const SOURCE_URGENT_FILTER = Object.freeze({
+  fieldName: "animals.priority",
+  operation: "equal",
+  criteria: "0",
+});
+const FOSTER_NEEDED_FILTER = Object.freeze({
+  fieldName: "animals.isNeedingFoster",
+  operation: "equal",
+  criteria: true,
+});
 
 function buildUrgencyApiUrl(views = ["available", "dogs"]) {
   const url = new URL(`${API_BASE_URL}/${views.join("/")}/`);
@@ -27,10 +37,14 @@ function buildUrgencyApiUrl(views = ["available", "dogs"]) {
   return url.toString();
 }
 
-function buildUrgencyRequestBody({ orgId }) {
+function buildUrgencyRequestBody({ orgId, signalFilter = null }) {
+  const filters = [
+    { fieldName: "orgs.id", operation: "equals", criteria: String(orgId) },
+  ];
+  if (signalFilter) filters.push(signalFilter);
   return {
     data: {
-      filters: [{ fieldName: "orgs.id", operation: "equals", criteria: String(orgId) }],
+      filters,
     },
   };
 }
@@ -149,13 +163,20 @@ async function runSingleOrganizationUrgencyDryRun({
     ),
   };
 
-  const fetchRoster = async (requestStage, views, allowVerifiedEmptyRoster = false) => {
+  const fetchRoster = async (
+    requestStage,
+    signalFilter = null,
+    allowVerifiedEmptyRoster = false
+  ) => {
     try {
       return await fetchCompleteRescueGroupsRoster({
-        apiUrl: buildUrgencyApiUrl(views),
+        apiUrl: buildUrgencyApiUrl(),
         apiKey,
         orgId: String(orgId),
-        buildRequestBody: buildUrgencyRequestBody,
+        buildRequestBody: ({ orgId: requestedOrgId }) => buildUrgencyRequestBody({
+          orgId: requestedOrgId,
+          signalFilter,
+        }),
         fetchImpl,
         pageLimit: PAGE_LIMIT,
         maxPages: MAX_PAGES,
@@ -172,18 +193,14 @@ async function runSingleOrganizationUrgencyDryRun({
     }
   };
 
-  const roster = await fetchRoster("available_dogs", ["available", "dogs"]);
+  const roster = await fetchRoster("available_dogs");
   if (!roster.staleMarkingAllowed) {
     throw new Error("RescueGroups returned a quarantined zero-result roster.");
   }
-  const urgentRoster = await fetchRoster(
-    "urgent_view",
-    ["available", "dogs", "urgent"],
-    true
-  );
+  const urgentRoster = await fetchRoster("urgent_view", SOURCE_URGENT_FILTER, true);
   const fosterRoster = await fetchRoster(
     "foster_view",
-    ["available", "dogs", "isneedingfoster"],
+    FOSTER_NEEDED_FILTER,
     true
   );
 
@@ -285,6 +302,8 @@ if (require.main === module) {
 module.exports = {
   ANIMAL_FIELDS,
   API_BASE_URL,
+  FOSTER_NEEDED_FILTER,
+  SOURCE_URGENT_FILTER,
   assertMatchingPositiveSets,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
