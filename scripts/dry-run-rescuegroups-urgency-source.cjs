@@ -225,6 +225,33 @@ function safeRequestFailureStage(error) {
   return allowedStages.has(error?.safeRequestStage) ? error.safeRequestStage : "unknown";
 }
 
+function safeResponseVerificationReason(error) {
+  const message = String(error?.message || "");
+  const exactPatterns = [
+    [/^RescueGroups returned invalid JSON /, "invalid_json"],
+    [/^RescueGroups response is missing data or metadata\.$/, "missing_data_or_metadata"],
+    [/^RescueGroups returned page \d+ when page \d+ was requested\.$/, "page_mismatch"],
+    [/^RescueGroups used limit \d+; expected \d+\.$/, "limit_mismatch"],
+    [/^RescueGroups countReturned \d+ does not match \d+ rows\.$/, "count_returned_mismatch"],
+    [/^RescueGroups pages \d+ does not match count \d+ at limit \d+\.$/, "pages_mismatch"],
+    [/^RescueGroups returned an animal without an ID\.$/, "missing_animal_id"],
+    [/^Animal .+ did not identify requested organization .+\.$/, "organization_linkage"],
+    [/^RescueGroups roster requires more than the configured \d+ pages\.$/, "max_pages"],
+    [/^RescueGroups reports \d+ pages, exceeding the configured \d+\.$/, "max_pages"],
+    [/^RescueGroups roster metadata changed during pagination /, "metadata_changed"],
+    [/^RescueGroups repeated animal .+ across pages /, "duplicate_animal_id"],
+    [/^RescueGroups returned \d+ unique animals; metadata declared \d+\.$/, "total_count_mismatch"],
+  ];
+  const matched = exactPatterns.find(([pattern]) => pattern.test(message));
+  if (matched) return matched[1];
+
+  const invalidMetadata = message.match(
+    /^Invalid RescueGroups metadata (count|countReturned|pageReturned|limit|pages):/
+  );
+  if (invalidMetadata) return `invalid_metadata_${invalidMetadata[1]}`;
+  return "unknown";
+}
+
 function safeDryRunFailureMessage(error) {
   if (error?.message === "Missing RESCUEGROUPS_API_KEY.") return error.message;
   if (error?.message === "A numeric --org-id is required.") return error.message;
@@ -233,7 +260,10 @@ function safeDryRunFailureMessage(error) {
   )) return error.message;
   const category = safeRequestFailureCategory(error);
   const stage = safeRequestFailureStage(error);
-  return `RescueGroups roster could not be verified as complete (stage=${stage}, category=${category}); no results were emitted.`;
+  const reason = category === "response_verification"
+    ? safeResponseVerificationReason(error)
+    : "not_applicable";
+  return `RescueGroups roster could not be verified as complete (stage=${stage}, category=${category}, reason=${reason}); no results were emitted.`;
 }
 
 async function main() {
@@ -263,5 +293,6 @@ module.exports = {
   safeDryRunFailureMessage,
   safeRequestFailureCategory,
   safeRequestFailureStage,
+  safeResponseVerificationReason,
   summarizeRoster,
 };

@@ -13,6 +13,7 @@ const {
   safeDryRunFailureMessage,
   safeRequestFailureCategory,
   safeRequestFailureStage,
+  safeResponseVerificationReason,
   summarizeRoster,
 } = require("../../scripts/dry-run-rescuegroups-urgency-source.cjs");
 
@@ -297,7 +298,7 @@ test("retry and failure logs sanitize response bodies and animal identifiers", a
     assert.match(error.message, /private-record/);
     assert.equal(
       safeDryRunFailureMessage(error),
-      "RescueGroups roster could not be verified as complete (stage=available_dogs, category=http_500); no results were emitted."
+      "RescueGroups roster could not be verified as complete (stage=available_dogs, category=http_500, reason=not_applicable); no results were emitted."
     );
     return true;
   });
@@ -316,7 +317,7 @@ test("safe failure diagnostics expose only bounded stage and status category", (
   assert.equal(safeRequestFailureStage(upstreamFailure), "urgent_view");
   assert.equal(
     safeDryRunFailureMessage(upstreamFailure),
-    "RescueGroups roster could not be verified as complete (stage=urgent_view, category=http_503); no results were emitted."
+    "RescueGroups roster could not be verified as complete (stage=urgent_view, category=http_503, reason=not_applicable); no results were emitted."
   );
 
   const rateLimitFailure = new Error("private rate-limit response body");
@@ -341,6 +342,39 @@ test("safe failure diagnostics expose only bounded stage and status category", (
       safeDryRunFailureMessage(error),
       /private|response body|connection details|timeout details|animal identifier/
     );
+  }
+});
+
+test("response verification diagnostics map every roster invariant to a bounded reason", () => {
+  const cases = [
+    ["RescueGroups returned invalid JSON for org private-org, page 1: private-body", "invalid_json"],
+    ["RescueGroups response is missing data or metadata.", "missing_data_or_metadata"],
+    ["Invalid RescueGroups metadata count: private-value", "invalid_metadata_count"],
+    ["Invalid RescueGroups metadata countReturned: private-value", "invalid_metadata_countReturned"],
+    ["Invalid RescueGroups metadata pageReturned: private-value", "invalid_metadata_pageReturned"],
+    ["Invalid RescueGroups metadata limit: private-value", "invalid_metadata_limit"],
+    ["Invalid RescueGroups metadata pages: private-value", "invalid_metadata_pages"],
+    ["RescueGroups returned page 0 when page 1 was requested.", "page_mismatch"],
+    ["RescueGroups used limit 25; expected 100.", "limit_mismatch"],
+    ["RescueGroups countReturned 1 does not match 0 rows.", "count_returned_mismatch"],
+    ["RescueGroups pages 1 does not match count 0 at limit 100.", "pages_mismatch"],
+    ["RescueGroups returned an animal without an ID.", "missing_animal_id"],
+    ["Animal private-id did not identify requested organization private-org.", "organization_linkage"],
+    ["RescueGroups roster requires more than the configured 20 pages.", "max_pages"],
+    ["RescueGroups reports 21 pages, exceeding the configured 20.", "max_pages"],
+    ["RescueGroups roster metadata changed during pagination for org private-org.", "metadata_changed"],
+    ["RescueGroups repeated animal private-id across pages for org private-org.", "duplicate_animal_id"],
+    ["RescueGroups returned 1 unique animals; metadata declared 2.", "total_count_mismatch"],
+  ];
+
+  for (const [message, reason] of cases) {
+    const error = new Error(message);
+    error.name = "IncompleteRosterError";
+    error.safeRequestStage = "urgent_view";
+    assert.equal(safeResponseVerificationReason(error), reason);
+    const safeMessage = safeDryRunFailureMessage(error);
+    assert.match(safeMessage, new RegExp(`reason=${reason}`));
+    assert.doesNotMatch(safeMessage, /private/i);
   }
 });
 
