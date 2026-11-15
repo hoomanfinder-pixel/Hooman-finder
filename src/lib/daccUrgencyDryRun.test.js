@@ -6,6 +6,8 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 const {
   ANIMAL_FIELDS,
+  FOSTER_NEEDED_FILTER,
+  SOURCE_URGENT_FILTER,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
   emitDryRunSummary,
@@ -50,11 +52,15 @@ function animal(id, attributes = {}) {
   };
 }
 
-function responseByView({ available, urgent = [], foster = [] }) {
-  return async (url) => {
-    const pathname = new URL(url).pathname;
-    if (pathname.includes("/isneedingfoster/")) return completeResponse(foster);
-    if (pathname.includes("/urgent/")) return completeResponse(urgent);
+function responseByFilter({ available, urgent = [], foster = [] }) {
+  return async (_url, options) => {
+    const filters = JSON.parse(options.body).data.filters;
+    if (filters.some((filter) => filter.fieldName === "animals.isNeedingFoster")) {
+      return completeResponse(foster);
+    }
+    if (filters.some((filter) => filter.fieldName === "animals.priority")) {
+      return completeResponse(urgent);
+    }
     return completeResponse(available);
   };
 }
@@ -72,10 +78,24 @@ test("DACC source request uses documented query fields and a body-only organizat
     { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
   ]);
   assert.deepEqual(Object.keys(body.data), ["filters"]);
+  assert.deepEqual(buildUrgencyRequestBody({
+    orgId: "8883",
+    signalFilter: SOURCE_URGENT_FILTER,
+  }).data.filters, [
+    { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+    { fieldName: "animals.priority", operation: "equal", criteria: "0" },
+  ]);
+  assert.deepEqual(buildUrgencyRequestBody({
+    orgId: "8883",
+    signalFilter: FOSTER_NEEDED_FILTER,
+  }).data.filters, [
+    { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+    { fieldName: "animals.isNeedingFoster", operation: "equal", criteria: true },
+  ]);
   assert.doesNotMatch(JSON.stringify({ url: url.toString(), body }), /killDate|description/i);
 });
 
-test("cross-check requests use documented available/dogs/trait view order", async () => {
+test("all three complete-roster requests use available/dogs with documented AND filters", async () => {
   const paths = [];
   await runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
@@ -91,22 +111,36 @@ test("cross-check requests use documented available/dogs/trait view order", asyn
   assert.deepEqual(paths, ["/v5/public/animals/search/available/dogs/"]);
 
   paths.length = 0;
+  const bodies = [];
   await runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
     orgId: "8883",
     checkedAt: "2026-11-14T19:00:00Z",
-    fetchImpl: async (url) => {
+    fetchImpl: async (url, options) => {
       const path = new URL(url).pathname;
       paths.push(path);
-      return path.endsWith("/available/dogs/")
+      const body = JSON.parse(options.body);
+      bodies.push(body);
+      return body.data.filters.length === 1
         ? completeResponse([animal("1", { priority: "5", isNeedingFoster: false })])
         : completeResponse([]);
     },
   });
   assert.deepEqual(paths, [
     "/v5/public/animals/search/available/dogs/",
-    "/v5/public/animals/search/available/dogs/urgent/",
-    "/v5/public/animals/search/available/dogs/isneedingfoster/",
+    "/v5/public/animals/search/available/dogs/",
+    "/v5/public/animals/search/available/dogs/",
+  ]);
+  assert.deepEqual(bodies.map((body) => body.data.filters), [
+    [{ fieldName: "orgs.id", operation: "equals", criteria: "8883" }],
+    [
+      { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+      { fieldName: "animals.priority", operation: "equal", criteria: "0" },
+    ],
+    [
+      { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+      { fieldName: "animals.isNeedingFoster", operation: "equal", criteria: true },
+    ],
   ]);
 });
 
@@ -120,7 +154,7 @@ test("sparse responses without organization linkage still fail closed", async ()
   await assert.rejects(runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
     orgId: "8883",
-    fetchImpl: responseByView({ available: [unlinked] }),
+    fetchImpl: responseByFilter({ available: [unlinked] }),
   }), (error) => {
     assert.match(error.message, /did not identify requested organization 8883/i);
     assert.doesNotMatch(safeDryRunFailureMessage(error), /private-unlinked-id/);
@@ -133,7 +167,7 @@ test("complete roster produces aggregate counts without raw records", async () =
     apiKey: "test-key",
     orgId: "8883",
     checkedAt: "2026-11-14T19:00:00Z",
-    fetchImpl: responseByView({
+    fetchImpl: responseByFilter({
       available: [animal("private-animal-id", {
         name: "Private dog name",
         priority: "0",
@@ -232,12 +266,12 @@ test("missing credentials and incomplete rosters fail closed", async () => {
   }), /quarantined zero-result roster/i);
 });
 
-test("positive view mismatches fail closed without exposing animal identifiers", async () => {
+test("positive filtered cross-check mismatches fail closed without exposing animal identifiers", async () => {
   const baseAnimal = animal("private-base-id", { priority: "0", isNeedingFoster: false });
   await assert.rejects(runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
     orgId: "8883",
-    fetchImpl: responseByView({ available: [baseAnimal], urgent: [], foster: [] }),
+    fetchImpl: responseByFilter({ available: [baseAnimal], urgent: [], foster: [] }),
   }), (error) => {
     assert.match(error.message, /urgent cross-check mismatch/);
     assert.doesNotMatch(error.message, /private-base-id/);
@@ -248,7 +282,7 @@ test("positive view mismatches fail closed without exposing animal identifiers",
   await assert.rejects(runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
     orgId: "8883",
-    fetchImpl: responseByView({
+    fetchImpl: responseByFilter({
       available: [animal("base", { priority: "5", isNeedingFoster: false })],
       urgent: [animal("private-view-id", { priority: "0", isNeedingFoster: false })],
       foster: [],
@@ -258,9 +292,26 @@ test("positive view mismatches fail closed without exposing animal identifiers",
     assert.doesNotMatch(error.message, /private-view-id/);
     return true;
   });
+
+  await assert.rejects(runSingleOrganizationUrgencyDryRun({
+    apiKey: "test-key",
+    orgId: "8883",
+    fetchImpl: responseByFilter({
+      available: [animal("private-foster-id", {
+        priority: "5",
+        isNeedingFoster: true,
+      })],
+      urgent: [],
+      foster: [],
+    }),
+  }), (error) => {
+    assert.match(error.message, /isNeedingFoster cross-check mismatch/);
+    assert.doesNotMatch(error.message, /private-foster-id/);
+    return true;
+  });
 });
 
-test("malformed and wrong-organization view responses fail through shared roster validation", async () => {
+test("malformed and wrong-organization cross-check responses fail shared validation", async () => {
   const base = animal("base", { priority: "5", isNeedingFoster: false });
   let requestNumber = 0;
   await assert.rejects(runSingleOrganizationUrgencyDryRun({
@@ -278,7 +329,7 @@ test("malformed and wrong-organization view responses fail through shared roster
   await assert.rejects(runSingleOrganizationUrgencyDryRun({
     apiKey: "test-key",
     orgId: "8883",
-    fetchImpl: responseByView({ available: [base], urgent: [wrongOrg], foster: [] }),
+    fetchImpl: responseByFilter({ available: [base], urgent: [wrongOrg], foster: [] }),
   }), /did not identify requested organization 8883/i);
 });
 
@@ -400,8 +451,9 @@ test("pilot dependency closure excludes persistence and database migrations", ()
   ), "utf8");
   assert.match(source, /rescuegroups-roster\.cjs/);
   assert.match(source, /rescuegroups-urgency-signals\.cjs/);
-  assert.match(source, /\["available", "dogs", "urgent"\]/);
-  assert.match(source, /\["available", "dogs", "isneedingfoster"\]/);
+  assert.match(source, /animals\.priority/);
+  assert.match(source, /animals\.isNeedingFoster/);
+  assert.doesNotMatch(source, /\["available", "dogs", "(?:urgent|isneedingfoster)"\]/);
   assert.doesNotMatch(
     source,
     /@supabase|createClient|urgency-evidence|repository|reconcile|migration|dog_urgency_evidence/i
