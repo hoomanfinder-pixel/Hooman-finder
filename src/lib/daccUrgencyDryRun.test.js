@@ -59,8 +59,9 @@ function responseByView({ available, urgent = [], foster = [] }) {
 test("DACC source request uses documented query fields and a body-only organization filter", () => {
   const url = new URL(buildUrgencyApiUrl(["available", "dogs"]));
   const body = buildUrgencyRequestBody({ orgId: "8883" });
-  assert.equal(url.pathname, "/v5/public/animals/search/available/dogs");
+  assert.equal(url.pathname, "/v5/public/animals/search/available/dogs/");
   assert.equal(url.searchParams.get("fields[animals]"), ANIMAL_FIELDS.join(","));
+  assert.ok(ANIMAL_FIELDS.includes("orgs"), "sparse fields must retain org linkage");
   assert.equal(url.searchParams.get("fields[orgs]"), "name");
   assert.equal(url.searchParams.get("include"), "orgs");
   assert.equal(url.searchParams.get("sort"), "-animals.updatedDate");
@@ -69,6 +70,59 @@ test("DACC source request uses documented query fields and a body-only organizat
   ]);
   assert.deepEqual(Object.keys(body.data), ["filters"]);
   assert.doesNotMatch(JSON.stringify({ url: url.toString(), body }), /killDate|description/i);
+});
+
+test("cross-check requests use documented available/dogs/trait view order", async () => {
+  const paths = [];
+  await runSingleOrganizationUrgencyDryRun({
+    apiKey: "test-key",
+    orgId: "8883",
+    checkedAt: "2026-11-14T19:00:00Z",
+    fetchImpl: async (url) => {
+      paths.push(new URL(url).pathname);
+      return completeResponse([]);
+    },
+  }).catch((error) => {
+    assert.match(error.message, /quarantined zero-result roster/i);
+  });
+  assert.deepEqual(paths, ["/v5/public/animals/search/available/dogs/"]);
+
+  paths.length = 0;
+  await runSingleOrganizationUrgencyDryRun({
+    apiKey: "test-key",
+    orgId: "8883",
+    checkedAt: "2026-11-14T19:00:00Z",
+    fetchImpl: async (url) => {
+      const path = new URL(url).pathname;
+      paths.push(path);
+      return path.endsWith("/available/dogs/")
+        ? completeResponse([animal("1", { priority: "5", isNeedingFoster: false })])
+        : completeResponse([]);
+    },
+  });
+  assert.deepEqual(paths, [
+    "/v5/public/animals/search/available/dogs/",
+    "/v5/public/animals/search/available/dogs/urgent/",
+    "/v5/public/animals/search/available/dogs/isneedingfoster/",
+  ]);
+});
+
+test("sparse responses without organization linkage still fail closed", async () => {
+  const unlinked = animal("private-unlinked-id", {
+    priority: "5",
+    isNeedingFoster: false,
+  });
+  delete unlinked.relationships;
+
+  await assert.rejects(runSingleOrganizationUrgencyDryRun({
+    apiKey: "test-key",
+    orgId: "8883",
+    fetchImpl: responseByView({ available: [unlinked] }),
+  }), (error) => {
+    assert.match(error.message, /did not identify requested organization 8883/i);
+    assert.doesNotMatch(safeDryRunFailureMessage(error), /private-unlinked-id/);
+    return true;
+  });
 });
 
 test("complete roster produces aggregate counts without raw records", async () => {
@@ -267,8 +321,8 @@ test("pilot dependency closure excludes persistence and database migrations", ()
   ), "utf8");
   assert.match(source, /rescuegroups-roster\.cjs/);
   assert.match(source, /rescuegroups-urgency-signals\.cjs/);
-  assert.match(source, /\["available", "urgent", "dogs"\]/);
-  assert.match(source, /\["available", "isneedingfoster", "dogs"\]/);
+  assert.match(source, /\["available", "dogs", "urgent"\]/);
+  assert.match(source, /\["available", "dogs", "isneedingfoster"\]/);
   assert.doesNotMatch(
     source,
     /@supabase|createClient|urgency-evidence|repository|reconcile|migration|dog_urgency_evidence/i

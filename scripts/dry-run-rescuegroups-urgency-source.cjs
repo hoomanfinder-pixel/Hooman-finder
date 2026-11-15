@@ -7,12 +7,19 @@ const {
 } = require("./rescuegroups-urgency-signals.cjs");
 
 const API_BASE_URL = "https://api.rescuegroups.org/v5/public/animals/search";
-const ANIMAL_FIELDS = ["name", "url", "updatedDate", "priority", "isNeedingFoster"];
+const ANIMAL_FIELDS = [
+  "name",
+  "url",
+  "updatedDate",
+  "priority",
+  "isNeedingFoster",
+  "orgs",
+];
 const PAGE_LIMIT = 100;
 const MAX_PAGES = 20;
 
 function buildUrgencyApiUrl(views = ["available", "dogs"]) {
-  const url = new URL(`${API_BASE_URL}/${views.join("/")}`);
+  const url = new URL(`${API_BASE_URL}/${views.join("/")}/`);
   url.searchParams.set("fields[animals]", ANIMAL_FIELDS.join(","));
   url.searchParams.set("fields[orgs]", "name");
   url.searchParams.set("include", "orgs");
@@ -163,9 +170,9 @@ async function runSingleOrganizationUrgencyDryRun({
   if (!roster.staleMarkingAllowed) {
     throw new Error("RescueGroups returned a quarantined zero-result roster.");
   }
-  const urgentRoster = await fetchRoster(["available", "urgent", "dogs"], true);
+  const urgentRoster = await fetchRoster(["available", "dogs", "urgent"], true);
   const fosterRoster = await fetchRoster(
-    ["available", "isneedingfoster", "dogs"],
+    ["available", "dogs", "isneedingfoster"],
     true
   );
 
