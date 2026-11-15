@@ -149,29 +149,40 @@ async function runSingleOrganizationUrgencyDryRun({
     ),
   };
 
-  const fetchRoster = (views, allowVerifiedEmptyRoster = false) =>
-    fetchCompleteRescueGroupsRoster({
-      apiUrl: buildUrgencyApiUrl(views),
-      apiKey,
-      orgId: String(orgId),
-      buildRequestBody: buildUrgencyRequestBody,
-      fetchImpl,
-      pageLimit: PAGE_LIMIT,
-      maxPages: MAX_PAGES,
-      timeoutMs: 30000,
-      allowVerifiedEmptyRoster,
-      maxAttempts: 3,
-      retryDelayMs: 1000,
-      logger: safeRosterLogger,
-      ...(sleep ? { sleep } : {}),
-    });
+  const fetchRoster = async (requestStage, views, allowVerifiedEmptyRoster = false) => {
+    try {
+      return await fetchCompleteRescueGroupsRoster({
+        apiUrl: buildUrgencyApiUrl(views),
+        apiKey,
+        orgId: String(orgId),
+        buildRequestBody: buildUrgencyRequestBody,
+        fetchImpl,
+        pageLimit: PAGE_LIMIT,
+        maxPages: MAX_PAGES,
+        timeoutMs: 30000,
+        allowVerifiedEmptyRoster,
+        maxAttempts: 3,
+        retryDelayMs: 1000,
+        logger: safeRosterLogger,
+        ...(sleep ? { sleep } : {}),
+      });
+    } catch (error) {
+      error.safeRequestStage = requestStage;
+      throw error;
+    }
+  };
 
-  const roster = await fetchRoster(["available", "dogs"]);
+  const roster = await fetchRoster("available_dogs", ["available", "dogs"]);
   if (!roster.staleMarkingAllowed) {
     throw new Error("RescueGroups returned a quarantined zero-result roster.");
   }
-  const urgentRoster = await fetchRoster(["available", "dogs", "urgent"], true);
+  const urgentRoster = await fetchRoster(
+    "urgent_view",
+    ["available", "dogs", "urgent"],
+    true
+  );
   const fosterRoster = await fetchRoster(
+    "foster_view",
     ["available", "dogs", "isneedingfoster"],
     true
   );
@@ -198,13 +209,31 @@ function emitDryRunSummary(summary, logger = console) {
   }
 }
 
+function safeRequestFailureCategory(error) {
+  const status = Number(error?.status);
+  if (Number.isInteger(status) && status >= 400 && status <= 599) {
+    return `http_${status}`;
+  }
+  if (error?.name === "AbortError") return "timeout";
+  if (error instanceof TypeError) return "network";
+  if (error?.name === "IncompleteRosterError") return "response_verification";
+  return "unknown";
+}
+
+function safeRequestFailureStage(error) {
+  const allowedStages = new Set(["available_dogs", "urgent_view", "foster_view"]);
+  return allowedStages.has(error?.safeRequestStage) ? error.safeRequestStage : "unknown";
+}
+
 function safeDryRunFailureMessage(error) {
   if (error?.message === "Missing RESCUEGROUPS_API_KEY.") return error.message;
   if (error?.message === "A numeric --org-id is required.") return error.message;
   if (/^(urgent|isNeedingFoster) cross-check mismatch: field_only=\d+, view_only=\d+\.$/.test(
     error?.message || ""
   )) return error.message;
-  return "RescueGroups roster could not be verified as complete; no results were emitted.";
+  const category = safeRequestFailureCategory(error);
+  const stage = safeRequestFailureStage(error);
+  return `RescueGroups roster could not be verified as complete (stage=${stage}, category=${category}); no results were emitted.`;
 }
 
 async function main() {
@@ -232,5 +261,7 @@ module.exports = {
   emitDryRunSummary,
   runSingleOrganizationUrgencyDryRun,
   safeDryRunFailureMessage,
+  safeRequestFailureCategory,
+  safeRequestFailureStage,
   summarizeRoster,
 };
