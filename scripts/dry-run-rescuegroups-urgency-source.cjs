@@ -19,12 +19,12 @@ const PAGE_LIMIT = 100;
 const MAX_PAGES = 20;
 const SOURCE_URGENT_FILTER = Object.freeze({
   fieldName: "animals.priority",
-  operation: "equal",
+  operation: "equals",
   criteria: "0",
 });
 const FOSTER_NEEDED_FILTER = Object.freeze({
   fieldName: "animals.isNeedingFoster",
-  operation: "equal",
+  operation: "equals",
   criteria: true,
 });
 

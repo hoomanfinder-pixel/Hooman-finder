@@ -65,6 +65,21 @@ function responseByFilter({ available, urgent = [], foster = [] }) {
   };
 }
 
+test("signal filters reuse the proven equals operator with documented value types", () => {
+  assert.deepEqual(SOURCE_URGENT_FILTER, {
+    fieldName: "animals.priority",
+    operation: "equals",
+    criteria: "0",
+  });
+  assert.equal(typeof SOURCE_URGENT_FILTER.criteria, "string");
+  assert.deepEqual(FOSTER_NEEDED_FILTER, {
+    fieldName: "animals.isNeedingFoster",
+    operation: "equals",
+    criteria: true,
+  });
+  assert.equal(typeof FOSTER_NEEDED_FILTER.criteria, "boolean");
+});
+
 test("DACC source request uses documented query fields and a body-only organization filter", () => {
   const url = new URL(buildUrgencyApiUrl(["available", "dogs"]));
   const body = buildUrgencyRequestBody({ orgId: "8883" });
@@ -83,14 +98,14 @@ test("DACC source request uses documented query fields and a body-only organizat
     signalFilter: SOURCE_URGENT_FILTER,
   }).data.filters, [
     { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
-    { fieldName: "animals.priority", operation: "equal", criteria: "0" },
+    { fieldName: "animals.priority", operation: "equals", criteria: "0" },
   ]);
   assert.deepEqual(buildUrgencyRequestBody({
     orgId: "8883",
     signalFilter: FOSTER_NEEDED_FILTER,
   }).data.filters, [
     { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
-    { fieldName: "animals.isNeedingFoster", operation: "equal", criteria: true },
+    { fieldName: "animals.isNeedingFoster", operation: "equals", criteria: true },
   ]);
   assert.doesNotMatch(JSON.stringify({ url: url.toString(), body }), /killDate|description/i);
 });
@@ -135,11 +150,11 @@ test("all three complete-roster requests use available/dogs with documented AND 
     [{ fieldName: "orgs.id", operation: "equals", criteria: "8883" }],
     [
       { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
-      { fieldName: "animals.priority", operation: "equal", criteria: "0" },
+      { fieldName: "animals.priority", operation: "equals", criteria: "0" },
     ],
     [
       { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
-      { fieldName: "animals.isNeedingFoster", operation: "equal", criteria: true },
+      { fieldName: "animals.isNeedingFoster", operation: "equals", criteria: true },
     ],
   ]);
 });
