@@ -7,12 +7,15 @@ const require = createRequire(import.meta.url);
 const {
   ANIMAL_FIELDS,
   FOSTER_NEEDED_FILTER,
+  PRIORITY_CRITERIA_PROBE_FILTER,
   SOURCE_URGENT_FILTER,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
   classifyRescueGroupsHttp400,
   emitDryRunSummary,
+  emitPriorityCriteriaProbeOutcome,
   runSingleOrganizationUrgencyDryRun,
+  runPriorityCriteriaDiagnosticProbe,
   safeDryRunFailureMessage,
   safeHttp400Reason,
   safeRequestFailureCategory,
@@ -33,6 +36,23 @@ function completeResponse(animals) {
         pageReturned: 1,
         limit: 100,
         pages: animals.length === 0 ? 0 : 1,
+      },
+    }),
+  };
+}
+
+function metadataOnlyResponse(count = 0) {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      data: [],
+      meta: {
+        count,
+        countReturned: 0,
+        pageReturned: 1,
+        limit: 0,
+        pages: 0,
       },
     }),
   };
@@ -61,6 +81,9 @@ function responseByFilter({ available, urgent = [], foster = [] }) {
       return completeResponse(foster);
     }
     if (filters.some((filter) => filter.fieldName === "animals.priority")) {
+      if (filters.some((filter) => filter.criteria === 0)) {
+        return metadataOnlyResponse(urgent.length);
+      }
       return completeResponse(urgent);
     }
     return completeResponse(available);
@@ -74,12 +97,117 @@ test("signal filters reuse the proven equals operator with documented value type
     criteria: "0",
   });
   assert.equal(typeof SOURCE_URGENT_FILTER.criteria, "string");
+  assert.deepEqual(PRIORITY_CRITERIA_PROBE_FILTER, {
+    fieldName: "animals.priority",
+    operation: "equals",
+    criteria: 0,
+  });
+  assert.equal(typeof PRIORITY_CRITERIA_PROBE_FILTER.criteria, "number");
   assert.deepEqual(FOSTER_NEEDED_FILTER, {
     fieldName: "animals.isNeedingFoster",
     operation: "equals",
     criteria: true,
   });
   assert.equal(typeof FOSTER_NEEDED_FILTER.criteria, "boolean");
+});
+
+test("numeric priority diagnostic is metadata-only and emits no animal data", async () => {
+  let request;
+  const result = await runPriorityCriteriaDiagnosticProbe({
+    apiKey: "private-api-key",
+    orgId: "8883",
+    fetchImpl: async (url, options) => {
+      request = { url: new URL(url), options };
+      return metadataOnlyResponse(3);
+    },
+  });
+
+  assert.deepEqual(result, { outcome: "accepted", reason: "not_applicable" });
+  assert.equal(request.url.pathname, "/v5/public/animals/search/available/dogs/");
+  assert.equal(request.url.searchParams.get("limit"), "0");
+  assert.equal(request.url.searchParams.get("page"), "1");
+  assert.deepEqual(JSON.parse(request.options.body).data.filters, [
+    { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+    { fieldName: "animals.priority", operation: "equals", criteria: 0 },
+  ]);
+  assert.equal(request.options.method, "POST");
+});
+
+test("numeric priority diagnostic safely classifies failures and malformed metadata", async () => {
+  const sensitive400 = await runPriorityCriteriaDiagnosticProbe({
+    apiKey: "private-api-key",
+    orgId: "8883",
+    fetchImpl: async () => ({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({
+        errors: [{
+          source: { pointer: "/data/filters/1/criteria" },
+          detail: "private-animal-id API_KEY=private-secret",
+        }],
+      }),
+    }),
+  });
+  assert.deepEqual(sensitive400, { outcome: "http_400", reason: "filter_1_criteria" });
+
+  for (const json of [
+    { data: [] },
+    { data: [{ id: "private-animal-id" }], meta: { count: 1, countReturned: 1, pageReturned: 1, limit: 0 } },
+    { data: [], meta: { count: 1, countReturned: 0, pageReturned: 1, limit: 100 } },
+  ]) {
+    assert.deepEqual(await runPriorityCriteriaDiagnosticProbe({
+      apiKey: "private-api-key",
+      orgId: "8883",
+      fetchImpl: async () => ({ ok: true, status: 200, json: async () => json }),
+    }), { outcome: "malformed_metadata", reason: "not_applicable" });
+  }
+
+  assert.deepEqual(await runPriorityCriteriaDiagnosticProbe({
+    apiKey: "private-api-key",
+    orgId: "8883",
+    fetchImpl: async () => {
+      throw new TypeError("private network details");
+    },
+  }), { outcome: "network", reason: "not_applicable" });
+
+  assert.deepEqual(await runPriorityCriteriaDiagnosticProbe({
+    apiKey: "private-api-key",
+    orgId: "8883",
+    timeoutMs: 1,
+    fetchImpl: async (_url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener("abort", () => {
+        const error = new Error("private timeout details");
+        error.name = "AbortError";
+        reject(error);
+      });
+    }),
+  }), { outcome: "timeout", reason: "not_applicable" });
+});
+
+test("numeric priority diagnostic output is strictly allowlisted and redacted", () => {
+  const output = [];
+  const logger = { log: (message) => output.push(message) };
+  emitPriorityCriteriaProbeOutcome({
+    outcome: "http_400",
+    reason: "private-animal-id API_KEY=private-secret",
+  }, logger);
+  emitPriorityCriteriaProbeOutcome({
+    outcome: "private-network-path",
+    reason: "Authorization: private-header",
+  }, logger);
+  assert.deepEqual(output.map(JSON.parse), [
+    {
+      diagnostic: "priority_numeric_zero_metadata_probe",
+      outcome: "http_400",
+      reason: "validation_unclassified",
+    },
+    {
+      diagnostic: "priority_numeric_zero_metadata_probe",
+      outcome: "unexpected_failure",
+      reason: "not_applicable",
+    },
+  ]);
+  assert.doesNotMatch(output.join("\n"), /private|API_KEY|Authorization/);
 });
 
 test("HTTP 400 validation diagnostics emit only bounded allowlisted reason codes", () => {
@@ -148,6 +276,13 @@ test("DACC source request uses documented query fields and a body-only organizat
   ]);
   assert.deepEqual(buildUrgencyRequestBody({
     orgId: "8883",
+    signalFilter: PRIORITY_CRITERIA_PROBE_FILTER,
+  }).data.filters, [
+    { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+    { fieldName: "animals.priority", operation: "equals", criteria: 0 },
+  ]);
+  assert.deepEqual(buildUrgencyRequestBody({
+    orgId: "8883",
     signalFilter: FOSTER_NEEDED_FILTER,
   }).data.filters, [
     { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
@@ -191,9 +326,14 @@ test("all three complete-roster requests use available/dogs with documented AND 
     "/v5/public/animals/search/available/dogs/",
     "/v5/public/animals/search/available/dogs/",
     "/v5/public/animals/search/available/dogs/",
+    "/v5/public/animals/search/available/dogs/",
   ]);
   assert.deepEqual(bodies.map((body) => body.data.filters), [
     [{ fieldName: "orgs.id", operation: "equals", criteria: "8883" }],
+    [
+      { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
+      { fieldName: "animals.priority", operation: "equals", criteria: 0 },
+    ],
     [
       { fieldName: "orgs.id", operation: "equals", criteria: "8883" },
       { fieldName: "animals.priority", operation: "equals", criteria: "0" },
