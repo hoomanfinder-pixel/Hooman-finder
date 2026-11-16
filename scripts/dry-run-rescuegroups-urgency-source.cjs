@@ -22,6 +22,11 @@ const SOURCE_URGENT_FILTER = Object.freeze({
   operation: "equals",
   criteria: "0",
 });
+const PRIORITY_CRITERIA_PROBE_FILTER = Object.freeze({
+  fieldName: "animals.priority",
+  operation: "equals",
+  criteria: 0,
+});
 const FOSTER_NEEDED_FILTER = Object.freeze({
   fieldName: "animals.isNeedingFoster",
   operation: "equals",
@@ -114,6 +119,99 @@ function classifyRescueGroupsHttp400(body) {
 function safeHttp400Reason(error) {
   const reason = String(error?.safeHttp400Reason || "");
   return HTTP_400_REASON_PATTERN.test(reason) ? reason : "validation_unclassified";
+}
+
+function validMetadataOnlyResponse(json) {
+  if (!json || !Array.isArray(json.data) || json.data.length !== 0 || !json.meta) {
+    return false;
+  }
+  const integerAtLeast = (value, minimum) =>
+    Number.isInteger(value) && value >= minimum;
+  return integerAtLeast(json.meta.count, 0) &&
+    json.meta.countReturned === 0 &&
+    json.meta.pageReturned === 1 &&
+    json.meta.limit === 0 &&
+    (json.meta.pages === undefined || integerAtLeast(json.meta.pages, 0));
+}
+
+async function runPriorityCriteriaDiagnosticProbe({
+  apiKey,
+  orgId,
+  fetchImpl = fetch,
+  timeoutMs = 30000,
+}) {
+  const url = new URL(buildUrgencyApiUrl());
+  url.searchParams.set("limit", "0");
+  url.searchParams.set("page", "1");
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetchImpl(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/vnd.api+json",
+      },
+      body: JSON.stringify(buildUrgencyRequestBody({
+        orgId,
+        signalFilter: PRIORITY_CRITERIA_PROBE_FILTER,
+      })),
+      signal: controller.signal,
+    });
+
+    if (Number(response?.status) === 400) {
+      let reason = "validation_unclassified";
+      if (typeof response.text === "function") {
+        reason = classifyRescueGroupsHttp400(await response.text());
+      }
+      return { outcome: "http_400", reason };
+    }
+    if (!response?.ok) return { outcome: "http_error", reason: "not_applicable" };
+
+    let json;
+    try {
+      json = await response.json();
+    } catch {
+      return { outcome: "malformed_metadata", reason: "not_applicable" };
+    }
+    return validMetadataOnlyResponse(json)
+      ? { outcome: "accepted", reason: "not_applicable" }
+      : { outcome: "malformed_metadata", reason: "not_applicable" };
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      return { outcome: "timeout", reason: "not_applicable" };
+    }
+    if (error instanceof TypeError) {
+      return { outcome: "network", reason: "not_applicable" };
+    }
+    return { outcome: "unexpected_failure", reason: "not_applicable" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function emitPriorityCriteriaProbeOutcome(result, logger = console) {
+  const allowedOutcomes = new Set([
+    "accepted",
+    "http_400",
+    "http_error",
+    "malformed_metadata",
+    "network",
+    "timeout",
+    "unexpected_failure",
+  ]);
+  const outcome = allowedOutcomes.has(result?.outcome)
+    ? result.outcome
+    : "unexpected_failure";
+  const reason = outcome === "http_400"
+    ? safeHttp400Reason({ safeHttp400Reason: result?.reason })
+    : "not_applicable";
+  logger.log?.(JSON.stringify({
+    diagnostic: "priority_numeric_zero_metadata_probe",
+    outcome,
+    reason,
+  }));
 }
 
 function fieldShape(attributes, fieldName, documentedType) {
@@ -281,6 +379,12 @@ async function runSingleOrganizationUrgencyDryRun({
   if (!roster.staleMarkingAllowed) {
     throw new Error("RescueGroups returned a quarantined zero-result roster.");
   }
+  const priorityCriteriaProbe = await runPriorityCriteriaDiagnosticProbe({
+    apiKey,
+    orgId: String(orgId),
+    fetchImpl,
+  });
+  emitPriorityCriteriaProbeOutcome(priorityCriteriaProbe, logger);
   const urgentRoster = await fetchRoster("urgent_view", SOURCE_URGENT_FILTER, true);
   const fosterRoster = await fetchRoster(
     "foster_view",
@@ -389,13 +493,16 @@ module.exports = {
   ANIMAL_FIELDS,
   API_BASE_URL,
   FOSTER_NEEDED_FILTER,
+  PRIORITY_CRITERIA_PROBE_FILTER,
   SOURCE_URGENT_FILTER,
   assertMatchingPositiveSets,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
   classifyRescueGroupsHttp400,
   emitDryRunSummary,
+  emitPriorityCriteriaProbeOutcome,
   runSingleOrganizationUrgencyDryRun,
+  runPriorityCriteriaDiagnosticProbe,
   safeDryRunFailureMessage,
   safeHttp400Reason,
   safeRequestFailureCategory,
