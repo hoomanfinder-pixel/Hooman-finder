@@ -27,6 +27,8 @@ const FOSTER_NEEDED_FILTER = Object.freeze({
   operation: "equals",
   criteria: true,
 });
+const MAX_VALIDATION_ERROR_BODY_CHARS = 16384;
+const HTTP_400_REASON_PATTERN = /^(?:filter_[0-9]_(?:field|operator|criteria)|filter_structure|filter_processing|query_(?:fields|include|sort|page|limit)|invalid_(?:field|operator|criteria|filter|parameter)|validation_unclassified)$/;
 
 function buildUrgencyApiUrl(views = ["available", "dogs"]) {
   const url = new URL(`${API_BASE_URL}/${views.join("/")}/`);
@@ -47,6 +49,71 @@ function buildUrgencyRequestBody({ orgId, signalFilter = null }) {
       filters,
     },
   };
+}
+
+function classifyRescueGroupsHttp400(body) {
+  if (typeof body !== "string" || body.length > MAX_VALIDATION_ERROR_BODY_CHARS) {
+    return "validation_unclassified";
+  }
+
+  let json;
+  try {
+    json = JSON.parse(body);
+  } catch {
+    return "validation_unclassified";
+  }
+  if (!Array.isArray(json?.errors)) return "validation_unclassified";
+
+  const parameterReasons = new Map([
+    ["fields[animals]", "query_fields"],
+    ["include", "query_include"],
+    ["sort", "query_sort"],
+    ["page", "query_page"],
+    ["limit", "query_limit"],
+  ]);
+  const titleReasons = new Map([
+    ["invalid field", "invalid_field"],
+    ["invalid operation", "invalid_operator"],
+    ["invalid operator", "invalid_operator"],
+    ["invalid criteria", "invalid_criteria"],
+    ["invalid filter", "invalid_filter"],
+    ["invalid parameter", "invalid_parameter"],
+  ]);
+
+  for (const upstreamError of json.errors.slice(0, 5)) {
+    const pointer = upstreamError?.source?.pointer;
+    if (typeof pointer === "string") {
+      const filterComponent = pointer.match(
+        /^\/data\/filters\/([0-9])\/(fieldName|operation|criteria)(?:\/[^/\s]{1,64})?$/
+      );
+      if (filterComponent) {
+        const component = {
+          fieldName: "field",
+          operation: "operator",
+          criteria: "criteria",
+        }[filterComponent[2]];
+        return `filter_${filterComponent[1]}_${component}`;
+      }
+      if (/^\/data\/filters(?:\/[0-9])?$/.test(pointer)) return "filter_structure";
+      if (pointer === "/data/filterProcessing") return "filter_processing";
+    }
+
+    const parameterReason = parameterReasons.get(upstreamError?.source?.parameter);
+    if (parameterReason) return parameterReason;
+
+    const title = typeof upstreamError?.title === "string"
+      ? upstreamError.title.trim().toLowerCase()
+      : "";
+    const titleReason = titleReasons.get(title);
+    if (titleReason) return titleReason;
+  }
+
+  return "validation_unclassified";
+}
+
+function safeHttp400Reason(error) {
+  const reason = String(error?.safeHttp400Reason || "");
+  return HTTP_400_REASON_PATTERN.test(reason) ? reason : "validation_unclassified";
 }
 
 function fieldShape(attributes, fieldName, documentedType) {
@@ -168,6 +235,22 @@ async function runSingleOrganizationUrgencyDryRun({
     signalFilter = null,
     allowVerifiedEmptyRoster = false
   ) => {
+    let http400Reason = "validation_unclassified";
+    const diagnosticFetchImpl = async (...args) => {
+      const response = await fetchImpl(...args);
+      if (Number(response?.status) !== 400 || typeof response.text !== "function") {
+        return response;
+      }
+      return {
+        ok: response.ok,
+        status: response.status,
+        text: async () => {
+          const body = await response.text();
+          http400Reason = classifyRescueGroupsHttp400(body);
+          return "[RescueGroups HTTP 400 response redacted]";
+        },
+      };
+    };
     try {
       return await fetchCompleteRescueGroupsRoster({
         apiUrl: buildUrgencyApiUrl(),
@@ -177,7 +260,7 @@ async function runSingleOrganizationUrgencyDryRun({
           orgId: requestedOrgId,
           signalFilter,
         }),
-        fetchImpl,
+        fetchImpl: diagnosticFetchImpl,
         pageLimit: PAGE_LIMIT,
         maxPages: MAX_PAGES,
         timeoutMs: 30000,
@@ -189,6 +272,7 @@ async function runSingleOrganizationUrgencyDryRun({
       });
     } catch (error) {
       error.safeRequestStage = requestStage;
+      if (Number(error?.status) === 400) error.safeHttp400Reason = http400Reason;
       throw error;
     }
   };
@@ -279,7 +363,9 @@ function safeDryRunFailureMessage(error) {
   const stage = safeRequestFailureStage(error);
   const reason = category === "response_verification"
     ? safeResponseVerificationReason(error)
-    : "not_applicable";
+    : category === "http_400"
+      ? safeHttp400Reason(error)
+      : "not_applicable";
   return `RescueGroups roster could not be verified as complete (stage=${stage}, category=${category}, reason=${reason}); no results were emitted.`;
 }
 
@@ -307,9 +393,11 @@ module.exports = {
   assertMatchingPositiveSets,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
+  classifyRescueGroupsHttp400,
   emitDryRunSummary,
   runSingleOrganizationUrgencyDryRun,
   safeDryRunFailureMessage,
+  safeHttp400Reason,
   safeRequestFailureCategory,
   safeRequestFailureStage,
   safeResponseVerificationReason,

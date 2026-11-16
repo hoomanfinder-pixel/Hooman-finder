@@ -10,9 +10,11 @@ const {
   SOURCE_URGENT_FILTER,
   buildUrgencyApiUrl,
   buildUrgencyRequestBody,
+  classifyRescueGroupsHttp400,
   emitDryRunSummary,
   runSingleOrganizationUrgencyDryRun,
   safeDryRunFailureMessage,
+  safeHttp400Reason,
   safeRequestFailureCategory,
   safeRequestFailureStage,
   safeResponseVerificationReason,
@@ -78,6 +80,50 @@ test("signal filters reuse the proven equals operator with documented value type
     criteria: true,
   });
   assert.equal(typeof FOSTER_NEEDED_FILTER.criteria, "boolean");
+});
+
+test("HTTP 400 validation diagnostics emit only bounded allowlisted reason codes", () => {
+  const validationError = (source, title = "Ignored upstream title") => JSON.stringify({
+    errors: [{
+      status: 400,
+      source,
+      title,
+      detail: "private-animal-id API_KEY=private-secret Authorization: private-header",
+    }],
+  });
+
+  assert.equal(classifyRescueGroupsHttp400(validationError({
+    pointer: "/data/filters/2/fieldName/animals.priority",
+  })), "filter_2_field");
+  assert.equal(classifyRescueGroupsHttp400(validationError({
+    pointer: "/data/filters/2/operation",
+  })), "filter_2_operator");
+  assert.equal(classifyRescueGroupsHttp400(validationError({
+    pointer: "/data/filters/2/criteria",
+  })), "filter_2_criteria");
+  assert.equal(classifyRescueGroupsHttp400(validationError({
+    pointer: "/data/filters",
+  })), "filter_structure");
+  assert.equal(classifyRescueGroupsHttp400(validationError({
+    parameter: "include",
+  })), "query_include");
+  assert.equal(classifyRescueGroupsHttp400(validationError(
+    {},
+    "Invalid operation"
+  )), "invalid_operator");
+
+  for (const unsafeBody of [
+    "not json private-animal-id",
+    JSON.stringify({ errors: [{ detail: "private-animal-id" }] }),
+    JSON.stringify({ errors: [{ source: { pointer: "/private/animal/id" } }] }),
+    "x".repeat(16385),
+  ]) {
+    assert.equal(classifyRescueGroupsHttp400(unsafeBody), "validation_unclassified");
+  }
+  assert.equal(
+    safeHttp400Reason({ safeHttp400Reason: "private-animal-id" }),
+    "validation_unclassified"
+  );
 });
 
 test("DACC source request uses documented query fields and a body-only organization filter", () => {
@@ -409,6 +455,46 @@ test("safe failure diagnostics expose only bounded stage and status category", (
       /private|response body|connection details|timeout details|animal identifier/
     );
   }
+});
+
+test("HTTP 400 failure output reports a bounded pointer reason and drops raw details", async () => {
+  const base = animal("private-base-id", { priority: "5", isNeedingFoster: false });
+  let requestNumber = 0;
+  await assert.rejects(runSingleOrganizationUrgencyDryRun({
+    apiKey: "private-api-key",
+    orgId: "8883",
+    fetchImpl: async () => {
+      requestNumber += 1;
+      if (requestNumber === 1) return completeResponse([base]);
+      return {
+        ok: false,
+        status: 400,
+        text: async () => JSON.stringify({
+          errors: [{
+            status: 400,
+            source: { pointer: "/data/filters/2/criteria" },
+            title: "Invalid criteria",
+            detail: "private-animal-id API_KEY=private-secret Authorization: private-header",
+          }],
+        }),
+      };
+    },
+  }), (error) => {
+    const safeMessage = safeDryRunFailureMessage(error);
+    assert.doesNotMatch(
+      error.message,
+      /private-animal-id|private-secret|private-header|Authorization|API_KEY/
+    );
+    assert.equal(
+      safeMessage,
+      "RescueGroups roster could not be verified as complete (stage=urgent_view, category=http_400, reason=filter_2_criteria); no results were emitted."
+    );
+    assert.doesNotMatch(
+      safeMessage,
+      /private-base-id|private-animal-id|private-api-key|private-secret|private-header|Authorization|API_KEY/
+    );
+    return true;
+  });
 });
 
 test("response verification diagnostics map every roster invariant to a bounded reason", () => {
