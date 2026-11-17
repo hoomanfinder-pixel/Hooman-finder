@@ -390,6 +390,7 @@ export default function DogCard({
   const [openModal, setOpenModal] = useState(false);
   const [saved, setSaved] = useState(() => isSavedId(dog?.id));
   const [imageFailed, setImageFailed] = useState(false);
+  const [saveAnnouncement, setSaveAnnouncement] = useState("");
 
   const urgency = dog?.urgency_level || "Standard";
   const rawImgSrc = useMemo(
@@ -477,6 +478,11 @@ export default function DogCard({
 
     const nextSaved = toggleSavedId(dog?.id);
     setSaved(nextSaved);
+    setSaveAnnouncement(
+      nextSaved
+        ? `${fullName} saved to your dogs.`
+        : `${fullName} removed from your saved dogs.`
+    );
   }
 
   const heartButton = (
@@ -484,20 +490,27 @@ export default function DogCard({
       type="button"
       onClick={onToggleSaved}
       className={[
-        "inline-flex shrink-0 items-center justify-center rounded-full font-black shadow-sm backdrop-blur transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F3C982]",
+        "hf-save-button inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full font-black shadow-sm backdrop-blur transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#F3C982]",
         cardVariant === "saved"
           ? "h-9 w-9 text-lg"
           : cardVariant === "match"
-            ? "h-11 w-11 text-xl"
+            ? saved
+              ? "min-h-11 px-3 text-base"
+              : "h-11 w-11 text-xl"
             : "h-8 w-8 text-base sm:h-9 sm:w-9 sm:text-lg",
         saved
           ? "bg-white text-rose-600"
           : "bg-black/35 text-white ring-1 ring-white/30 hover:bg-white hover:text-[#183D35]",
       ].join(" ")}
-      aria-label={saved ? "Unsave dog" : "Save dog"}
+      aria-label={saved ? `Remove ${fullName} from saved dogs` : `Save ${fullName}`}
+      aria-pressed={saved}
+      data-saved={saved ? "true" : "false"}
       title={saved ? "Saved" : "Save"}
     >
-      {saved ? "♥" : "♡"}
+      <span className="hf-save-heart" aria-hidden="true">{saved ? "♥" : "♡"}</span>
+      {cardVariant === "match" && saved ? (
+        <span className="text-[10px] uppercase tracking-[0.12em]">Saved</span>
+      ) : null}
     </button>
   );
 
@@ -689,14 +702,15 @@ export default function DogCard({
       <>
         <article
           aria-label={`${fullName} match result`}
-          className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-[#183D35]/10 bg-white shadow-[0_12px_34px_rgba(24,61,53,0.09)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(24,61,53,0.14)] focus-within:ring-2 focus-within:ring-[#C79A36] focus-within:ring-offset-2 focus-within:ring-offset-[#F5F1E9]"
+          className="hf-result-card group relative flex min-w-0 flex-col overflow-hidden rounded-[1.65rem] bg-white shadow-[0_12px_34px_rgba(24,61,53,0.10)] ring-1 ring-[#183D35]/8 transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_48px_rgba(24,61,53,0.14)] focus-within:ring-2 focus-within:ring-[#C79A36] focus-within:ring-offset-2 focus-within:ring-offset-[#F5F1E9]"
+          style={{ "--hf-result-delay": `${Math.min(Math.max((rank || 1) - 1, 0), 5) * 45}ms` }}
         >
-          <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#EFE8DC]">
+          <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#EFE8DC] sm:aspect-[4/3]">
             {imgSrc ? (
               <img
                 src={imgSrc}
                 alt={imgAlt}
-                className="h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.025]"
+                className="hf-result-photo h-full w-full object-cover object-[50%_30%] transition duration-500 group-hover:scale-[1.025]"
                 loading="lazy"
                 onError={() => setImageFailed(true)}
               />
@@ -704,31 +718,13 @@ export default function DogCard({
               <PlaceholderPhoto name={dog?.name} />
             )}
 
-            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" aria-hidden="true" />
+            <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/45 to-transparent" aria-hidden="true" />
 
             <div className="pointer-events-none absolute left-3 right-[4.75rem] top-3 flex items-start justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-2">
                 {rankLabel ? (
-                  <span className="inline-flex min-h-7 items-center rounded-full bg-[#dfe7d7] px-3 py-1 text-[10px] font-black uppercase tracking-[0.13em] text-[#183D35] shadow-sm">
+                  <span className="inline-flex min-h-7 items-center rounded-full bg-white/92 px-3 py-1 text-[10px] font-black uppercase tracking-[0.11em] text-[#183D35] shadow-sm backdrop-blur">
                     {rankLabel}
-                  </span>
-                ) : null}
-
-                {showMatch && tier ? (
-                  <span
-                    className={[
-                      "inline-flex min-h-7 flex-col items-start justify-center rounded-2xl px-3 py-1.5 text-[11px] font-black leading-tight tracking-[0.04em] shadow-sm backdrop-blur",
-                      tier.className,
-                    ].join(" ")}
-                    title={[matchState.pillText, fitScoreScope.prominent].filter(Boolean).join(". ")}
-                    aria-label={[matchState.pillText, fitScoreScope.prominent].filter(Boolean).join(". ")}
-                  >
-                    <span>{matchState.pillText}</span>
-                    {matchState.kind === "match" && fitScoreScope.prominent ? (
-                      <span className="mt-0.5 text-[9px] font-bold tracking-normal opacity-80">
-                        {fitScoreScope.prominent}
-                      </span>
-                    ) : null}
                   </span>
                 ) : null}
 
@@ -749,59 +745,75 @@ export default function DogCard({
             <div className="absolute right-3 top-3">{heartButton}</div>
           </div>
 
-          <div className="flex flex-1 flex-col p-5 sm:p-6">
+          <div className="flex flex-1 flex-col p-4 sm:p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="line-clamp-2 text-[11px] font-black uppercase leading-4 tracking-[0.16em] text-[#6F6A66]">
+                <p className="line-clamp-1 text-[10px] font-black uppercase leading-4 tracking-[0.14em] text-[#6F6A66]">
                   {shelterName(dog)}
                 </p>
 
-                <h2 className="mt-1 font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-[2.15rem]">
+                <h2 className="mt-0.5 font-['Fraunces',serif] text-[1.85rem] font-semibold leading-[1.05] text-[#183D35] sm:text-[2.05rem]">
                   {fullName}
                 </h2>
               </div>
             </div>
 
-            <p className="mt-2 text-sm font-semibold leading-5 text-[#6F6A66]">
+            <p className="mt-1.5 text-sm font-semibold leading-5 text-[#6F6A66]">
               {[ageLabel, displayBreed(dog), dog?.size].filter(Boolean).join(" · ")}
             </p>
 
-            <p className="mt-2 text-sm leading-5 text-[#6F6A66]">
+            <p className="mt-1 text-sm leading-5 text-[#6F6A66]">
               <span aria-hidden="true">📍 </span>{locationLabel}
             </p>
 
-            {matchState.kind === "match" && fitScoreScope.compact ? (
-              <p className="mt-3 text-xs font-semibold leading-5 text-[#527166]">
-                {fitScoreScope.compact}
-              </p>
+            {showMatch && tier ? (
+              <section
+                className="mt-3 border-y border-[#183D35]/10 py-3"
+                aria-label={[matchState.pillText, fitScoreScope.prominent].filter(Boolean).join(". ")}
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#527166]">
+                    {tier.label}
+                  </p>
+                  <p className="shrink-0 font-['Fraunces',serif] text-xl font-semibold text-[#183D35]">
+                    {matchState.kind === "match" ? formatFitScore(scorePct) : matchState.pillText}
+                  </p>
+                </div>
+                {matchState.kind === "match" && fitScoreScope.summary ? (
+                  <p className="mt-1.5 text-xs font-semibold leading-5 text-[#6F6A66]">
+                    {fitScoreScope.summary} This is not a complete compatibility assessment.
+                  </p>
+                ) : null}
+              </section>
             ) : null}
 
             {breakdown?.limitedInformation === true ? (
-              <p className="mt-4 rounded-2xl border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-xs font-bold leading-5 text-amber-950">
+              <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-950 ring-1 ring-amber-300">
                 Limited listing information — some active preferences could not be assessed.
               </p>
             ) : null}
 
             {primaryReason ? (
-              <div className="mt-4 rounded-2xl bg-[#eef3e8] px-4 py-3 text-sm leading-5 text-[#183D35]">
+              <div className="mt-3 text-sm leading-5 text-[#183D35]">
                 <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#527166]">
                   Why this dog may fit
                 </div>
                 <p className="mt-1 font-semibold">{primaryReason}</p>
               </div>
             ) : (
-              <p className="mt-4 line-clamp-2 text-sm leading-6 text-[#6F6A66]">
+              <p className="mt-3 line-clamp-2 text-sm leading-6 text-[#6F6A66]">
                 {descriptionPreview}
               </p>
             )}
 
             {matchState.evidenceLabels?.length ? (
-              <div className="mt-4 flex flex-wrap gap-2" aria-label="Match evidence sources">
+              <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1" aria-label="Match evidence sources">
                 {matchState.evidenceLabels.map((label) => (
                   <span
                     key={label}
-                    className="inline-flex min-h-7 items-center rounded-full bg-[#eef3e8] px-3 py-1 text-[11px] font-bold leading-4 text-[#183D35] ring-1 ring-[#183D35]/10"
+                    className="inline-flex min-h-6 items-center text-[11px] font-bold leading-4 text-[#527166]"
                   >
+                    <span aria-hidden="true" className="mr-1.5 h-1.5 w-1.5 rounded-full bg-[#C79A36]" />
                     {label}
                   </span>
                 ))}
@@ -810,7 +822,7 @@ export default function DogCard({
 
             {matchState.cautions?.length ? (
               <div
-                className="mt-4 rounded-2xl border-2 border-amber-500 bg-amber-50 px-3.5 py-3 text-sm font-bold leading-5 text-amber-950"
+                className="mt-3 rounded-xl border-l-4 border-amber-500 bg-amber-50 px-3 py-2.5 text-sm font-bold leading-5 text-amber-950"
                 role="alert"
               >
                 <div className="text-[11px] font-black uppercase tracking-[0.14em] text-amber-800">
@@ -827,7 +839,7 @@ export default function DogCard({
             ) : null}
 
             {matchState.tradeoffs?.length ? (
-              <div className="mt-3 rounded-2xl border border-[#183D35]/10 bg-[#F5F1E9] px-4 py-3 text-sm leading-5 text-[#6F6A66]">
+              <div className="mt-3 rounded-xl bg-[#F5F1E9] px-3 py-2.5 text-sm leading-5 text-[#6F6A66]">
                 <div className="text-[11px] font-black uppercase tracking-[0.14em] text-[#183D35]">
                   Thing to consider
                 </div>
@@ -836,7 +848,7 @@ export default function DogCard({
               </div>
             ) : null}
 
-            <div className="mt-auto pt-5">
+            <div className="mt-auto pt-4">
               <Link
                 to={dogLink}
                 state={linkState}
@@ -846,6 +858,10 @@ export default function DogCard({
                 View Profile
               </Link>
             </div>
+
+            <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+              {saveAnnouncement}
+            </span>
           </div>
         </article>
 
