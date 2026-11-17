@@ -166,6 +166,52 @@ button:disabled,
   background: transparent;
 }
 
+@keyframes hf-quiz-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hf-quiz-section-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hf-quiz-question-card {
+  animation: hf-quiz-card-enter 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.hf-quiz-accordion-content {
+  animation: hf-quiz-section-open 220ms ease-out both;
+}
+
+.hf-quiz-option {
+  transition:
+    transform 160ms ease-out,
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    box-shadow 160ms ease-out;
+}
+
+.hf-quiz-option[data-selected="true"] {
+  animation: hf-paw-bounce 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.hf-quiz-progress-fill {
+  transition: width 360ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -188,6 +234,16 @@ button:disabled,
 
   .hf-home-hero-content {
     animation: none;
+  }
+
+  .hf-quiz-question-card,
+  .hf-quiz-accordion-content,
+  .hf-quiz-option[data-selected="true"] {
+    animation: none;
+  }
+
+  .hf-quiz-option:hover {
+    transform: none;
   }
 
   /* Keep the slow trust presentation usable on devices that report reduced

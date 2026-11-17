@@ -1,5 +1,5 @@
 // src/components/OptionSelect.jsx
-import React, { useMemo } from "react";
+import React, { useId, useMemo } from "react";
 
 function toggleMultiWithExclusive(currentValue, clickedValue, exclusiveValues = []) {
   const current = Array.isArray(currentValue)
@@ -49,17 +49,16 @@ export default function OptionSelect({
   multiple = false,
   value,
   onChange,
-  onContinue,
-  canContinue = false,
   exclusiveValues = [],
   number = null,
-  icon = "🐾",
-  statusText = "",
   rankingDisclosure = "",
   inputMode = "text",
   placeholder = "",
   type = "single",
 }) {
+  const generatedId = useId();
+  const titleId = `${generatedId}-title`;
+  const descriptionId = `${generatedId}-description`;
   const normalizedExclusive = useMemo(
     () => (exclusiveValues || []).map(String),
     [exclusiveValues]
@@ -99,47 +98,33 @@ export default function OptionSelect({
   const isTextQuestion = type === "text";
 
   return (
-    <section className="rounded-[1.35rem] border border-[#183D35]/10 bg-white/95 p-2.5 shadow-sm shadow-[#183D35]/5 sm:p-3.5">
-      <div className="mb-2.5 flex items-start gap-2.5">
+    <section
+      className="hf-quiz-question-card rounded-[1.5rem] border border-[#C7D4BB]/90 bg-white p-4 shadow-[0_14px_36px_rgba(24,61,53,0.065)] sm:p-5"
+      aria-labelledby={titleId}
+      aria-describedby={description ? descriptionId : undefined}
+    >
+      <div className="mb-3.5 sm:mb-4">
         {number !== null ? (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-xs font-black text-[#183D35] ring-1 ring-[#183D35]/5">
-            {number}
-          </div>
+          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#6F6A66]">
+            Question {String(number).padStart(2, "0")}
+          </p>
         ) : null}
 
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            <span className="mt-0.5 shrink-0 text-base leading-none" aria-hidden="true">
-              {icon}
-            </span>
+        <h3 id={titleId} className="max-w-2xl font-['Fraunces',serif] text-[1.35rem] font-semibold leading-[1.12] text-[#183D35] sm:text-2xl">
+          {title}
+        </h3>
 
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <h3 className="font-['Fraunces',serif] text-sm font-semibold leading-tight text-[#183D35] sm:text-base">
-                  {title}
-                </h3>
+        {description ? (
+          <p id={descriptionId} className="mt-1.5 max-w-xl text-sm leading-5 text-[#6F6A66] sm:text-[15px] sm:leading-6">
+            {description}
+          </p>
+        ) : null}
 
-                {statusText ? (
-                  <span className="inline-flex max-w-full rounded-full bg-[#f5f1e9] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-[#183D35]/58 ring-1 ring-[#183D35]/8">
-                    {statusText}
-                  </span>
-                ) : null}
-              </div>
-
-              {description ? (
-                <p className="mt-0.5 text-xs font-semibold leading-4 text-[#6f6a66]">
-                  {description}
-                </p>
-              ) : null}
-
-              {rankingDisclosure ? (
-                <p className="mt-1 text-[11px] font-semibold leading-4 text-[#6f6a66]">
-                  {rankingDisclosure}
-                </p>
-              ) : null}
-            </div>
-          </div>
-        </div>
+        {rankingDisclosure ? (
+          <p className="mt-2 rounded-xl bg-[#F5F1E9] px-3 py-2 text-xs font-medium leading-5 text-[#6F6A66]">
+            {rankingDisclosure}
+          </p>
+        ) : null}
       </div>
 
       {isTextQuestion ? (
@@ -151,15 +136,15 @@ export default function OptionSelect({
             value={typeof value === "string" ? value : ""}
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
-            className="min-h-11 w-full rounded-2xl border border-[#183D35]/12 bg-[#f5f1e9]/50 px-3.5 py-2.5 text-sm font-bold text-[#183D35] outline-none transition placeholder:text-[#183D35]/35 focus:border-[#183D35]/45 focus:bg-white focus:ring-4 focus:ring-[#183D35]/10"
+            className="min-h-14 w-full rounded-2xl border border-[#C7D4BB] bg-[#F8F6F1] px-4 py-3 text-base font-semibold text-[#183D35] outline-none transition placeholder:text-[#183D35]/35 focus:border-[#2490C0] focus:bg-white focus:ring-4 focus:ring-[#2490C0]/12"
           />
         </label>
       ) : (
         <div
           className={
             optionLayout?.useTwoColumns
-              ? "grid grid-cols-1 gap-1.5 sm:grid-cols-2"
-              : "grid gap-1.5"
+              ? "grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-2.5"
+              : "grid gap-2 sm:gap-2.5"
           }
         >
           {options.map((opt, index) => {
@@ -177,21 +162,22 @@ export default function OptionSelect({
                 type="button"
                 onClick={() => toggle(opt.value)}
                 aria-pressed={selected}
+                data-selected={selected ? "true" : "false"}
                 className={[
-                  "w-full rounded-2xl border px-2 py-1.5 text-left transition sm:px-3 sm:py-2",
-                  "min-h-10 sm:min-h-11",
+                  "hf-quiz-option w-full rounded-2xl border px-3.5 py-2.5 text-left sm:px-4 sm:py-3",
+                  "min-h-14",
                   shouldSpan ? "sm:col-span-2" : "",
                   selected
-                    ? "border-[#183D35]/35 bg-[#dfe7d7] shadow-sm ring-1 ring-[#183D35]/10"
-                    : "border-[#183D35]/10 bg-white hover:border-[#183D35]/25 hover:bg-[#EFE8DC]",
+                    ? "border-[#183D35] bg-[#DFE7D7] shadow-[0_8px_22px_rgba(24,61,53,0.12)] ring-1 ring-[#183D35]/10"
+                    : "border-[#C7D4BB]/90 bg-[#FDFCF9] hover:-translate-y-0.5 hover:border-[#183D35]/35 hover:bg-white hover:shadow-md",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <div
                       className={[
-                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs sm:h-7 sm:w-7 sm:text-sm",
-                        selected ? "bg-white/80" : "bg-[#f5f1e9]",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base transition sm:h-10 sm:w-10",
+                        selected ? "bg-white text-[#183D35] shadow-sm" : "bg-[#F5F1E9] text-[#5F5A56]",
                       ].join(" ")}
                       aria-hidden="true"
                     >
@@ -199,12 +185,12 @@ export default function OptionSelect({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="whitespace-normal break-words text-xs font-extrabold leading-tight text-[#183D35] sm:text-sm">
+                      <div className="whitespace-normal break-words text-sm font-bold leading-snug text-[#183D35] sm:text-[15px]">
                         {opt.label}
                       </div>
 
                       {opt.help ? (
-                        <div className="mt-0.5 whitespace-normal break-words text-xs font-medium leading-4 text-[#6f6a66]">
+                        <div className="mt-1 whitespace-normal break-words text-xs font-medium leading-4 text-[#6F6A66] sm:text-[13px] sm:leading-5">
                           {opt.help}
                         </div>
                       ) : null}
@@ -212,16 +198,17 @@ export default function OptionSelect({
                   </div>
 
                   <div
+                    aria-hidden="true"
                     className={[
-                      "flex h-4 w-4 shrink-0 items-center justify-center border transition",
+                      "flex h-5 w-5 shrink-0 items-center justify-center border transition",
                       mark === "radio" ? "rounded-full" : "rounded-md",
                       selected
-                        ? "border-[#183D35] bg-[#183D35] text-white"
+                        ? "border-[#183D35] bg-[#183D35] text-[#F3C982] shadow-sm"
                         : "border-[#183D35]/24 bg-white text-transparent",
                     ].join(" ")}
                   >
                     {selected ? (
-                      <span className="text-[10px] font-black leading-none">
+                      <span className="text-[11px] font-black leading-none">
                         {mark === "radio" ? "●" : "✓"}
                       </span>
                     ) : null}
@@ -233,17 +220,6 @@ export default function OptionSelect({
         </div>
       )}
 
-      <div className="flex min-h-12 items-end justify-end pt-1.5">
-        <button
-          type="button"
-          onClick={onContinue}
-          disabled={!canContinue}
-          className="inline-flex min-h-11 min-w-28 items-center justify-center gap-1 rounded-full bg-[#183D35] px-5 py-2 text-xs font-black text-[#F3C982] shadow-sm transition hover:bg-[#12332C] disabled:cursor-not-allowed disabled:bg-[#183D35]/10 disabled:text-[#183D35]/35 disabled:shadow-none sm:text-sm"
-        >
-          Continue
-          <span aria-hidden="true">↓</span>
-        </button>
-      </div>
     </section>
   );
 }

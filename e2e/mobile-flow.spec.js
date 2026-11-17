@@ -30,14 +30,13 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
     name: "Any size / flexible",
     exact: true,
   });
-  const seeMatches = page.getByRole("button", { name: "See My Matches" });
   await expect(firstAnswer).toBeVisible();
   await expect(firstAnswer).toBeEnabled();
-  await expect(seeMatches).toBeVisible();
-  await expect(seeMatches).toBeEnabled();
+  await expect(page.getByRole("button", { name: "See My Matches" })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
   await answerEssentialQuiz(page);
+  const seeMatches = page.getByRole("button", { name: "See My Matches" });
   await expect(seeMatches).toBeVisible();
   await seeMatches.click();
 
