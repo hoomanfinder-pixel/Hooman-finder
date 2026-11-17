@@ -1,4 +1,4 @@
-import { expect, test } from "./support.js";
+import { answerEssentialQuiz, expect, test } from "./support.js";
 
 async function trackScrollIntoView(page) {
   await page.addInitScript(() => {
@@ -22,117 +22,112 @@ async function scrollCalls(page) {
   return page.evaluate(() => window.__quizScrollCalls);
 }
 
-test("single-select waits for Continue before scrolling and keeps its answer", async ({
+test("essential progress is semantic and completion actions appear at the stage boundary", async ({
   page,
 }) => {
   await trackScrollIntoView(page);
-  await page.goto("/quiz?session=scroll-single&mode=refine", {
+  await page.goto("/quiz?session=form-progress&mode=dealbreakers", {
     waitUntil: "domcontentloaded",
   });
   await clearScrollCalls(page);
 
-  const answer = page
-    .locator('[data-quiz-question="dog_social_preference"]')
-    .getByRole("button", { name: /^Must be very dog-friendly/ });
-  const continueButton = page
-    .locator('[data-quiz-question="dog_social_preference"]')
-    .getByRole("button", { name: "Continue", exact: true });
+  const progress = page.getByRole("progressbar", { name: "Essentials quiz progress" });
+  await expect(progress).toHaveAttribute("aria-valuemin", "0");
+  await expect(progress).toHaveAttribute("aria-valuemax", "5");
+  await expect(progress).toHaveAttribute("aria-valuenow", "0");
+  await expect(page.getByRole("button", { name: "See My Matches" })).toHaveCount(0);
+  await expect(page.getByText("Answer 5 more essential questions to view your matches.")).toBeVisible();
 
-  await expect(continueButton).toBeDisabled();
-  await answer.click();
+  await answerEssentialQuiz(page);
 
-  await expect(continueButton).toBeEnabled();
+  await expect(progress).toHaveAttribute("aria-valuenow", "5");
+  await expect(page.getByRole("button", { name: "See My Matches" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Deeper questions →" })).toBeVisible();
   expect(await scrollCalls(page)).toEqual([]);
-  await continueButton.click();
-  await expect
-    .poll(() => scrollCalls(page))
-    .toContainEqual({ behavior: "smooth", questionId: "first_time_owner" });
-  await expect(answer).toHaveAttribute("aria-pressed", "true");
+});
+
+test("single-select stays in place, remains editable, and persists", async ({ page }) => {
+  await trackScrollIntoView(page);
+  await page.goto("/quiz?session=form-single&mode=refine", {
+    waitUntil: "domcontentloaded",
+  });
+  await clearScrollCalls(page);
+
+  const question = page.locator('[data-quiz-question="dog_social_preference"]');
+  const firstAnswer = question.getByRole("button", {
+    name: "Must be very dog-friendly",
+    exact: true,
+  });
+  const secondAnswer = question.getByRole("button", {
+    name: "Selective is okay",
+    exact: true,
+  });
+
+  await firstAnswer.click();
+  await expect(firstAnswer).toHaveAttribute("aria-pressed", "true");
+  await secondAnswer.click();
+  await expect(firstAnswer).toHaveAttribute("aria-pressed", "false");
+  await expect(secondAnswer).toHaveAttribute("aria-pressed", "true");
+  expect(await scrollCalls(page)).toEqual([]);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(
     page
       .locator('[data-quiz-question="dog_social_preference"]')
-      .getByRole("button", { name: /^Must be very dog-friendly/ })
+      .getByRole("button", { name: "Selective is okay", exact: true })
   ).toHaveAttribute("aria-pressed", "true");
 });
 
-test("multi-select allows changes and exclusive answers before Continue scrolls", async ({
+test("multi-select supports changes and exclusive answers without navigation controls", async ({
   page,
 }) => {
   await trackScrollIntoView(page);
-  await page.goto("/quiz?session=scroll-multi&mode=dealbreakers", {
+  await page.goto("/quiz?session=form-multi&mode=dealbreakers", {
     waitUntil: "domcontentloaded",
   });
   await clearScrollCalls(page);
 
-  const sizeQuestion = page.locator('[data-quiz-question="size_preference"]');
-  const small = sizeQuestion.getByRole("button", { name: /^Small/ });
-  const medium = sizeQuestion.getByRole("button", { name: /^Medium/ });
-  const continueButton = sizeQuestion.getByRole("button", {
-    name: "Continue",
-    exact: true,
-  });
+  const question = page.locator('[data-quiz-question="size_preference"]');
+  const small = question.getByRole("button", { name: "Small", exact: true });
+  const medium = question.getByRole("button", { name: "Medium", exact: true });
 
-  await expect(continueButton).toBeDisabled();
   await small.click();
-  await expect(continueButton).toBeEnabled();
   await medium.click();
-
   await expect(small).toHaveAttribute("aria-pressed", "true");
   await expect(medium).toHaveAttribute("aria-pressed", "true");
-  expect(await scrollCalls(page)).toEqual([]);
 
-  await sizeQuestion
-    .getByRole("button", { name: "Any size / flexible", exact: true })
-    .click();
+  await question.getByRole("button", { name: "Any size / flexible", exact: true }).click();
   await expect(small).toHaveAttribute("aria-pressed", "false");
   await expect(medium).toHaveAttribute("aria-pressed", "false");
   await expect(
-    sizeQuestion.getByRole("button", { name: /^Any size \/ flexible/ })
+    question.getByRole("button", { name: "Any size / flexible", exact: true })
   ).toHaveAttribute("aria-pressed", "true");
+  await expect(question.getByRole("button", { name: "Continue" })).toHaveCount(0);
   expect(await scrollCalls(page)).toEqual([]);
-
-  await continueButton.click();
-  await expect
-    .poll(() => scrollCalls(page))
-    .toContainEqual({ behavior: "smooth", questionId: "age_preference" });
 });
 
-test("text input does not scroll while typing and enables Continue when valid", async ({
-  page,
-}) => {
+test("text input remains editable without moving the form", async ({ page }) => {
   await trackScrollIntoView(page);
-  await page.goto("/quiz?session=scroll-text&mode=refine", {
+  await page.goto("/quiz?session=form-text&mode=refine", {
     waitUntil: "domcontentloaded",
   });
 
   await page.getByRole("button", { name: /Care & Lifestyle/ }).click();
-  const question = page.locator('[data-quiz-question="adoption_city"]');
-  const input = question.getByPlaceholder("City, MI", { exact: true });
-  const continueButton = question.getByRole("button", {
-    name: "Continue",
-    exact: true,
-  });
+  const input = page
+    .locator('[data-quiz-question="adoption_city"]')
+    .getByPlaceholder("City, MI", { exact: true });
+  await expect(input).toBeVisible();
+  await page.waitForTimeout(50);
   await clearScrollCalls(page);
 
-  await input.fill("   ");
-  await expect(continueButton).toBeDisabled();
-  expect(await scrollCalls(page)).toEqual([]);
-
   await input.fill("Detroit, MI");
-  await expect(continueButton).toBeEnabled();
+  await expect(input).toHaveValue("Detroit, MI");
   expect(await scrollCalls(page)).toEqual([]);
-
-  await continueButton.click();
-  await expect
-    .poll(() => scrollCalls(page))
-    .toContainEqual({ behavior: "smooth", questionId: "adoption_travel_radius" });
 });
 
-test("Back to essentials does not auto-scroll forward to a question", async ({ page }) => {
+test("Back to essentials changes stages without auto-scrolling to a question", async ({ page }) => {
   await trackScrollIntoView(page);
-  await page.goto("/quiz?session=scroll-back&mode=refine", {
+  await page.goto("/quiz?session=form-back&mode=refine", {
     waitUntil: "domcontentloaded",
   });
   await clearScrollCalls(page);
@@ -140,26 +135,23 @@ test("Back to essentials does not auto-scroll forward to a question", async ({ p
   await page.getByRole("button", { name: "← Back to essentials" }).click();
   await expect(page).toHaveURL(/mode=dealbreakers/);
   await expect.poll(() => scrollCalls(page)).not.toEqual([]);
-
   expect((await scrollCalls(page)).filter((call) => call.questionId)).toEqual([]);
 });
 
-test("reduced-motion preference uses immediate scrolling", async ({ page }) => {
+test("reduced-motion preference disables selection animation", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await trackScrollIntoView(page);
-  await page.goto("/quiz?session=scroll-reduced&mode=refine", {
+  await page.goto("/quiz?session=form-reduced&mode=refine", {
     waitUntil: "domcontentloaded",
   });
   await clearScrollCalls(page);
 
-  const question = page.locator('[data-quiz-question="dog_social_preference"]');
-  await question
-    .getByRole("button", { name: "Must be very dog-friendly", exact: true })
-    .click();
-  expect(await scrollCalls(page)).toEqual([]);
-  await question.getByRole("button", { name: "Continue", exact: true }).click();
-
+  const answer = page
+    .locator('[data-quiz-question="dog_social_preference"]')
+    .getByRole("button", { name: "Must be very dog-friendly", exact: true });
+  await answer.click();
   await expect
-    .poll(() => scrollCalls(page))
-    .toContainEqual({ behavior: "auto", questionId: "first_time_owner" });
+    .poll(() => answer.evaluate((element) => getComputedStyle(element).animationName))
+    .toBe("none");
+  expect(await scrollCalls(page)).toEqual([]);
 });
