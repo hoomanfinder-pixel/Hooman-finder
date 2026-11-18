@@ -76,8 +76,9 @@ test("mobile homepage to quiz to results stays usable without horizontal overflo
   expect(firstCardBox.x).toBeGreaterThanOrEqual(0);
   expect(firstCardBox.x + firstCardBox.width).toBeLessThanOrEqual(393);
 
-  const saveButton = firstCard.getByRole("button", { name: "Save dog" });
+  const saveButton = firstCard.getByRole("button", { name: "Save Maple" });
   await expect(saveButton).toBeVisible();
+  await expect(saveButton).toHaveAttribute("aria-pressed", "false");
   await saveButton.focus();
   await expect(saveButton).toBeFocused();
 

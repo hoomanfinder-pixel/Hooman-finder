@@ -429,24 +429,24 @@ export default function Results() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl px-3.5 pb-8 pt-1.5 sm:px-6 sm:py-5 lg:px-8">
-        <section className="pb-1 sm:pb-1.5">
+      <main className="mx-auto w-full max-w-7xl px-3.5 pb-8 pt-3 sm:px-6 sm:py-5 lg:px-8">
+        <section className="rounded-[1.5rem] bg-[#183D35] px-4 py-4 text-white shadow-[0_14px_38px_rgba(24,61,53,0.16)] sm:rounded-[2rem] sm:px-7 sm:py-6">
           <div className="flex items-center justify-between gap-3">
             <Link
               to="/dogs"
-              className="text-[10px] font-black uppercase tracking-[0.24em] text-[#6f6a66] hover:text-[#183D35]"
+              className="text-[10px] font-black uppercase tracking-[0.22em] text-white/70 transition hover:text-[#F3C982]"
             >
               ← Back to browse
             </Link>
           </div>
 
-          <div className="mt-1 flex flex-col gap-1.5 sm:mt-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
+          <div className="mt-2 flex flex-col gap-1.5 sm:mt-3 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
             <div>
-              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.28em] text-[#6f6a66]">
+              <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.26em] text-[#F3C982]">
                 {!loading ? (
                   <span
                     aria-hidden="true"
-                    className="hf-success-bounce inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#183D35] text-[10px] text-[#F3C982]"
+                    className="hf-success-bounce inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#F3C982] text-[10px] text-[#183D35]"
                   >
                     ✓
                   </span>
@@ -454,22 +454,22 @@ export default function Results() {
                 Your fit results
               </p>
 
-              <h1 className="mt-1 max-w-2xl font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.05] text-[#183D35] sm:text-5xl">
+              <h1 className="mt-1.5 max-w-2xl font-['Fraunces',serif] text-[2rem] font-semibold leading-[1.04] text-white sm:text-5xl">
                 Dogs that may fit your lifestyle.
               </h1>
 
-              <p className="mt-1 max-w-2xl text-[13px] font-semibold leading-5 text-[#6f6a66] sm:mt-1.5 sm:text-base sm:leading-6">
+              <p className="mt-2 max-w-2xl text-[13px] font-semibold leading-5 text-white/80 sm:text-base sm:leading-6">
                 Ranked using your quiz answers and available listing details.
               </p>
 
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-[#6f6a66] sm:text-[13px]">
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-white/68 sm:text-[13px]">
                 Matches reflect currently available shelter or foster information and responsible estimates. A dog’s behavior may change as they decompress and adjust to a new home, so confirm important traits directly with the shelter or foster.
               </p>
 
               {fitScoreScope.summary ? (
-                <div className="mt-3 flex max-w-2xl flex-col items-start gap-3 rounded-2xl border border-[#183D35]/10 bg-white/65 px-3.5 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-                  <div className="min-w-0 text-xs font-semibold leading-5 text-[#6F6A66] sm:text-sm">
-                    <p className="text-[#183D35]">{fitScoreScope.summary}</p>
+                <div className="mt-3 flex max-w-2xl flex-col items-start gap-3 rounded-2xl bg-white/10 px-3.5 py-3 ring-1 ring-white/15 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+                  <div className="min-w-0 text-xs font-semibold leading-5 text-white/74 sm:text-sm">
+                    <p className="text-white">{fitScoreScope.summary}</p>
                     {leadingTieCount > 1 ? (
                       <p className="mt-1">
                         {leadingTieCount} dogs share the leading fit score. Their order within this tied group does not indicate a stronger fit.
@@ -479,7 +479,7 @@ export default function Results() {
                   <button
                     type="button"
                     onClick={goRefineQuiz}
-                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border border-[#183D35]/20 bg-white px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#183D35] hover:bg-[#eef3e8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#183D35]"
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full bg-[#F3C982] px-4 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-[#183D35] transition hover:bg-[#f7d695] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                   >
                     Refine your matches
                   </button>
@@ -690,7 +690,7 @@ export default function Results() {
               ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3 xl:gap-6">
+            <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 xl:gap-6">
               {visibleRows.map((row, idx) => (
                 <DogCard
                   key={row.dog?.id ?? idx}

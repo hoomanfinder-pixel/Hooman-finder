@@ -289,6 +289,40 @@ export const deeperQuizDogs = [
   }),
 ];
 
+export const premiumResultCardDogs = [
+  scenarioDog({
+    id: "e2e-premium-limited",
+    name: "Sage",
+    color: "#C7D4BB",
+    energy_level: null,
+    exercise_needs: null,
+    good_with_kids: null,
+    good_with_dogs: null,
+    good_with_cats: null,
+    potty_trained: null,
+    max_alone_hours: null,
+  }),
+  scenarioDog({
+    id: "e2e-premium-estimated",
+    name: "Lumi",
+    color: "#F3C982",
+    ai_traits: {
+      apartment_friendly: {
+        value: "true",
+        confidence: 0.74,
+        evidence_basis: "profile_inference",
+        evidence: "Broader profile context only.",
+      },
+    },
+  }),
+  scenarioDog({
+    id: "e2e-premium-caution",
+    name: "Cedar",
+    color: "#E8B4A2",
+    yard_required: true,
+  }),
+];
+
 export const sizePreferenceDogs = [
   scenarioDog({ id: "size-small", name: "Small Pup", color: "#C7D4BB", size: "Small" }),
   scenarioDog({ id: "size-medium", name: "Medium Pup", color: "#F3C982", size: "Medium" }),

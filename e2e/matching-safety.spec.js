@@ -102,7 +102,10 @@ test.describe("young children compatibility safety", () => {
 
     const generalCard = getResultCard(page, "Harper");
     await expect(generalCard).toBeVisible();
-    await expect(generalCard).toContainText("3 scored preferences · Limited information");
+    await expect(generalCard).toContainText(
+      "Based on 3 scored preferences: size, age, and children in the home."
+    );
+    await expect(generalCard).toContainText("This is not a complete compatibility assessment.");
     await expect(generalCard).not.toContainText(/supports a home with children/i);
     await expect(
       generalCard.getByLabel(/Fit score: \d+\/100.*Based on 3 scored preferences/i)
@@ -237,10 +240,13 @@ test.describe("match evidence coverage", () => {
     const richCard = getResultCard(page, "Atlas");
     const sparseCard = getResultCard(page, "Sapphire");
     await expect(richCard).toContainText("Fit score: 87/100");
-    await expect(richCard).toContainText("3 scored preferences · Limited information");
+    await expect(richCard).toContainText(
+      "Based on 3 scored preferences: children in the home, other pets in the home, and potty training."
+    );
     await expect(richCard).toContainText("Based on 3 scored preferences");
     await expect(richCard).not.toContainText(/supports a home with children/i);
-    await expect(sparseCard).toContainText("Fit score: 73/100 · Limited listing information");
+    await expect(sparseCard).toContainText("Fit score: 73/100");
+    await expect(sparseCard).toContainText("Limited listing information");
 
     await openResultProfile(sparseCard);
     await expect(page).toHaveURL(/\/dog\/e2e-coverage-sparse/);
@@ -271,11 +277,16 @@ test.describe("deeper quiz scoring", () => {
       potty_requirement: "flexible",
     });
 
-    await expect(page.getByText("Based on 2 scored preferences: size and age.")).toBeVisible();
+    await expect(
+      page.getByText("Based on 2 scored preferences: size and age.", { exact: true })
+    ).toBeVisible();
     await expect(page.getByText(/2 dogs share the leading fit score/)).toBeVisible();
     await expect(getResultCard(page, "Quiet Homebody")).toContainText("Tied fit score");
     await expect(getResultCard(page, "Quiet Homebody")).toContainText(
-      "2 scored preferences · Information available"
+      "Based on 2 scored preferences: size and age."
+    );
+    await expect(getResultCard(page, "Quiet Homebody")).toContainText(
+      "This is not a complete compatibility assessment."
     );
     await expect(
       getResultCard(page, "Quiet Homebody").getByLabel(
@@ -299,7 +310,7 @@ test.describe("deeper quiz scoring", () => {
 
     await expect(page).toHaveURL(new RegExp(`/results\\?session=${sessionId}`));
     await expect(
-      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.")
+      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.", { exact: true })
     ).toBeVisible();
     const savedAnswers = await page.evaluate((id) => JSON.parse(
       window.localStorage.getItem(`hoomanFinder.quizResponses.local.v1:${id}`)
@@ -310,7 +321,7 @@ test.describe("deeper quiz scoring", () => {
 
     await openResultProfile(getResultCard(page, "Quiet Homebody"));
     await expect(
-      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.")
+      page.getByText("Based on 3 scored preferences: size, age, and daily exercise.", { exact: true })
     ).toBeVisible();
     await expect(page.getByText("Information is available for all scored preferences.")).toBeVisible();
   });
