@@ -46,6 +46,8 @@ export default function Saved() {
   const [savedIds, setSavedIds] = useState(() => readSavedIds());
   const [loading, setLoading] = useState(true);
   const [dogs, setDogs] = useState([]);
+  const [missingIds, setMissingIds] = useState([]);
+  const [unavailableIds, setUnavailableIds] = useState([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -70,6 +72,8 @@ export default function Saved() {
     async function load() {
       setError("");
       setDogs([]);
+      setMissingIds([]);
+      setUnavailableIds([]);
       setLoading(true);
 
       try {
@@ -84,18 +88,26 @@ export default function Saved() {
         const { data, error: fetchError } = await supabase
           .from("dogs")
           .select(DOG_SELECT)
-          .in("id", savedIds)
-          .eq("adoptable", true)
-          .or("adoption_pending.is.null,adoption_pending.eq.false")
-          .in("availability_status", ["available", "active", "unknown"]);
+          .in("id", savedIds);
 
         if (fetchError) throw fetchError;
 
-        const rows = filterPublicDogs(data);
+        const allRows = Array.isArray(data) ? data : [];
+        const rows = filterPublicDogs(allRows);
         const map = new Map(rows.map((dog) => [String(dog.id), dog]));
         const ordered = savedIds.map((id) => map.get(String(id))).filter(Boolean);
+        const foundIds = new Set(allRows.map((dog) => String(dog.id)));
+        const savedIdSet = new Set(savedIds.map(String));
+        const unresolved = savedIds.filter((id) => !foundIds.has(String(id)));
+        const notPublic = allRows
+          .filter((dog) => savedIdSet.has(String(dog.id)) && !map.has(String(dog.id)))
+          .map((dog) => String(dog.id));
 
-        if (!cancelled) setDogs(ordered);
+        if (!cancelled) {
+          setDogs(ordered);
+          setMissingIds([...new Set(unresolved)]);
+          setUnavailableIds([...new Set(notPublic)]);
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e?.message || "Something went wrong loading saved dogs.");
@@ -113,6 +125,36 @@ export default function Saved() {
   }, [savedIds]);
 
   const count = useMemo(() => dogs.length, [dogs]);
+  const unavailableCount = missingIds.length + unavailableIds.length;
+
+  function clearUnavailableSaves() {
+    const unavailableSet = new Set([...missingIds, ...unavailableIds]);
+    const nextSavedIds = savedIds.filter((id) => !unavailableSet.has(String(id)));
+
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(nextSavedIds));
+    } catch {
+      // Keep the current view usable when browser storage is unavailable.
+    }
+
+    setSavedIds(nextSavedIds);
+    window.dispatchEvent(new Event("hooman:saved_changed"));
+  }
+
+  const unavailableDetails = (
+    <>
+      {unavailableIds.length > 0 ? (
+        <span>
+          {unavailableIds.length} saved {unavailableIds.length === 1 ? "listing is" : "listings are"} no longer in the public catalog.
+        </span>
+      ) : null}{" "}
+      {missingIds.length > 0 ? (
+        <span>
+          {missingIds.length} saved {missingIds.length === 1 ? "listing could" : "listings could"} not be found.
+        </span>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
@@ -125,7 +167,7 @@ export default function Saved() {
         noindex
       />
       <header className="sticky top-0 z-50 border-b border-[#183D35]/10 bg-[#F5F1E9]/92 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -154,47 +196,41 @@ export default function Saved() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-4xl px-3.5 py-4 sm:px-6 sm:py-8">
-        <section className="pb-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#6F6A66]">
-            Your shortlist
-          </p>
+      <main className="mx-auto w-full max-w-6xl px-3.5 pb-8 pt-3 sm:px-6 sm:py-6">
+        <section className="rounded-[1.5rem] bg-[#183D35] px-4 py-5 text-white shadow-[0_14px_38px_rgba(24,61,53,0.16)] sm:rounded-[2rem] sm:px-7 sm:py-7">
+          <Link to="/dogs" className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:text-[#F3C982]">
+            ← Continue browsing
+          </Link>
 
-          <div className="mt-2 flex items-end justify-between gap-4">
+          <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="font-['Fraunces',serif] text-[2.65rem] font-semibold leading-[1.02] tracking-[-0.02em] text-[#183D35] sm:text-6xl">
-                Saved
+              <p className="text-[10px] font-black uppercase tracking-[0.27em] text-[#F3C982]">Your shortlist</p>
+              <h1 className="mt-1 font-['Fraunces',serif] text-[2.6rem] font-semibold leading-[1.02] tracking-[-0.02em] text-white sm:text-6xl">
+                Saved dogs
               </h1>
 
-              <p className="mt-3 max-w-xl text-sm leading-6 text-[#6F6A66] sm:text-base">
-                Review dogs you've saved, then open a profile to continue with the listing shelter or rescue.
+              <p className="mt-2 max-w-xl text-sm leading-6 text-white/75 sm:text-base">
+                A thoughtful shortlist to revisit. Open a profile to learn more and continue with the shelter or rescue.
               </p>
             </div>
 
             <Link
-              to="/dogs"
-              className="hidden rounded-full border border-[#183D35] bg-[#183D35] px-5 py-3 text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C] sm:inline-flex"
-            >
-              Browse more
-            </Link>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2 overflow-x-auto pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
-            <span className="shrink-0 rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2">
-              {count} saved dog{count === 1 ? "" : "s"}
-            </span>
-
-            <Link
               to="/quiz"
-              className="shrink-0 rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2 hover:bg-white"
+              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#F3C982] px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#183D35] transition hover:bg-[#f7d695] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               Find my match
             </Link>
           </div>
+
+          <div className="mt-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/80">
+            <span className="shrink-0 rounded-full bg-white/10 px-3 py-2 ring-1 ring-white/15">
+              {count} saved dog{count === 1 ? "" : "s"}
+            </span>
+          </div>
         </section>
 
         {loading ? (
-          <div className="mt-4 space-y-3">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <p role="status" className="sr-only">
               Loading saved dogs.
             </p>
@@ -202,9 +238,9 @@ export default function Saved() {
               <div
                 key={index}
                 aria-hidden="true"
-                className="grid grid-cols-[92px_1fr] items-center gap-3 rounded-[1.35rem] border border-[#183D35]/10 bg-white/80 p-2.5 sm:grid-cols-[116px_1fr] sm:p-3"
+                className="rounded-[1.5rem] bg-white p-3 shadow-sm ring-1 ring-[#183D35]/8"
               >
-                <div className="hf-skeleton aspect-square rounded-[1.05rem]" />
+                <div className="hf-skeleton aspect-[16/10] rounded-[1.1rem] sm:aspect-[4/3]" />
                 <div className="space-y-2 py-1">
                   <div className="hf-skeleton h-5 w-1/2 rounded-full" />
                   <div className="hf-skeleton h-3 w-1/3 rounded-full" />
@@ -214,15 +250,17 @@ export default function Saved() {
             ))}
           </div>
         ) : error ? (
-          <div className="mt-4 rounded-[1.35rem] border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">
-            {error}
+          <div className="mt-5 rounded-[1.5rem] bg-white p-5 shadow-sm ring-1 ring-red-200" role="alert">
+            <h2 className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">We couldn’t load your shortlist.</h2>
+            <p className="mt-2 text-sm leading-6 text-[#6F6A66]">Your saved dogs are still stored on this device. Check your connection and try again.</p>
+            <button type="button" onClick={() => setSavedIds(readSavedIds())} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-[#F3C982]">Try again</button>
           </div>
         ) : !savedIds.length ? (
-          <div className="mt-4 rounded-[1.6rem] border border-[#183D35]/10 bg-white/62 p-5">
-            <div className="text-4xl">♡</div>
+          <div className="mt-5 rounded-[1.6rem] bg-white px-5 py-7 shadow-sm ring-1 ring-[#183D35]/8 sm:px-8" aria-labelledby="saved-empty-title">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#eef3e8] text-3xl text-[#183D35]" aria-hidden="true">♡</div>
 
-            <h2 className="mt-3 font-['Fraunces',serif] text-2xl font-semibold tracking-[-0.01em] text-[#183D35]">
-              No saved dogs yet.
+            <h2 id="saved-empty-title" className="mt-4 font-['Fraunces',serif] text-3xl font-semibold tracking-[-0.01em] text-[#183D35]">
+              Your shortlist starts here.
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#6F6A66]">
@@ -232,22 +270,31 @@ export default function Saved() {
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/dogs"
-                className="rounded-2xl bg-[#183D35] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#F3C982] hover:bg-[#12332C]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#183D35] px-5 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-[#F3C982] hover:bg-[#12332C]"
               >
                 Browse dogs
               </Link>
 
               <Link
                 to="/quiz"
-                className="rounded-2xl border border-[#183D35] px-5 py-3 text-center text-xs font-bold uppercase tracking-[0.16em] text-[#183D35]"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#183D35]/20 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-[#183D35]"
               >
                 Take quiz
               </Link>
             </div>
           </div>
-        ) : dogs.length === 0 ? (
-          <div className="mt-4 rounded-[1.35rem] border border-[#183D35]/10 bg-white/60 p-5 text-sm leading-6 text-[#6F6A66]">
-            Saved dogs couldn't be loaded. They may have been removed or marked unavailable.
+        ) : savedIds.length > 0 && dogs.length === 0 ? (
+          <div className="mt-5 rounded-[1.5rem] bg-white p-5 shadow-sm ring-1 ring-[#183D35]/8" aria-labelledby="saved-unavailable-title">
+            <h2 id="saved-unavailable-title" className="font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">Your saved dogs aren’t available to show.</h2>
+            <p className="mt-2 text-sm leading-6 text-[#6F6A66]">
+              {unavailableDetails} This can happen when a listing is removed or its availability changes, but it does not confirm that a dog was adopted.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link to="/dogs" className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#183D35] px-5 text-xs font-black uppercase tracking-[0.12em] text-[#F3C982]">Browse dogs</Link>
+              <button type="button" onClick={clearUnavailableSaves} className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#183D35]/20 px-5 text-xs font-black uppercase tracking-[0.12em] text-[#183D35]">
+                Clear unavailable {unavailableCount === 1 ? "save" : "saves"}
+              </button>
+            </div>
           </div>
         ) : (
           <section className="mt-4">
@@ -257,17 +304,29 @@ export default function Saved() {
               </h2>
 
               <span className="rounded-full border border-[#183D35]/10 bg-white/58 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-[#6F6A66]">
-                {dogs.length} loaded
+                {count} saved
               </span>
             </div>
 
-            <div className="space-y-3">
+            <div className="grid items-start gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3">
               {dogs.map((dog) => (
                 <DogCard key={dog.id} dog={dog} showMatch={false} variant="saved" />
               ))}
             </div>
           </section>
         )}
+
+        {!loading && !error && unavailableCount > 0 && dogs.length > 0 ? (
+          <aside className="mt-5 rounded-2xl bg-[#fff9eb] p-4 text-amber-950 ring-1 ring-amber-300" aria-labelledby="saved-partial-title">
+            <h2 id="saved-partial-title" className="font-['Fraunces',serif] text-xl font-semibold">Some saved dogs aren’t available to show.</h2>
+            <p className="mt-1 text-sm leading-6">
+              {unavailableDetails} This does not confirm that a dog was adopted.
+            </p>
+            <button type="button" onClick={clearUnavailableSaves} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full border border-amber-950/20 bg-white/55 px-5 text-xs font-black uppercase tracking-[0.12em] text-amber-950 hover:bg-white">
+              Clear unavailable {unavailableCount === 1 ? "save" : "saves"}
+            </button>
+          </aside>
+        ) : null}
       </main>
 
       <SiteFooter />
