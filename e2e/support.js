@@ -34,18 +34,27 @@ async function mockSupabase(page, dogs) {
 
     if (resource === "dogs") {
       const idFilter = url.searchParams.get("id");
-      const dog = idFilter
+      const dog = idFilter?.startsWith("eq.")
         ? dogs.find(({ id }) => idFilter === `eq.${id}`)
         : null;
+      const selectedIds = idFilter?.startsWith("in.(")
+        ? new Set(idFilter
+            .slice(4, -1)
+            .split(",")
+            .map((value) => value.replace(/^"|"$/g, "")))
+        : null;
+      const selectedDogs = selectedIds
+        ? dogs.filter(({ id }) => selectedIds.has(String(id)))
+        : dogs;
       const wantsSingle = request.headers()["accept"]?.includes("vnd.pgrst.object");
 
       await route.fulfill({
-        status: dog || !idFilter ? 200 : 404,
+        status: idFilter?.startsWith("eq.") && !dog ? 404 : 200,
         headers: {
           "content-type": "application/json",
-          "content-range": `0-${Math.max(dogs.length - 1, 0)}/${dogs.length}`,
+          "content-range": `0-${Math.max(selectedDogs.length - 1, 0)}/${selectedDogs.length}`,
         },
-        body: JSON.stringify(idFilter && wantsSingle ? dog || {} : dog ? [dog] : dogs),
+        body: JSON.stringify(idFilter && wantsSingle ? dog || {} : dog ? [dog] : selectedDogs),
       });
       return;
     }
