@@ -339,7 +339,10 @@ export default function DogDetail() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [imgSrc, setImgSrc] = useState(FALLBACK_IMG);
+  const [imageFailed, setImageFailed] = useState(false);
   const [saved, setSaved] = useState(() => isSavedId(id));
+  const [saveAnnouncement, setSaveAnnouncement] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [quizMatch, setQuizMatch] = useState(() => {
     const stateMatch = routerLocation.state?.match;
     return isRealMatchScore(stateMatch) ? stateMatch : null;
@@ -454,7 +457,7 @@ export default function DogDetail() {
     return () => {
       isMounted = false;
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
   useEffect(() => {
     let isMounted = true;
@@ -514,6 +517,7 @@ export default function DogDetail() {
 
   useEffect(() => {
     setImgSrc(resolvedImage || FALLBACK_IMG);
+    setImageFailed(false);
   }, [resolvedImage]);
 
   const dogIsPublic = dog ? isPubliclyVisibleDog(dog) : false;
@@ -566,40 +570,96 @@ export default function DogDetail() {
   function onToggleSaved() {
     const nextSaved = toggleSavedId(id);
     setSaved(nextSaved);
+    setSaveAnnouncement(
+      nextSaved
+        ? `${dog?.name || "Dog"} saved to your dogs.`
+        : `${dog?.name || "Dog"} removed from your saved dogs.`
+    );
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
         {seo}
-        <div className="mx-auto max-w-6xl px-4 py-8 text-[#6F6A66]">
-          Loading dog…
-        </div>
+        <SiteHeader back={{ to: "/dogs", label: "Back to dogs" }} />
+        <main className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-8" aria-busy="true">
+          <p role="status" className="sr-only">Loading dog profile.</p>
+          <div className="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_18px_50px_rgba(24,61,53,0.10)] ring-1 ring-[#183D35]/8 sm:rounded-[2.25rem]">
+            <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
+              <div className="hf-skeleton aspect-[4/3] lg:min-h-[34rem] lg:aspect-auto" />
+              <div className="space-y-4 bg-[#183D35] p-6 sm:p-8 lg:p-10">
+                <div className="hf-skeleton h-3 w-32 rounded-full opacity-40" />
+                <div className="hf-skeleton h-14 w-2/3 rounded-2xl opacity-50" />
+                <div className="hf-skeleton h-5 w-3/4 rounded-full opacity-40" />
+                <div className="flex gap-2 pt-2">
+                  <div className="hf-skeleton h-14 w-24 rounded-2xl opacity-40" />
+                  <div className="hf-skeleton h-14 w-28 rounded-2xl opacity-40" />
+                </div>
+                <div className="hf-skeleton mt-8 h-44 rounded-[1.5rem] opacity-45" />
+              </div>
+            </div>
+          </div>
+        </main>
+        <SiteFooter />
       </div>
     );
   }
 
-  if (loadError || !dog || !dogIsPublic) {
+  if (loadError || !dog) {
     return (
       <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
         {seo}
         <SiteHeader back={{ to: "/dogs", label: "Back to dogs" }} />
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="rounded-2xl border border-[#183D35]/10 bg-white p-6">
-            <h1 className="font-['Fraunces',serif] text-xl font-semibold text-[#183D35]">
-              This dog may no longer be available
+        <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
+          <div className="rounded-[1.75rem] bg-white p-6 shadow-[0_16px_42px_rgba(24,61,53,0.08)] ring-1 ring-[#183D35]/8 sm:p-9" role="alert">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#eef3e8] text-2xl" aria-hidden="true">♡</div>
+            <h1 className="mt-5 font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35]">
+              We couldn’t load this profile.
             </h1>
-            <p className="mt-2 text-[#6F6A66]">
-              Browse current adoptable dogs instead.
+            <p className="mt-3 max-w-xl text-base leading-7 text-[#6F6A66]">
+              The listing may still be available. Check your connection and try again, or browse the current public catalog.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setReloadKey((value) => value + 1)}
+                className="inline-flex min-h-12 items-center justify-center rounded-full bg-[#183D35] px-6 text-sm font-black text-[#F3C982] hover:bg-[#12332C]"
+              >
+                Try again
+              </button>
+              <Link to="/dogs" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#183D35]/15 px-6 text-sm font-black text-[#183D35] hover:bg-white">
+                Browse dogs
+              </Link>
+            </div>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
+
+  if (!dogIsPublic) {
+    return (
+      <div className="min-h-screen bg-[#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
+        {seo}
+        <SiteHeader back={{ to: "/dogs", label: "Back to dogs" }} />
+        <main className="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-14">
+          <div className="rounded-[1.75rem] bg-white p-6 shadow-[0_16px_42px_rgba(24,61,53,0.08)] ring-1 ring-[#183D35]/8 sm:p-9">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#9B6B16]">Listing update</p>
+            <h1 className="mt-3 font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35]">
+              This listing isn’t currently available to show.
+            </h1>
+            <p className="mt-3 max-w-xl text-base leading-7 text-[#6F6A66]">
+              It is no longer in Hooman Finder’s public catalog. That does not confirm whether the dog was adopted; the shelter or rescue is the source for current status.
             </p>
             <Link
               to="/dogs"
-              className="mt-5 inline-flex rounded-full bg-[#183D35] px-5 py-2.5 text-sm font-semibold text-[#F3C982] hover:bg-[#12332C]"
+              className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-[#183D35] px-6 text-sm font-black text-[#F3C982] hover:bg-[#12332C]"
             >
-              Browse current adoptable dogs
+              Browse available dogs
             </Link>
           </div>
-        </div>
+        </main>
         <SiteFooter />
       </div>
     );
@@ -624,11 +684,85 @@ export default function DogDetail() {
     dog.gender ? { label: "Gender", value: dog.gender } : null,
     dog.size ? { label: "Size", value: dog.size } : null,
     dog.energy_level ? { label: "Energy", value: dog.energy_level } : null,
-    location !== "Location unknown" ? { label: "Location", value: location } : null,
   ].filter(Boolean);
 
   const aiTraits = parseAiTraits(dog.ai_traits);
   const aiDisclosure = getAiDisclosure(aiTraits);
+  const profileTraits = [
+    { label: "Size", trait: getSizeTrait({ structuredValue: dog.size, bioValue: dog.bio_size }) },
+    {
+      label: "Energy",
+      trait: getEnergyTrait({
+        structuredValue: dog.energy_level || dog.activity_level,
+        bioValue: dog.bio_energy_level,
+        evidenceBasis: aiTraits?.energy_level?.evidence_basis,
+      }),
+    },
+    {
+      label: "Potty trained",
+      trait: getTraitDisplay({
+        structuredValue: dog.potty_trained,
+        bioValue: dog.bio_potty_trained,
+        evidenceBasis: aiTraits?.potty_trained?.evidence_basis,
+      }),
+    },
+    {
+      label: "Good with dogs",
+      trait: getTraitDisplay({
+        structuredValue: dog.good_with_dogs,
+        bioValue: dog.bio_good_with_dogs,
+        evidenceBasis: aiTraits?.good_with_dogs?.evidence_basis,
+      }),
+    },
+    {
+      label: "Good with cats",
+      trait: getTraitDisplay({
+        structuredValue: dog.good_with_cats,
+        bioValue: dog.bio_good_with_cats,
+        evidenceBasis: aiTraits?.good_with_cats?.evidence_basis,
+      }),
+    },
+    { label: "Good with kids", trait: getChildTraitDisplay(dog) },
+    {
+      label: "Shedding",
+      trait: getSheddingTrait({
+        structuredValue: dog.shedding_level,
+        bioValue: dog.bio_shedding_level,
+        evidenceBasis: aiTraits?.shedding_level?.evidence_basis,
+      }),
+    },
+    {
+      label: "Alone time",
+      trait: getEstimatedTextTrait({
+        value: dog.bio_max_alone_hours_label,
+        displayValue:
+          dog.bio_max_alone_hours_label && dog.bio_max_alone_hours_label !== "unknown"
+            ? `Likely ${dog.bio_max_alone_hours_label} hrs`
+            : "",
+        evidenceBasis: aiTraits?.max_alone_hours_estimate?.evidence_basis,
+      }),
+    },
+    {
+      label: "Exercise needs",
+      trait: getEnergyTrait({
+        structuredValue: dog.exercise_needs,
+        bioValue: dog.bio_exercise_needs,
+        evidenceBasis: aiTraits?.exercise_needs?.evidence_basis,
+      }),
+    },
+    {
+      label: "Training needs",
+      trait: getEnergyTrait({
+        structuredValue: obedienceTrainingNeed(dog.obedience_training),
+        bioValue: dog.bio_training_needs,
+        evidenceBasis: aiTraits?.training_needs?.evidence_basis,
+      }),
+    },
+  ];
+  const confirmedTraits = profileTraits.filter(({ trait }) => !trait.estimated && trait.source !== "unknown");
+  const estimatedTraits = profileTraits.filter(({ trait }) => trait.estimated);
+  const unknownTraits = profileTraits.filter(({ trait }) => trait.source === "unknown");
+  const hasDogPhoto = Boolean(resolvedImage) && !imageFailed;
   const hasBioTraitData =
     hasUsefulBioValue(dog.bio_good_with_kids) ||
     hasUsefulBioValue(dog.bio_good_with_dogs) ||
@@ -802,7 +936,7 @@ export default function DogDetail() {
           )
         : null}
 
-      {photoOpen ? (
+      {photoOpen && hasDogPhoto ? (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center bg-[#183D35]/80 px-3 py-5 backdrop-blur-sm sm:px-4 sm:py-6"
           role="dialog"
@@ -827,7 +961,10 @@ export default function DogDetail() {
               src={imgSrc}
               alt={`${name}, enlarged adoptable ${breed} photo`}
               className="max-h-[88vh] max-w-full rounded-2xl bg-white object-contain shadow-2xl"
-              onError={() => setImgSrc(FALLBACK_IMG)}
+              onError={() => {
+                setImageFailed(true);
+                setPhotoOpen(false);
+              }}
             />
           </div>
         </div>
@@ -912,7 +1049,7 @@ export default function DogDetail() {
         }}
       />
 
-      <div className="mx-auto max-w-5xl px-4 py-5 sm:py-6">
+      <div className="mx-auto max-w-6xl px-3.5 py-4 sm:px-6 sm:py-7">
         <Breadcrumbs
           items={[
             { label: "Home", to: "/" },
@@ -921,24 +1058,35 @@ export default function DogDetail() {
             { label: name, to: `/dog/${id}` },
           ]}
         />
-        <section className="mt-4 overflow-hidden rounded-[2rem] border border-[#183D35]/10 bg-white shadow-sm">
-          <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="relative aspect-[5/4] w-full bg-[#EFE8DC] lg:aspect-auto lg:min-h-[360px]">
-              <button
-                type="button"
-                onClick={() => setPhotoOpen(true)}
-                className="group absolute inset-0 block h-full w-full cursor-zoom-in bg-[#EFE8DC] transition focus:outline-none focus-visible:ring-4 focus-visible:ring-[#183D35]/20"
-                aria-label={`Open larger photo of ${name}`}
-              >
-                <img
-                  src={imgSrc}
-                  alt={`${name}, adoptable ${breed}`}
-                  className="h-full w-full bg-[#EFE8DC] object-cover object-[50%_30%] transition duration-200 group-hover:brightness-95"
-                  onError={() => setImgSrc(FALLBACK_IMG)}
-                />
-              </button>
+        <section className="mt-3 overflow-hidden rounded-[1.75rem] bg-white shadow-[0_20px_58px_rgba(24,61,53,0.14)] ring-1 ring-[#183D35]/8 sm:mt-4 sm:rounded-[2.25rem]">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-[#dfe7d7] sm:aspect-[16/11] lg:aspect-auto lg:min-h-[34rem]">
+              {hasDogPhoto ? (
+                <button
+                  type="button"
+                  onClick={() => setPhotoOpen(true)}
+                  className="group absolute inset-0 block h-full w-full cursor-zoom-in bg-[#EFE8DC] focus:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-white/80"
+                  aria-label={`Open larger photo of ${name}`}
+                >
+                  <img
+                    src={imgSrc}
+                    alt={`${name}, adoptable ${breed}`}
+                    className="hf-profile-photo h-full w-full bg-[#EFE8DC] object-cover object-[50%_28%] transition duration-500 group-hover:scale-[1.018]"
+                    onError={() => setImageFailed(true)}
+                  />
+                  <span className="absolute bottom-4 left-4 rounded-full bg-black/45 px-3 py-1.5 text-xs font-bold text-white opacity-0 backdrop-blur-sm transition group-hover:opacity-100 group-focus-visible:opacity-100">
+                    View photo
+                  </span>
+                </button>
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#eef3e8,#dfe7d7)] px-6 text-center" role="img" aria-label={`Photo unavailable for ${name}`}>
+                  <span className="text-6xl" aria-hidden="true">🐶</span>
+                  <p className="mt-4 font-['Fraunces',serif] text-2xl font-semibold text-[#183D35]">Photo unavailable</p>
+                  <p className="mt-2 max-w-xs text-sm leading-6 text-[#527166]">The official listing may have more photos of {name}.</p>
+                </div>
+              )}
 
-              {hasMultiplePhotos ? (
+              {hasMultiplePhotos && hasDogPhoto ? (
                 <>
                   <button
                     type="button"
@@ -964,26 +1112,26 @@ export default function DogDetail() {
                 </>
               ) : null}
 
-              <button
-                type="button"
-                onClick={onToggleSaved}
-                className={[
-                  "absolute bottom-4 right-4 z-10 inline-flex min-h-11 items-center justify-center rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition",
-                  saved
-                    ? "border-rose-600 bg-rose-600 text-white"
-                    : "border-[#183D35]/10 bg-white text-[#183D35] hover:bg-[#F5F1E9]",
-                ].join(" ")}
-              >
-                {saved ? "♥ Saved" : "♡ Save"}
-              </button>
             </div>
 
-            <div className="flex flex-col justify-center border-t border-[#183D35]/10 bg-gradient-to-b from-white to-[#F5F1E9]/70 px-5 py-5 sm:px-7 sm:py-7 lg:border-l lg:border-t-0">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-[#6F6A66]">
-                Adoptable dog profile
+            <div className="flex flex-col justify-center bg-[#183D35] px-5 py-6 text-white sm:px-8 sm:py-9 lg:px-10 lg:py-11">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-[#F3C982]">Adoptable dog profile</p>
+                <button
+                  type="button"
+                  onClick={onToggleSaved}
+                  className="hf-save-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-white/10 px-4 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white hover:text-[#183D35]"
+                  aria-label={saved ? `♥ Saved — Remove ${name} from saved dogs` : `♡ Save ${name}`}
+                  aria-pressed={saved}
+                  data-saved={saved ? "true" : "false"}
+                >
+                  <span className="hf-save-heart text-lg text-[#F3C982]" aria-hidden="true">{saved ? "♥" : "♡"}</span>
+                  {saved ? "Saved" : "Save"}
+                </button>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <h1 className="font-['Fraunces',serif] text-3xl font-semibold leading-tight text-[#183D35] sm:text-4xl">
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                <h1 className="font-['Fraunces',serif] text-[2.9rem] font-semibold leading-[0.98] tracking-[-0.03em] text-white sm:text-6xl">
                   {name}
                 </h1>
 
@@ -991,7 +1139,7 @@ export default function DogDetail() {
                   <button
                     type="button"
                     onClick={() => setMatchInfoOpen(true)}
-                    className="inline-flex flex-col items-start rounded-2xl border border-[#183D35]/10 bg-[#dfe7d7] px-3 py-1.5 text-left text-[11px] font-black uppercase leading-tight tracking-[0.14em] text-[#183D35] shadow-sm hover:bg-[#eef3e8]"
+                    className="inline-flex flex-col items-start rounded-2xl bg-white/10 px-3 py-2 text-left text-[11px] font-black uppercase leading-tight tracking-[0.14em] text-white ring-1 ring-white/20 hover:bg-white/15"
                     aria-label={[
                       "Open fit score details",
                       fitScoreLabel,
@@ -1005,7 +1153,7 @@ export default function DogDetail() {
                         : fitScoreLabel}
                     </span>
                     {fitScoreScope.prominent ? (
-                      <span className="mt-0.5 text-[9px] font-bold normal-case tracking-normal text-[#527166]">
+                      <span className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-white/65">
                         {fitScoreScope.prominent}
                       </span>
                     ) : null}
@@ -1013,34 +1161,33 @@ export default function DogDetail() {
                 ) : null}
               </div>
               {coreFactsLine ? (
-                <p className="mt-2 text-sm leading-5 text-[#6F6A66] sm:text-base">
+                <p className="mt-3 text-base font-semibold leading-6 text-white/76">
                   {coreFactsLine}
                 </p>
               ) : null}
 
+              <p className="mt-2 text-sm font-semibold text-white/65">{location}</p>
+
               <div className="mt-3 flex flex-wrap gap-2">
                 {quickFacts.map((fact) => (
-                  <QuickFact key={`${fact.label}-${fact.value}`} label={fact.label} value={fact.value} />
+                  <QuickFact key={`${fact.label}-${fact.value}`} label={fact.label} value={fact.value} tone="dark" />
                 ))}
               </div>
 
-              <div className="mt-5 rounded-3xl border border-[#183D35]/10 bg-white/85 p-4 shadow-sm">
-                <div className="text-sm font-extrabold text-[#183D35]">
-                  Ready to take the next step?
-                </div>
-                <p className="mt-1 text-sm leading-5 text-[#6F6A66]">
-                  Hooman Finder helps you compare adoption fit information for {name}. The listing shelter or rescue manages applications, fees,
-                  availability, and final adoption decisions.
+              <div className="mt-6 rounded-[1.5rem] bg-white/8 p-4 ring-1 ring-white/15 sm:p-5">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-[#F3C982]">Continue with the source</p>
+                <p className="mt-2 text-sm leading-6 text-white/72">
+                  {shelterName} manages availability, applications, fees, and final adoption decisions.
                 </p>
 
                 <a
                   href={applyLink || "#"}
                   target="_blank"
                   rel="noreferrer"
-                  className={`mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-semibold transition ${
+                  className={`mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full px-6 py-3 text-sm font-black ${
                     applyLink
-                      ? "bg-[#183D35] text-[#F3C982] hover:bg-[#12332C]"
-                      : "cursor-not-allowed bg-[#EFE8DC] text-[#6F6A66]"
+                      ? "bg-[#F3C982] text-[#183D35] hover:bg-[#f7d695]"
+                      : "cursor-not-allowed bg-white/12 text-white/55"
                   }`}
                   onClick={(e) => {
                     if (!applyLink) {
@@ -1055,27 +1202,27 @@ export default function DogDetail() {
                   {applyLabel}
                 </a>
 
-                <p className="mt-3 text-xs leading-5 text-[#6F6A66]">
-                  Opens the shelter or rescue’s official listing, website, or application page.
+                <p className="mt-3 text-xs leading-5 text-white/58">
+                  Opens the shelter or rescue’s validated official destination in a new tab.
                 </p>
               </div>
+
+              <p role="status" className="sr-only" aria-live="polite">{saveAnnouncement}</p>
             </div>
           </div>
         </section>
 
-        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start">
+        <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
 
           {hasQuizMatch ? (
-            <section className="order-3 rounded-3xl border border-[#dfe7d7] bg-[#f7faf3] p-5 shadow-sm sm:p-6 lg:col-span-2">
+            <section className="order-3 overflow-hidden rounded-[1.75rem] bg-[#eef3e8] p-5 shadow-[0_12px_34px_rgba(24,61,53,0.08)] ring-1 ring-[#183D35]/8 sm:p-7 lg:col-span-2" aria-labelledby="profile-match-title">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#6F6A66]">
-                    Why this dog may fit
-                  </div>
-                  <h2 className="mt-2 font-['Fraunces',serif] text-2xl font-semibold leading-tight text-[#183D35]">
+                  <div className="text-xs font-black uppercase tracking-[0.18em] text-[#527166]">Your lifestyle fit</div>
+                  <h2 id="profile-match-title" className="mt-2 font-['Fraunces',serif] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[#183D35]">
                     {name} may fit parts of your home and routine.
                   </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6F6A66]">
+                  <p className="mt-2 max-w-2xl text-base leading-7 text-[#527166]">
                     These highlights come from your quiz answers and the dog details currently available from the shelter or rescue.
                   </p>
                   {fitScoreScope.summary ? (
@@ -1089,7 +1236,7 @@ export default function DogDetail() {
               </div>
 
               {matchCautions.length ? (
-                <div className="mt-4 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
+                <div className="mt-5 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-bold leading-5 text-amber-950" role="alert">
                   <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-800">
                     Important compatibility caution
                   </div>
@@ -1118,11 +1265,11 @@ export default function DogDetail() {
               ) : null}
 
               {matchReasons.length ? (
-                <ul className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <ul className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {matchReasons.slice(0, 4).map((reason) => (
                     <li
                       key={reason.explanation}
-                      className="flex gap-2.5 rounded-2xl border border-[#183D35]/10 bg-white/80 px-3.5 py-3 text-sm font-semibold leading-5 text-[#6F6A66]"
+                      className="flex gap-3 rounded-2xl bg-white/82 px-4 py-4 text-sm font-semibold leading-6 text-[#527166] shadow-sm ring-1 ring-[#183D35]/8"
                     >
                       <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#dfe7d7] text-[11px] text-[#183D35]">
                         ✓
@@ -1155,12 +1302,13 @@ export default function DogDetail() {
             </section>
           ) : null}
 
-          <section className="order-4 rounded-3xl border border-[#183D35]/10 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2">
+          <section className="order-4 rounded-[1.75rem] bg-white p-5 shadow-[0_12px_34px_rgba(24,61,53,0.07)] ring-1 ring-[#183D35]/8 sm:p-7 lg:col-span-2" aria-labelledby="profile-traits-title">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#183D35]">What we noticed</h2>
-                <p className="mt-1 text-sm leading-5 text-[#6F6A66]">
-                  Listed details first, with gentle notes from the shelter or rescue bio when available.
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-[#6F6A66]">Lifestyle details</p>
+                <h2 id="profile-traits-title" className="mt-2 font-['Fraunces',serif] text-3xl font-semibold tracking-[-0.02em] text-[#183D35]">Known details and thoughtful estimates</h2>
+                <p className="mt-2 max-w-2xl text-base leading-7 text-[#6F6A66]">
+                  Source-listed facts stay distinct from interpretations and unknowns, so you know what to confirm.
                 </p>
               </div>
 
@@ -1168,7 +1316,7 @@ export default function DogDetail() {
                 <button
                   type="button"
                   onClick={() => setAiInfoOpen(true)}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#183D35]/10 bg-[#F5F1E9] text-sm font-black text-[#6F6A66] hover:bg-[#EFE8DC] hover:text-[#183D35]"
+                  className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#F5F1E9] text-sm font-black text-[#6F6A66] ring-1 ring-[#183D35]/10 hover:bg-[#EFE8DC] hover:text-[#183D35]"
                   aria-label="Learn about bio notes"
                 >
                   i
@@ -1176,97 +1324,35 @@ export default function DogDetail() {
               ) : null}
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2.5 sm:gap-3">
-              <TraitCard label="Size" trait={getSizeTrait({ structuredValue: dog.size, bioValue: dog.bio_size })} />
-              <TraitCard
-                label="Energy"
-                trait={getEnergyTrait({
-                  structuredValue: dog.energy_level || dog.activity_level,
-                  bioValue: dog.bio_energy_level,
-                  evidenceBasis: aiTraits?.energy_level?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Potty trained"
-                trait={getTraitDisplay({
-                  structuredValue: dog.potty_trained,
-                  bioValue: dog.bio_potty_trained,
-                  evidenceBasis: aiTraits?.potty_trained?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Good with dogs"
-                trait={getTraitDisplay({
-                  structuredValue: dog.good_with_dogs,
-                  bioValue: dog.bio_good_with_dogs,
-                  evidenceBasis: aiTraits?.good_with_dogs?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Good with cats"
-                trait={getTraitDisplay({
-                  structuredValue: dog.good_with_cats,
-                  bioValue: dog.bio_good_with_cats,
-                  evidenceBasis: aiTraits?.good_with_cats?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Good with kids"
-                trait={getChildTraitDisplay(dog)}
-              />
-              <TraitCard
-                label="Shedding"
-                trait={getSheddingTrait({
-                  structuredValue: dog.shedding_level,
-                  bioValue: dog.bio_shedding_level,
-                  evidenceBasis: aiTraits?.shedding_level?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Alone time"
-                trait={getEstimatedTextTrait({
-                  value: dog.bio_max_alone_hours_label,
-                  displayValue:
-                    dog.bio_max_alone_hours_label && dog.bio_max_alone_hours_label !== "unknown"
-                      ? `Likely ${dog.bio_max_alone_hours_label} hrs`
-                      : "",
-                  evidenceBasis: aiTraits?.max_alone_hours_estimate?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Exercise needs"
-                trait={getEnergyTrait({
-                  structuredValue: dog.exercise_needs,
-                  bioValue: dog.bio_exercise_needs,
-                  evidenceBasis: aiTraits?.exercise_needs?.evidence_basis,
-                })}
-              />
-              <TraitCard
-                label="Training needs"
-                trait={getEnergyTrait({
-                  structuredValue: obedienceTrainingNeed(dog.obedience_training),
-                  bioValue: dog.bio_training_needs,
-                  evidenceBasis: aiTraits?.training_needs?.evidence_basis,
-                })}
-              />
+            <div className="mt-5 flex flex-wrap gap-2" aria-label="Information key">
+              <EvidenceKey tone="confirmed" label="Shelter-confirmed" />
+              <EvidenceKey tone="estimated" label="AI-estimated · confirm" />
+              <EvidenceKey tone="unknown" label="Unknown" />
             </div>
 
-            {hasBioTraitData ? (
-              <p className="mt-4 text-xs leading-5 text-[#6F6A66]">
-                Some lifestyle information is estimated using shelter-provided information, breed characteristics, and listing descriptions when specific details aren’t available. Always confirm with the shelter or rescue.
-              </p>
-            ) : null}
+            <div className="mt-6 space-y-4">
+              <EvidenceGroup title="Shelter-confirmed" tone="confirmed" items={confirmedTraits} wide />
+              <div className="grid items-start gap-4 lg:grid-cols-2">
+                <EvidenceGroup title="AI-estimated · confirm" tone="estimated" items={estimatedTraits} />
+                <EvidenceGroup title="Still unknown" tone="unknown" items={unknownTraits} />
+              </div>
+            </div>
+
+            <p className="mt-5 rounded-2xl bg-[#F5F1E9] px-4 py-3 text-sm leading-6 text-[#6F6A66]">
+              Estimates can help you form questions, but they are not guarantees. Confirm behavior, home fit, and current needs with the shelter or rescue.
+            </p>
           </section>
 
-          <section className="order-5 rounded-3xl border border-[#183D35]/10 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2">
-            <h2 className="font-['Fraunces',serif] text-lg font-semibold text-[#183D35]">About {name}</h2>
+          <section className="order-5 rounded-[1.75rem] bg-white p-5 shadow-[0_12px_34px_rgba(24,61,53,0.07)] ring-1 ring-[#183D35]/8 sm:p-7 lg:col-span-2">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[#6F6A66]">From the listing</p>
+            <h2 className="mt-2 font-['Fraunces',serif] text-3xl font-semibold tracking-[-0.02em] text-[#183D35]">About {name}</h2>
             <p
               id="dog-bio-text"
-              className="mt-3 text-sm leading-6 text-[#6F6A66] sm:hidden"
+              className="mt-4 text-base leading-7 text-[#6F6A66] sm:hidden"
             >
               {bioExpanded || !bioIsLong ? description : bioPreview}
             </p>
-            <p className="mt-3 hidden text-sm leading-6 text-[#6F6A66] sm:block">
+            <p className="mt-4 hidden max-w-4xl text-base leading-7 text-[#6F6A66] sm:block">
               {description}
             </p>
 
@@ -1405,34 +1491,80 @@ export default function DogDetail() {
   );
 }
 
-function QuickFact({ label, value }) {
+function QuickFact({ label, value, tone = "light" }) {
+  const dark = tone === "dark";
   return (
-    <div className="rounded-2xl border border-[#183D35]/10 bg-[#F5F1E9] px-3 py-2">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6F6A66]">
+    <div className={dark
+      ? "rounded-2xl bg-white/8 px-3 py-2 ring-1 ring-white/12"
+      : "rounded-2xl bg-[#F5F1E9] px-3 py-2 ring-1 ring-[#183D35]/10"}
+    >
+      <div className={`text-[11px] font-bold uppercase tracking-[0.09em] ${dark ? "text-white/55" : "text-[#6F6A66]"}`}>
         {label}
       </div>
-      <div className="mt-0.5 text-sm font-extrabold leading-5 text-[#183D35]">{value}</div>
+      <div className={`mt-0.5 text-sm font-extrabold leading-5 ${dark ? "text-white" : "text-[#183D35]"}`}>{value}</div>
     </div>
   );
 }
 
-function TraitCard({ label, trait }) {
-  const title = trait.title || "Noted from the shelter or rescue bio. Confirm with the source.";
+function EvidenceKey({ tone, label }) {
+  const styles = {
+    confirmed: "bg-[#eef3e8] text-[#315d50] ring-[#315d50]/20",
+    estimated: "bg-[#fff4dc] text-[#805914] ring-[#c58b20]/25",
+    unknown: "bg-[#f1efeb] text-[#6F6A66] ring-[#6F6A66]/15",
+  };
 
   return (
-    <div className="rounded-2xl border border-[#183D35]/10 bg-white px-4 py-3">
-      <div className="text-xs font-semibold text-[#6F6A66]">{label}</div>
-      <div className="mt-1 flex items-center gap-1.5 text-sm font-extrabold text-[#183D35]">
+    <span className={`inline-flex min-h-8 items-center rounded-full px-3 text-xs font-black ring-1 ${styles[tone]}`}>
+      {label}
+    </span>
+  );
+}
+
+function EvidenceGroup({ title, tone, items, wide = false }) {
+  const styles = {
+    confirmed: "bg-[#f7faf3] ring-[#315d50]/14",
+    estimated: "bg-[#fffaf0] ring-[#c58b20]/18",
+    unknown: "bg-[#f7f5f1] ring-[#6F6A66]/12",
+  };
+
+  return (
+    <section className={`rounded-[1.35rem] p-4 ring-1 ${styles[tone]}`} aria-label={title}>
+      <h3 className="text-sm font-black text-[#183D35]">{title}</h3>
+      {items.length ? (
+        <div className={`mt-3 grid gap-2.5 sm:grid-cols-2 ${wide ? "lg:grid-cols-3" : ""}`}>
+          {items.map(({ label, trait }) => (
+            <TraitCard key={label} label={label} trait={trait} tone={tone} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 text-sm leading-6 text-[#6F6A66]">No details in this category.</p>
+      )}
+    </section>
+  );
+}
+
+function TraitCard({ label, trait, tone }) {
+  const title = trait.title || "Noted from the shelter or rescue bio. Confirm with the source.";
+  const valueStyles = {
+    confirmed: "text-[#183D35]",
+    estimated: "text-[#805914]",
+    unknown: "text-[#6F6A66]",
+  };
+
+  return (
+    <div className="rounded-2xl bg-white/90 px-4 py-3 shadow-sm ring-1 ring-[#183D35]/7">
+      <div className="text-sm font-semibold text-[#6F6A66]">{label}</div>
+      <div className={`mt-1 flex items-center gap-1.5 text-base font-extrabold ${valueStyles[tone]}`}>
         <span>{trait.value}</span>
         {trait.estimated ? (
-          <span className="text-xs" title={title} aria-label={title}>
-            *
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#fff4dc] text-xs text-[#805914]" title={title} aria-label={title}>
+            i
           </span>
         ) : null}
       </div>
 
       {trait.estimated || trait.note ? (
-        <div className="mt-1 text-[11px] font-semibold leading-4 text-[#6F6A66]">
+        <div className="mt-1 text-xs font-semibold leading-5 text-[#6F6A66]">
           {trait.note || "From bio"}
         </div>
       ) : null}
