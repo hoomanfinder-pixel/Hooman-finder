@@ -279,7 +279,8 @@ button:disabled,
   }
 
   .hf-result-card:hover,
-  .hf-result-card:hover .hf-result-photo {
+  .hf-result-card:hover .hf-result-photo,
+  .hf-profile-photo {
     transform: none;
   }
 
