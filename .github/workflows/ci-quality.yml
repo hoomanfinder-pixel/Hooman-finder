@@ -1,0 +1,149 @@
+name: CI Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/ci-quality.yml"
+      - "src/**"
+      - "!src/generated/platform-stats.json"
+      - "e2e/**"
+      - "scripts/**"
+      - "supabase/**"
+      - "public/**"
+      - "!public/sitemap.xml"
+      - "!public/dog-sitemap.xml"
+      - "*.js"
+      - "*.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - "index.html"
+      - "netlify.toml"
+      - "vercel.json"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ci-quality.yml"
+      - "src/**"
+      - "!src/generated/platform-stats.json"
+      - "e2e/**"
+      - "scripts/**"
+      - "supabase/**"
+      - "public/**"
+      - "!public/sitemap.xml"
+      - "!public/dog-sitemap.xml"
+      - "*.js"
+      - "*.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - "index.html"
+      - "netlify.toml"
+      - "vercel.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Unit, lint, build, SEO, and Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: e2e-anon-key
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run unit and component tests
+        run: npm test
+
+      - name: Run lint without rewriting files
+        run: npm run lint
+
+      - name: Build production bundle and validate SEO output
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run mocked Playwright suite
+        run: npx playwright test
+
+      - name: Upload Playwright failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  production-dependency-audit:
+    name: Production dependency audit (baseline advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Report production dependency findings
+        id: audit
+        shell: bash
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high 2>&1 | tee npm-audit-production.txt
+          audit_status=${PIPESTATUS[0]}
+          set -e
+
+          echo "exit_code=$audit_status" >> "$GITHUB_OUTPUT"
+
+          if [ "$audit_status" -eq 0 ]; then
+            echo "## Production dependency audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "No high-severity production dependency findings were reported." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=Production dependency baseline needs remediation::npm audit reported high-severity production dependency findings. This initial baseline is advisory and does not fail CI."
+            echo "## Production dependency audit" >> "$GITHUB_STEP_SUMMARY"
+            echo "High-severity production dependency findings remain in the current baseline." >> "$GITHUB_STEP_SUMMARY"
+            echo "This job is intentionally advisory until the baseline is remediated in a separately reviewed dependency update." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '<details><summary>npm audit output</summary>' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```text' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '1,160p' npm-audit-production.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+          exit 0
+
+      - name: Upload production dependency audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-dependency-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: npm-audit-production.txt
+          if-no-files-found: error
+          retention-days: 7

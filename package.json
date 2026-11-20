@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && vite build --ssr src/entry-server.jsx --outDir dist/server && node scripts/prerender-home.mjs && node scripts/validate-seo-build.mjs",
     "lint": "eslint .",
-    "test": "node --test src/lib/*.test.js",
+    "test": "node --test src/lib/*.test.js src/components/*.test.js",
     "test:e2e": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test",
     "test:e2e:headed": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --headed",
     "test:e2e:ui": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --ui",
