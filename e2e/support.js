@@ -142,9 +142,10 @@ export async function openResultProfile(card) {
 }
 
 export async function getCardPercentage(card) {
-  const labels = await card.getByText(/Fit score:\s*\d+\/100/).allTextContents();
-  expect(labels.length, "Expected a visible fit score on the result card").toBeGreaterThan(0);
-  return Number.parseInt(labels[0].match(/Fit score:\s*(\d+)\/100/)?.[1] || "", 10);
+  const scoreLabel = card.getByText(/Fit score:\s*\d+\/100/).first();
+  await expect(scoreLabel, "Expected a visible fit score on the result card").toBeVisible();
+  const label = await scoreLabel.textContent();
+  return Number.parseInt(label?.match(/Fit score:\s*(\d+)\/100/)?.[1] || "", 10);
 }
 
 export async function expectValidMatchPercentages(page) {
