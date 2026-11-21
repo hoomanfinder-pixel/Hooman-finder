@@ -12,6 +12,7 @@ dist
 dist-ssr
 playwright-report
 test-results
+monitoring-output
 *.local
 .env
 .env.local
