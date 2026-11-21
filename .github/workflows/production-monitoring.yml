@@ -1,0 +1,62 @@
+name: Production Monitoring
+
+on:
+  schedule:
+    # Daily after the existing 11:00 UTC RescueGroups sync has had time to finish.
+    - cron: "17 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: production-monitoring
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Production adoption journey and freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONITOR_BASE_URL: https://hoomanfinder.com
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production monitor
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run monitor:production
+
+      - name: Add monitoring report to run summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f monitoring-output/report.md ]; then
+            cat monitoring-output/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Production monitor did not create its report." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload monitoring diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-monitoring-${{ github.run_id }}-${{ github.run_attempt }}
+          path: monitoring-output/
+          if-no-files-found: error
+          retention-days: 7

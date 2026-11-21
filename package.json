@@ -12,6 +12,7 @@
     "test:e2e:headed": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --headed",
     "test:e2e:ui": "VITE_SUPABASE_URL=http://127.0.0.1:54321 VITE_SUPABASE_ANON_KEY=e2e-anon-key npm run build && playwright test --ui",
     "test:e2e:report": "playwright show-report",
+    "monitor:production": "node scripts/run-production-monitor.mjs",
     "dry-run:dacc": "node scripts/dry-run-dacc-rescuegroups.cjs",
     "inspect:dacc-fields": "node scripts/inspect-dacc-rescuegroups-fields.cjs",
     "import:rescuegroups:dacc": "node scripts/import-dacc-rescuegroups.cjs",
