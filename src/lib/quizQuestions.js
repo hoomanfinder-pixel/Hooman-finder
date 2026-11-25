@@ -289,7 +289,7 @@ export const ALL_QUESTIONS = [
     refineSection: "Care & Lifestyle",
     type: QUESTION_TYPES.SINGLE,
     title: "How far are you willing to travel to adopt?",
-    description: "Stored for your adoption search preferences.",
+    description: "Saved with your quiz, but does not change location filters or match ranking yet.",
     options: [
       { value: "10_miles", label: "10 miles" },
       { value: "25_miles", label: "25 miles" },

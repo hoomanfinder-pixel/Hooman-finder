@@ -6,7 +6,9 @@ import {
   computeRankedMatches,
   getConfirmedIncompatibilities,
   questionAffectsMatchRanking,
+  resolvePottyTrainingEvidence,
 } from "./matchingLogic.js";
+import { getEvidenceLabels } from "./matchPresentation.js";
 import { ALL_QUESTIONS, canonicalizeAllergySensitivity } from "./quizQuestions.js";
 import { normalizeExternalUrl } from "./urlSafety.js";
 
@@ -230,6 +232,155 @@ test("confirmed compatible dogs remain eligible", () => {
   };
   assert.deepEqual(getConfirmedIncompatibilities(dog, answers), []);
   assert.deepEqual(computeRankedMatches([dog], answers).map((row) => row.dog.name), ["Confirmed compatible"]);
+});
+
+test("hard potty requirement excludes only authoritative confirmed untrained dogs", () => {
+  const answers = {
+    size_preference: ["medium"],
+    age_preference: ["adult"],
+    potty_requirement: "must_be_trained",
+  };
+  const confirmedUntrained = {
+    name: "Confirmed untrained",
+    size: "Medium",
+    age_years: 4,
+    potty_trained: false,
+  };
+  const confirmedTrained = {
+    ...confirmedUntrained,
+    name: "Confirmed trained",
+    potty_trained: true,
+  };
+
+  assert.deepEqual(computeRankedMatches([confirmedUntrained], answers), []);
+  assert.deepEqual(
+    getConfirmedIncompatibilities(confirmedUntrained, answers).map(({ code }) => code),
+    ["confirmed_potty_training_incompatibility"]
+  );
+
+  const [eligible] = computeRankedMatches([confirmedTrained], answers);
+  assert.equal(eligible.dog.name, "Confirmed trained");
+  assert.deepEqual(eligible.breakdown.compatibilityCautions, []);
+  assert.deepEqual(resolvePottyTrainingEvidence(confirmedTrained), {
+    authoritative: true,
+    hasEstimate: false,
+    conflict: false,
+    needsConfirmation: false,
+  });
+});
+
+test("unknown and AI-estimated potty status stay eligible and visibly need confirmation", () => {
+  const answers = {
+    size_preference: ["medium"],
+    age_preference: ["adult"],
+    potty_requirement: "must_be_trained",
+  };
+  const dogs = [
+    { name: "Unknown", size: "Medium", age_years: 4, potty_trained: null },
+    {
+      name: "Estimated trained",
+      size: "Medium",
+      age_years: 4,
+      potty_trained: null,
+      bio_potty_trained: "yes",
+      ai_traits: { potty_trained: aiTrait("true", 1, "profile_inference") },
+    },
+    {
+      name: "Estimated untrained",
+      size: "Medium",
+      age_years: 4,
+      potty_trained: null,
+      bio_potty_trained: "no",
+      ai_traits: { potty_trained: aiTrait("false", 1, "profile_inference") },
+    },
+  ];
+  const rows = computeRankedMatches(dogs, answers);
+  const byName = new Map(rows.map((row) => [row.dog.name, row]));
+
+  assert.deepEqual([...byName.keys()].sort(), dogs.map(({ name }) => name).sort());
+  for (const dog of dogs) {
+    assert.deepEqual(
+      byName.get(dog.name).breakdown.compatibilityCautions,
+      ["Potty training needs confirmation."],
+      dog.name
+    );
+    assert.equal(resolvePottyTrainingEvidence(dog).authoritative, null, dog.name);
+  }
+  assert.ok(byName.get("Unknown").scorePct > 49, "the uncertainty message must not cap the existing score");
+  for (const name of ["Estimated trained", "Estimated untrained"]) {
+    const pottyContribution = byName.get(name).breakdown.contributions
+      .find(({ questionId }) => questionId === "potty_requirement");
+    assert.doesNotMatch(pottyContribution.explanation, /fits your preference|confirmed as trained/i, name);
+  }
+  assert.match(
+    byName.get("Estimated trained").breakdown.contributions.find(({ questionId }) => questionId === "potty_requirement").explanation,
+    /estimated.*confirm with the shelter/i
+  );
+  assert.equal(
+    byName.get("Unknown").breakdown.contributions.some(({ questionId }) => questionId === "potty_requirement"),
+    false,
+    "unknown status contributes no compatibility claim; the separate caution asks adopters to confirm"
+  );
+  assert.deepEqual(getEvidenceLabels(byName.get("Estimated trained").breakdown), [
+    "Shelter-listed",
+    "Estimated",
+  ]);
+  assert.deepEqual(getEvidenceLabels(byName.get("Unknown").breakdown), [
+    "Shelter-listed",
+    "Some information unknown",
+  ]);
+});
+
+test("conflicting potty evidence stays eligible but cannot silently look confirmed", () => {
+  const dog = {
+    name: "Conflicting evidence",
+    size: "Medium",
+    age_years: 4,
+    potty_trained: true,
+    bio_potty_trained: "no",
+    ai_traits: { potty_trained: aiTrait("false", 1, "bio_explicit") },
+  };
+  const answers = {
+    size_preference: ["medium"],
+    age_preference: ["adult"],
+    potty_requirement: "must_be_trained",
+  };
+  const [row] = computeRankedMatches([dog], answers);
+
+  assert.equal(row.dog.name, dog.name);
+  assert.deepEqual(row.breakdown.compatibilityCautions, ["Potty training needs confirmation."]);
+  assert.match(
+    row.breakdown.contributions.find(({ questionId }) => questionId === "potty_requirement").explanation,
+    /confirmed as trained/i,
+    "the structured fact remains visible while the conflicting estimate triggers caution"
+  );
+  assert.deepEqual(resolvePottyTrainingEvidence(dog), {
+    authoritative: true,
+    hasEstimate: true,
+    conflict: true,
+    needsConfirmation: true,
+  });
+});
+
+test("without the hard potty requirement existing eligibility behavior is preserved", () => {
+  const confirmedUntrained = {
+    name: "Training opportunity",
+    size: "Medium",
+    age_years: 4,
+    potty_trained: false,
+  };
+
+  for (const pottyRequirement of ["preferred", "flexible", undefined]) {
+    const answers = {
+      size_preference: ["medium"],
+      age_preference: ["adult"],
+      potty_requirement: pottyRequirement,
+    };
+    const [row] = computeRankedMatches([confirmedUntrained], answers);
+    assert.equal(row.dog.name, confirmedUntrained.name, pottyRequirement);
+    assert.deepEqual(row.breakdown.compatibilityCautions, [], pottyRequirement);
+    assert.deepEqual(getConfirmedIncompatibilities(confirmedUntrained, answers), [], pottyRequirement);
+  }
 });
 
 test("unknown child-age evidence preserves independent pet and potty safety behavior", () => {

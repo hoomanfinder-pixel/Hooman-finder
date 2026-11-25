@@ -217,6 +217,57 @@ export const dogCompatibilityDogs = [
   }),
 ];
 
+export const pottyTrainingDogs = [
+  scenarioDog({
+    id: "e2e-potty-confirmed-no",
+    name: "Needs Potty Training",
+    color: "#E8B4A2",
+    potty_trained: false,
+  }),
+  scenarioDog({
+    id: "e2e-potty-confirmed-yes",
+    name: "Potty Trained",
+    color: "#C7D4BB",
+    potty_trained: true,
+  }),
+  scenarioDog({
+    id: "e2e-potty-unknown",
+    name: "Potty Status Unknown",
+    color: "#B9D7EA",
+    potty_trained: null,
+  }),
+  scenarioDog({
+    id: "e2e-potty-estimated-yes",
+    name: "Estimated Potty Trained",
+    color: "#D7C2E8",
+    potty_trained: null,
+    bio_potty_trained: "yes",
+    ai_traits: {
+      potty_trained: {
+        value: "true",
+        confidence: 0.92,
+        evidence_basis: "bio_explicit",
+        evidence: "Listing bio wording was interpreted as potty trained.",
+      },
+    },
+  }),
+  scenarioDog({
+    id: "e2e-potty-estimated-no",
+    name: "Estimated Needs Training",
+    color: "#F0C7A5",
+    potty_trained: null,
+    bio_potty_trained: "no",
+    ai_traits: {
+      potty_trained: {
+        value: "false",
+        confidence: 0.92,
+        evidence_basis: "bio_explicit",
+        evidence: "Listing bio wording was interpreted as not potty trained.",
+      },
+    },
+  }),
+];
+
 export const aloneTimeDogs = [
   scenarioDog({
     id: "e2e-alone-fit",
