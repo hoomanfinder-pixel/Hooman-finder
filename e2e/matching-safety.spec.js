@@ -6,6 +6,7 @@ import {
   deeperQuizDogs,
   evidenceCoverageDogs,
   olderChildrenEditDogs,
+  pottyTrainingDogs,
   sizePreferenceDogs,
 } from "./fixtures/dogs.js";
 import {
@@ -174,6 +175,46 @@ test.describe("dog compatibility safety", () => {
     await expectConfirmedConflictExcluded(page, "Piper", "Marlow");
     await expectDecodedImage(page.getByRole("img", { name: /Marlow, adoptable/i }).first());
     await expectNoBareProtocolLinks(page);
+  });
+});
+
+test.describe("hard potty-training requirement", () => {
+  test.use({ scenario: { dogs: pottyTrainingDogs } });
+
+  test("excludes confirmed untrained dogs and labels every unverified result", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await completeEssentialQuiz(page, "e2e-potty-training-safety", {
+      potty: "Must be potty trained",
+    });
+
+    await expect(getResultCard(page, "Needs Potty Training")).toHaveCount(0);
+    await expect(getResultCard(page, "Potty Trained")).toBeVisible();
+
+    for (const name of [
+      "Potty Status Unknown",
+      "Estimated Potty Trained",
+      "Estimated Needs Training",
+    ]) {
+      const card = getResultCard(page, name);
+      await expect(card).toBeVisible();
+      await expect(card.getByRole("alert")).toContainText("Potty training needs confirmation.");
+    }
+
+    const unknownCard = getResultCard(page, "Potty Status Unknown");
+    await expect(unknownCard).not.toContainText("Fits your potty-training preference");
+    await unknownCard.getByRole("button", { name: "Save Potty Status Unknown" }).click();
+    await expect(
+      unknownCard.getByRole("button", { name: "Remove Potty Status Unknown from saved dogs" })
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+    await openResultProfile(unknownCard);
+    await expect(page).toHaveURL(/\/dog\/e2e-potty-unknown/);
+    await expect(page.getByText("Potty training needs confirmation.", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("link", { name: "View official listing" })).toHaveAttribute(
+      "href",
+      pottyTrainingDogs.find(({ id }) => id === "e2e-potty-unknown").adoption_url
+    );
   });
 });
 

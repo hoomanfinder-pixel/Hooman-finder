@@ -297,7 +297,7 @@ export default function Quiz() {
   const stageLabel = mode === QUIZ_MODES.DEALBREAKERS ? "Essentials" : "Personalize";
   const stageDescription = mode === QUIZ_MODES.DEALBREAKERS
     ? "Five quick questions that shape your starting matches."
-    : "Optional details that help fine-tune your ranking.";
+    : "Optional details for your quiz; each question shows whether it affects ranking.";
 
   const pageTitle =
     isEditing
@@ -311,7 +311,7 @@ export default function Quiz() {
       ? "Review or change any answer. Your existing matches update only when you choose Update Matches."
       : mode === QUIZ_MODES.DEALBREAKERS
       ? "Start this lifestyle-based dog adoption quiz with the home, routine, and experience details that matter most."
-      : "Fine-tune how Hooman Finder ranks adoptable dogs using your lifestyle and care preferences.";
+      : "Add lifestyle and care context; each question shows whether it currently affects ranking.";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(223,231,215,0.72),transparent_34rem),#F5F1E9] font-['Inter',sans-serif] text-[#183D35]">
@@ -505,7 +505,7 @@ export default function Quiz() {
                         Your essentials are complete.
                       </p>
                       <p className="mt-1 text-sm text-[#6F6A66]">
-                        View your matches now, or add optional details to fine-tune their order.
+                        View your matches now, or add optional details; scored questions can fine-tune their order.
                       </p>
                     </div>
                     <div className="grid shrink-0 gap-2 sm:flex">

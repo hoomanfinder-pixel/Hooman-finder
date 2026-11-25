@@ -320,6 +320,41 @@ function compatibilityEvidence(dog, field, structuredValue, bioValue, answer = n
   }));
 }
 
+function pottyEstimateRaw(dog) {
+  const bioRaw = bioCompatibilityRaw(dog?.bio_potty_trained);
+  const traitRaw = bioCompatibilityRaw(parseAiTraits(dog?.ai_traits)?.potty_trained?.value);
+  return { bioRaw, traitRaw };
+}
+
+function evidenceDirectionsConflict(values) {
+  const known = values.filter((value) => value !== null);
+  return known.some((value) => value <= 0.5) && known.some((value) => value > 0.5);
+}
+
+// The source-provided boolean is authoritative. Biography and profile values
+// remain estimates, even when they are confident or interpret explicit bio
+// wording, and therefore cannot satisfy or fail a hard eligibility decision.
+export function resolvePottyTrainingEvidence(dog) {
+  const authoritative = dog?.potty_trained === true || truthy(dog?.potty_trained)
+    ? true
+    : dog?.potty_trained === false || falsy(dog?.potty_trained)
+      ? false
+      : null;
+  const { bioRaw, traitRaw } = pottyEstimateRaw(dog);
+  const estimatedValues = [bioRaw, traitRaw].filter((value) => value !== null);
+  const conflict = evidenceDirectionsConflict([
+    authoritative === null ? null : authoritative ? 1 : 0,
+    ...estimatedValues,
+  ]);
+
+  return {
+    authoritative,
+    hasEstimate: estimatedValues.length > 0,
+    conflict,
+    needsConfirmation: authoritative === null || conflict,
+  };
+}
+
 function dogSocialStyleEvidence(dog, preference) {
   const structuredStyle = String(
     dog?.dog_social_style ?? dog?.social_with_dogs ?? dog?.dog_social_behavior ?? ""
@@ -608,7 +643,12 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
       if (!required && !preferred) return result(questionId, null, "", { requested: false });
       let evidence = compatibilityEvidence(dog, "potty_trained", dog?.potty_trained, dog?.bio_potty_trained);
       if (preferred && evidence) evidence = { ...evidence, rawCompatibility: 0.5 + evidence.rawCompatibility * 0.5, adjustedCompatibility: 0.5 + (evidence.adjustedCompatibility - 0.5) * 0.5 };
-      return result(questionId, evidence, evidence?.source === "structured" ? `Shelter-listed potty-training status ${evidence.rawCompatibility > 0.5 ? "fits" : "does not fit"} your preference` : "Estimated potty-training status influences this fit cautiously");
+      const explanation = evidence?.source === "structured"
+        ? `Shelter-listed potty-training status ${evidence.rawCompatibility > 0.5 ? "is confirmed as trained" : "is confirmed as not trained"}`
+        : evidence
+          ? "Estimated potty-training status influences this fit cautiously; confirm with the shelter or rescue"
+          : "Potty-training status is unknown; confirm with the shelter or rescue";
+      return result(questionId, evidence, explanation);
     }
     case "dog_social_preference": {
       const preference = String(answer).toLowerCase();
@@ -828,7 +868,24 @@ export function getConfirmedIncompatibilities(dog, answers) {
     });
   }
 
+  const pottyRequired = String(answers?.potty_requirement ?? "").toLowerCase() === "must_be_trained";
+  const pottyEvidence = resolvePottyTrainingEvidence(dog);
+  if (pottyRequired && pottyEvidence.authoritative === false) {
+    incompatibilities.push({
+      code: "confirmed_potty_training_incompatibility",
+      questionId: "potty_requirement",
+      message: "This dog is listed as not potty trained, but your quiz requires a potty-trained dog.",
+    });
+  }
+
   return incompatibilities;
+}
+
+function pottyTrainingConfirmationCautions(dog, answers) {
+  if (String(answers?.potty_requirement ?? "").toLowerCase() !== "must_be_trained") return [];
+  return resolvePottyTrainingEvidence(dog).needsConfirmation
+    ? ["Potty training needs confirmation."]
+    : [];
 }
 
 function confirmedYardRequirementCautions(dog, answers) {
@@ -905,8 +962,12 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
     const coverageAdjustedPct = meaningfulScoreAvailable
       ? Math.round(rawCompatibility * (DISPLAY_COVERAGE_FLOOR + DISPLAY_COVERAGE_WEIGHT * coverageComponent) * 100)
       : null;
-    const compatibilityCautions = confirmedYardRequirementCautions(dog, answersById);
-    const scorePct = coverageAdjustedPct !== null && compatibilityCautions.length
+    const yardRequirementCautions = confirmedYardRequirementCautions(dog, answersById);
+    const compatibilityCautions = [
+      ...pottyTrainingConfirmationCautions(dog, answersById),
+      ...yardRequirementCautions,
+    ];
+    const scorePct = coverageAdjustedPct !== null && yardRequirementCautions.length
       ? Math.min(coverageAdjustedPct, YARD_REQUIREMENT_CAUTION_CAP)
       : coverageAdjustedPct;
 
