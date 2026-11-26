@@ -1,6 +1,8 @@
 export const DEFAULT_MATCH_TIMEOUT_MS = 30_000;
 export const DEFAULT_SYNC_MAX_AGE_MS = 36 * 60 * 60 * 1000;
 export const PUBLIC_LISTING_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+export const SOURCE_SYNC_MAX_AGE_MS = 36 * 60 * 60 * 1000;
+export const SYNC_STATUS_ARTIFACT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const ANALYTICS_HOSTS = [
   "www.googletagmanager.com",
   "www.google-analytics.com",
@@ -150,6 +152,12 @@ export function evaluateSyncRuns(runs, {
   now = Date.now(),
   maxSuccessfulAgeMs = DEFAULT_SYNC_MAX_AGE_MS,
 } = {}) {
+  const observed = Array.isArray(runs)
+    ? runs.filter((run) => run?.created_at).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+    : [];
+  if (observed.length && observed[0].status !== "completed") {
+    return check("RescueGroups sync workflow", "unverified", `The latest sync run is ${observed[0].status || "not completed"}; a completed source-health artifact is not yet available.`, { informational: true });
+  }
   const completed = Array.isArray(runs)
     ? runs.filter((run) => run?.status === "completed" && run?.created_at)
     : [];
@@ -170,6 +178,13 @@ export function evaluateSyncRuns(runs, {
   }
 
   const ageMs = Number(now) - successfulAt;
+  if (latest.conclusion !== "success") {
+    return check(
+      "RescueGroups sync workflow",
+      "fail",
+      `The latest completed sync run concluded ${latest.conclusion || "without a conclusion"}; source-level outcomes are reported separately.`
+    );
+  }
   if (ageMs > maxSuccessfulAgeMs) {
     return check(
       "RescueGroups sync freshness",
@@ -178,14 +193,52 @@ export function evaluateSyncRuns(runs, {
     );
   }
 
-  const latestNote = latest.conclusion === "success"
-    ? "The latest completed run succeeded."
-    : `The latest completed run concluded ${latest.conclusion}; its own workflow already sends a failure notification.`;
   return check(
     "RescueGroups sync freshness",
     "pass",
-    `A successful sync completed ${Math.max(0, Math.round(ageMs / 3_600_000))} hours ago. ${latestNote}`
+    `A complete sync completed ${Math.max(0, Math.round(ageMs / 3_600_000))} hours ago.`
   );
+}
+
+export function evaluateSourceFreshnessArtifact(artifact, latestRun, {
+  now = Date.now(),
+  repository,
+  maxSourceAgeMs = SOURCE_SYNC_MAX_AGE_MS,
+  maxArtifactAgeMs = SYNC_STATUS_ARTIFACT_MAX_AGE_MS,
+} = {}) {
+  const unverified = (detail) => [check("RescueGroups per-source freshness", "unverified", detail, { informational: true })];
+  if (!artifact || !latestRun) return unverified("Source-health evidence or the latest completed sync run is unavailable.");
+  if (artifact.schema_version !== 1 || !Array.isArray(artifact.sources) || !artifact.sources.length) {
+    return unverified("Source-health artifact has an unsupported or empty format.");
+  }
+  if (artifact.repository !== repository || String(artifact.run_id) !== String(latestRun.id) ||
+      Number(artifact.run_attempt) !== Number(latestRun.run_attempt) || artifact.head_sha !== latestRun.head_sha) {
+    return unverified("Source-health artifact provenance does not match the latest completed sync run.");
+  }
+  const generatedAt = Date.parse(String(artifact.generated_at || ""));
+  const artifactAge = Number(now) - generatedAt;
+  if (!Number.isFinite(generatedAt) || artifactAge < 0 || artifactAge > maxArtifactAgeMs) {
+    return unverified("Source-health artifact is missing a valid timestamp, is from the future, or has expired.");
+  }
+
+  const enabled = artifact.sources.filter((source) => source?.enabled === true);
+  if (!enabled.length) return unverified("Source-health artifact contains no enabled RescueGroups sources.");
+  return enabled.map((source) => {
+    const name = String(source.source || "Unnamed source").slice(0, 120);
+    const lastSuccess = Date.parse(String(source.last_successful_sync_at || ""));
+    const ageMs = Number(now) - lastSuccess;
+    if (!Number.isFinite(lastSuccess) || ageMs < 0) {
+      return check(`RescueGroups source: ${name}`, "unverified", "No valid last successful sync timestamp is available.", { informational: true });
+    }
+    const ageHours = Math.round(ageMs / 3_600_000);
+    if (ageMs > maxSourceAgeMs) {
+      return check(`RescueGroups source: ${name}`, "fail", `Last successful sync was ${ageHours} hours ago; expected within ${Math.round(maxSourceAgeMs / 3_600_000)} hours.`);
+    }
+    if (["failed", "partial", "unverified"].includes(source.status)) {
+      return check(`RescueGroups source: ${name}`, "partial", `Latest source attempt was ${source.status}; last successful sync was ${ageHours} hours ago.`);
+    }
+    return check(`RescueGroups source: ${name}`, "pass", `Last successful sync was ${ageHours} hours ago.`);
+  });
 }
 
 export function evaluatePublicDogFreshness(dog, {
@@ -238,9 +291,9 @@ export function classifyExternalLinkResult({ url, ok = false, status = null, err
 }
 
 export function buildMonitoringMarkdown({ checkedAt, checks, externalLinks = [], platformStats = null, limitations = [] }) {
-  const failures = checks.filter((item) => item.status === "fail");
-  const adoptionBlockers = failures.filter((item) => item.blocksAdoption);
-  const icon = { pass: "✅", fail: "❌", unverified: "⚪" };
+  const actionable = checks.filter((item) => item.status === "fail" || item.status === "partial");
+  const adoptionBlockers = actionable.filter((item) => item.blocksAdoption);
+  const icon = { pass: "✅", fail: "❌", partial: "⚠️", unverified: "⚪" };
   const lines = [
     "# Hooman Finder production monitoring",
     "",
@@ -248,8 +301,8 @@ export function buildMonitoringMarkdown({ checkedAt, checks, externalLinks = [],
     "",
     adoptionBlockers.length
       ? `**Action required:** ${adoptionBlockers.length} failure(s) could block dog discovery, matching, or adoption.`
-      : failures.length
-      ? `**Action required:** ${failures.length} data-freshness failure(s) need review; the live adoption journey passed.`
+      : actionable.length
+      ? `**Action required:** ${actionable.length} data-freshness failure(s) or partial result(s) need review; the live adoption journey passed.`
       : "**Overall:** No actionable failure was confirmed.",
     "",
     "## Checks",
@@ -290,5 +343,5 @@ export function buildMonitoringMarkdown({ checkedAt, checks, externalLinks = [],
 }
 
 export function hasActionableFailure(checks) {
-  return checks.some((item) => item.status === "fail");
+  return checks.some((item) => item.status === "fail" || item.status === "partial");
 }

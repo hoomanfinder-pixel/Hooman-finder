@@ -6,17 +6,33 @@ const require = createRequire(import.meta.url);
 const {
   AI_ENRICHMENT_VERSION,
   buildRunFinalizationPayload,
+  backlogHistoryFromRuns,
+  consecutiveBacklogRuns,
   conciseErrorReason,
   determineRunStatus,
+  estimateBacklogUsage,
   formatRunErrorSummary,
   processDogBatch,
   resolveEnrichmentCandidates,
+  shouldAlertForBacklogGrowth,
+  shouldAlertForPersistentBacklog,
   validateDogId,
   validateRunMode,
 } = require("../../scripts/enrich-dogs-ai.cjs");
 
 const noTokens = { input: 0, output: 0, total: 0 };
 const finishedAt = "2026-10-07T12:00:00.000Z";
+
+test("backlog cost estimate uses only successful same-model token records", () => {
+  const estimate = estimateBacklogUsage(10, [
+    { model: "gpt-4o-mini", status: "success", failed_count: 0, attempted_count: 5, input_tokens: 50_000, output_tokens: 10_000 },
+    { model: "gpt-4o-mini", status: "partial", failed_count: 1, attempted_count: 5, input_tokens: 500_000, output_tokens: 100_000 },
+    { model: "other-model", status: "success", failed_count: 0, attempted_count: 10, input_tokens: 900_000, output_tokens: 900_000 },
+  ]);
+  assert.deepEqual(estimate, { sampleRuns: 1, inputTokens: 100_000, outputTokens: 20_000, estimatedUsd: 0.027 });
+  assert.equal(estimateBacklogUsage(10, []), null);
+  assert.equal(estimateBacklogUsage(0, []), null);
+});
 
 function stats(overrides = {}) {
   return {
@@ -40,6 +56,39 @@ test("successful runs finalize without a misleading error summary", () => {
   assert.equal(payload.status, "success");
   assert.equal(payload.error_summary, null);
   assert.equal(payload.failed_count, 0);
+});
+
+test("a normal processing cap records pending backlog without inventing processing failures", () => {
+  const payload = buildRunFinalizationPayload(stats({ attempted: 100, updated: 100 }), {
+    status: "partial",
+    backlogRemainingCount: 163,
+    tokenUsage: { input: 120_000, output: 30_000, total: 150_000 },
+    finishedAt,
+  });
+  assert.equal(payload.status, "partial");
+  assert.equal(payload.failed_count, 0);
+  assert.equal(payload.attempted_count, 100);
+  assert.equal(payload.succeeded_count, 100);
+  assert.equal(payload.input_tokens, 120_000);
+  assert.equal(payload.output_tokens, 30_000);
+  assert.match(payload.error_summary, /BACKLOG_PENDING remaining=163/);
+  assert.match(payload.error_summary, /no AI or database failures/i);
+});
+
+test("backlog trend distinguishes ordinary queue clearing from growing or persistent queues", () => {
+  const history = backlogHistoryFromRuns([
+    { error_summary: null },
+    { error_summary: "BACKLOG_PENDING remaining=120; detail" },
+    { error_summary: "BACKLOG_PENDING remaining=140; detail" },
+  ]);
+  assert.deepEqual(history, [null, 120, 140]);
+  assert.equal(shouldAlertForBacklogGrowth(163, history), false);
+  assert.equal(shouldAlertForPersistentBacklog(163, history), false);
+  assert.equal(shouldAlertForBacklogGrowth(163, [120, 140]), true);
+  assert.equal(shouldAlertForPersistentBacklog(100, [120, 140]), true);
+  assert.equal(shouldAlertForBacklogGrowth(80, [120]), false);
+  assert.equal(consecutiveBacklogRuns([null, 120, 140]), 1);
+  assert.equal(consecutiveBacklogRuns([120, 140]), 3);
 });
 
 test("dog-id targeting requires a UUID, normal eligibility, and no force override", () => {

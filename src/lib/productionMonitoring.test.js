@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
+  buildMonitoringMarkdown,
   classifyExternalLinkResult,
   classifyMonitoringRequest,
   evaluateMonitoringCredentials,
   evaluatePublicDogFreshness,
   evaluateSyncApiFailure,
   evaluateSyncRuns,
+  evaluateSourceFreshnessArtifact,
   hasActionableFailure,
   runWebsiteJourney,
 } from "./productionMonitoring.js";
@@ -93,6 +95,65 @@ test("stale successful sync evidence is actionable without asserting every shelt
   }], { now });
   assert.equal(result.status, "fail");
   assert.match(result.detail, /successful sync/i);
+});
+
+test("latest failed sync remains a failure even when an older complete sync is recent", () => {
+  const now = Date.parse("2026-11-25T16:00:00.000Z");
+  const result = evaluateSyncRuns([
+    { id: 2, status: "completed", conclusion: "failure", created_at: "2026-11-25T12:00:00.000Z", updated_at: "2026-11-25T12:10:00.000Z" },
+    { id: 1, status: "completed", conclusion: "success", created_at: "2026-11-24T12:00:00.000Z", updated_at: "2026-11-24T12:10:00.000Z" },
+  ], { now });
+  assert.equal(result.status, "fail");
+  assert.match(result.detail, /latest completed sync run concluded failure/i);
+});
+
+test("in-progress latest sync is never reported as a completed success", () => {
+  const result = evaluateSyncRuns([{ status: "in_progress", conclusion: null, created_at: "2026-11-25T15:50:00.000Z" }]);
+  assert.equal(result.status, "unverified");
+  assert.match(result.detail, /latest sync run is in_progress/i);
+});
+
+test("source-health artifact distinguishes complete, partial, and stale sources after provenance checks", () => {
+  const latestRun = { id: 42, run_attempt: 2, head_sha: "abc123" };
+  const artifact = {
+    schema_version: 1,
+    repository: "owner/repo",
+    run_id: 42,
+    run_attempt: 2,
+    head_sha: "abc123",
+    generated_at: "2026-11-25T15:00:00.000Z",
+    sources: [
+      { source: "Fresh Shelter", enabled: true, status: "success", last_successful_sync_at: "2026-11-25T14:00:00.000Z" },
+      { source: "Partial Shelter", enabled: true, status: "failed", last_successful_sync_at: "2026-11-25T14:00:00.000Z" },
+      { source: "Stale Shelter", enabled: true, status: "failed", last_successful_sync_at: "2026-11-20T14:00:00.000Z" },
+      { source: "Disabled Shelter", enabled: false, status: "disabled", last_successful_sync_at: null },
+    ],
+  };
+  const checks = evaluateSourceFreshnessArtifact(artifact, latestRun, {
+    now: Date.parse("2026-11-25T16:00:00.000Z"),
+    repository: "owner/repo",
+  });
+  assert.deepEqual(checks.map(({ status }) => status), ["pass", "partial", "fail"]);
+  assert.equal(hasActionableFailure(checks), true);
+
+  const wrongProvenance = evaluateSourceFreshnessArtifact({ ...artifact, head_sha: "different" }, latestRun, { repository: "owner/repo" });
+  assert.equal(wrongProvenance[0].status, "unverified");
+  const missingArtifact = evaluateSourceFreshnessArtifact(null, latestRun, { repository: "owner/repo" });
+  assert.equal(missingArtifact[0].status, "unverified");
+  const expired = evaluateSourceFreshnessArtifact({ ...artifact, generated_at: "2026-11-10T00:00:00.000Z" }, latestRun, {
+    now: Date.parse("2026-11-25T16:00:00.000Z"), repository: "owner/repo",
+  });
+  assert.equal(expired[0].status, "unverified");
+});
+
+test("partial source evidence is visible as actionable without being mislabeled complete", () => {
+  const markdown = buildMonitoringMarkdown({
+    checkedAt: "2026-11-25T16:00:00.000Z",
+    checks: [{ name: "RescueGroups source: Shelter", status: "partial", detail: "Latest attempt partial.", blocksAdoption: false }],
+  });
+  assert.match(markdown, /partial result\(s\) need review/i);
+  assert.match(markdown, /⚠️/);
+  assert.equal(hasActionableFailure([{ status: "partial" }]), true);
 });
 
 test("stale public listing evidence fails without treating the dog's listing age as availability age", () => {

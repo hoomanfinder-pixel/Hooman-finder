@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 
 const require = createRequire(import.meta.url);
@@ -12,7 +15,9 @@ const {
   getDogPublicationFilterReason,
   mapAnimalToDogRow,
   mergeManagedRescues,
+  safeSourceErrorCategory,
   syncConfiguredRescues,
+  writeSyncHealthArtifact,
 } = require("../../sync-rescuegroups-dogs.cjs");
 const {
   computeSourceContentHash,
@@ -722,6 +727,75 @@ test("an incomplete source refresh never marks that source's dogs unavailable", 
   );
 
   assert.deepEqual(unavailableSources, ["Complete Source"]);
+});
+
+test("partial upsert is reported per source and never triggers stale marking", async () => {
+  const finished = [];
+  let staleCalls = 0;
+  let aggregateError;
+  try {
+    await syncConfiguredRescues({
+      rescues: [{ ...rescue("Partial Shelter", "2"), ingestionSourceState: { last_successful_sync_at: "2026-11-24T11:00:00.000Z" } }],
+      fetchDogs: async () => [{ rescuegroups_id: "dog-1" }],
+      attachShelters: async () => {},
+      upsert: async () => ({ inserted: 0, updated: 1, failed: 1 }),
+      markUnavailable: async () => { staleCalls += 1; },
+      onRunStart: async () => "run-1",
+      onRunFinish: async (_source, _runId, outcome) => finished.push(outcome),
+      logger: silentLogger,
+    });
+  } catch (error) {
+    aggregateError = error;
+  }
+  assert.match(aggregateError.message, /Partial Shelter/);
+  assert.equal(aggregateError.sourceOutcomes[0].status, "partial");
+  assert.equal(aggregateError.sourceOutcomes[0].last_successful_sync_at, "2026-11-24T11:00:00.000Z");
+  assert.equal(aggregateError.sourceOutcomes[0].updated_count, 1);
+  assert.equal(staleCalls, 0);
+  assert.equal(finished[0].error.partial, true);
+  assert.equal(finished[0].error.upsertResult.failed, 1);
+});
+
+test("source error summaries use safe categories without echoing raw response content", () => {
+  assert.equal(safeSourceErrorCategory(Object.assign(new Error("do not log this body"), { status: 503 })), "upstream_http_503");
+  assert.equal(safeSourceErrorCategory(Object.assign(new Error("response missing"), { retryableResponse: true })), "incomplete_upstream_response");
+  assert.equal(safeSourceErrorCategory(new TypeError("network failed")), "network_failure");
+});
+
+test("private source-health artifact contains only sanitized aggregate source data and provenance", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "sync-health-test-"));
+  try {
+    const artifactPath = path.join(root, "sync-status.json");
+    await writeSyncHealthArtifact({
+      sourceOutcomes: [{
+        source: "Safe Shelter",
+        enabled: true,
+        status: "failed",
+        last_successful_sync_at: "2026-11-24T11:00:00.000Z",
+        fetched_count: 0,
+        inserted_count: 0,
+        updated_count: 0,
+        failed_count: 1,
+        error_category: "incomplete_upstream_response",
+      }],
+      hashFieldChanges: { description: { representation_only: 3, prompt_ineffective: 0, potentially_material: 2 } },
+      runId: "42",
+      attempt: "2",
+      repository: "owner/repo",
+      headSha: "abc123",
+      artifactPath,
+      summaryPath: null,
+    });
+    const text = await fs.readFile(artifactPath, "utf8");
+    const artifact = JSON.parse(text);
+    assert.equal(artifact.run_id, "42");
+    assert.equal(artifact.run_attempt, 2);
+    assert.equal(artifact.sources[0].error_category, "incomplete_upstream_response");
+    assert.match(text, /potentially_material/);
+    assert.doesNotMatch(text, /dog_id|description text|api.?key|response body/i);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
 });
 
 test("successful source refreshes still upsert and run availability checks", async () => {

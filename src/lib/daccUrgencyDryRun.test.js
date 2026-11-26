@@ -547,7 +547,8 @@ test("retry and failure logs sanitize response bodies and animal identifiers", a
       text: async () => "AnimalID=private-record API_KEY=upstream-echo",
     }),
   }), (error) => {
-    assert.match(error.message, /private-record/);
+    assert.match(error.message, /HTTP 500/);
+    assert.doesNotMatch(error.message, /private-record|upstream-echo|AnimalID|API_KEY/);
     assert.equal(
       safeDryRunFailureMessage(error),
       "RescueGroups roster could not be verified as complete (stage=available_dogs, category=http_500, reason=not_applicable); no results were emitted."

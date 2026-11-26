@@ -35,10 +35,11 @@ function pageJson({ ids = [], page = 1, count = ids.length, pages, limit = 100, 
   };
 }
 
-function response(json, { ok = true, status = 200, jsonError = null } = {}) {
+function response(json, { ok = true, status = 200, jsonError = null, headers = {} } = {}) {
   return {
     ok,
     status,
+    headers: { get: (name) => headers[name.toLowerCase()] || null },
     json: async () => {
       if (jsonError) throw jsonError;
       return json;
@@ -86,7 +87,7 @@ test("fetch failure and invalid JSON abort completeness", async () => {
     logger: { warn() {} },
   }), /fetch failed/);
   await assert.rejects(
-    fetchRoster(async () => response(null, { jsonError: new SyntaxError("bad json") })),
+    fetchRoster(async () => response(null, { jsonError: new SyntaxError("bad json") }), { maxAttempts: 1 }),
     IncompleteRosterError
   );
 });
@@ -111,6 +112,45 @@ test("complete-roster path retries 429 and transient network failures with bound
   assert.deepEqual(waits, [25, 50]);
 });
 
+test("Retry-After seconds and HTTP-date are honored within the bounded window", async () => {
+  let calls = 0;
+  const waits = [];
+  const roster = await fetchRoster(async () => {
+    calls += 1;
+    if (calls === 1) return response({}, { ok: false, status: 429, headers: { "retry-after": "3" } });
+    return response(pageJson({ ids: ["1"] }));
+  }, { sleep: async (ms) => waits.push(ms), logger: { warn() {} } });
+  assert.equal(roster.complete, true);
+  assert.deepEqual(waits, [3000]);
+
+  const { parseRetryAfter } = require("../../scripts/rescuegroups-roster.cjs");
+  assert.equal(parseRetryAfter("Wed, 21 Oct 2015 07:28:00 GMT", Date.parse("Wed, 21 Oct 2015 07:27:00 GMT")), 60_000);
+  assert.equal(parseRetryAfter("not a date"), null);
+});
+
+test("transient malformed JSON and incomplete envelopes retry before roster validation", async () => {
+  let calls = 0;
+  const roster = await fetchRoster(async () => {
+    calls += 1;
+    if (calls === 1) return response(null, { jsonError: new SyntaxError("private body text") });
+    if (calls === 2) return response({ error: "temporary envelope" });
+    return response(pageJson({ ids: ["1"] }));
+  }, { retryDelayMs: 0, sleep: async () => {}, logger: { warn() {} } });
+  assert.equal(calls, 3);
+  assert.equal(roster.complete, true);
+});
+
+test("oversized Retry-After fails safely without retrying early or exposing body text", async () => {
+  let calls = 0;
+  const warnings = [];
+  await assert.rejects(fetchRoster(async () => {
+    calls += 1;
+    return response({ private: "body" }, { ok: false, status: 503, headers: { "retry-after": "120" } });
+  }, { sleep: async () => {}, logger: { warn: (line) => warnings.push(line) } }), /Retry-After exceeds/);
+  assert.equal(calls, 1);
+  assert.doesNotMatch(warnings.join("\n"), /private|body/);
+});
+
 test("exhausted retries never reach stale marking", async () => {
   let staleCalls = 0;
   await assert.rejects(reconcileCompleteRoster({
@@ -127,7 +167,7 @@ test("exhausted retries never reach stale marking", async () => {
 });
 
 test("missing or invalid metadata aborts completeness", async () => {
-  await assert.rejects(fetchRoster(async () => response({ data: [animal("1")] })), /metadata/);
+  await assert.rejects(fetchRoster(async () => response({ data: [animal("1")] }), { maxAttempts: 1 }), /metadata/);
   await assert.rejects(
     fetchRoster(async () => response(pageJson({ ids: ["1"], count: 2, pages: 1 }))),
     /pages|unique animals/
@@ -140,7 +180,7 @@ test("partial pagination, repeated pages, and pageReturned mismatch abort comple
       const page = Number(new URL(url).searchParams.get("page"));
       if (page === 2) throw new TypeError("page two failed");
       return response(pageJson({ ids: ["1"], page: 1, count: 2, pages: 2, limit: 1 }));
-    }, { pageLimit: 1 }),
+    }, { pageLimit: 1, maxAttempts: 1 }),
     /page two failed/
   );
 

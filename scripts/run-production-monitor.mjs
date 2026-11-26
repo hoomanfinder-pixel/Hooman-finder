@@ -11,6 +11,7 @@ import {
   evaluatePublicDogFreshness,
   evaluateSyncApiFailure,
   evaluateSyncRuns,
+  evaluateSourceFreshnessArtifact,
   hasActionableFailure,
   runWebsiteJourney,
 } from "../src/lib/productionMonitoring.js";
@@ -32,7 +33,7 @@ function publicError(error) {
 
 async function fetchSyncWorkflowRuns(token, repository) {
   const response = await fetch(
-    `https://api.github.com/repos/${repository}/actions/workflows/sync-rescuegroups-dogs.yml/runs?status=completed&per_page=10`,
+    `https://api.github.com/repos/${repository}/actions/workflows/sync-rescuegroups-dogs.yml/runs?per_page=10`,
     {
       headers: {
         accept: "application/vnd.github+json",
@@ -51,6 +52,15 @@ async function fetchSyncWorkflowRuns(token, repository) {
 async function loadPlatformStats() {
   try {
     return JSON.parse(await fs.readFile("src/generated/platform-stats.json", "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function loadSyncStatusArtifact() {
+  const artifactPath = process.env.SYNC_STATUS_ARTIFACT || "monitoring-input/rescuegroups-sync-status.json";
+  try {
+    return JSON.parse(await fs.readFile(artifactPath, "utf8"));
   } catch {
     return null;
   }
@@ -92,8 +102,15 @@ async function main() {
     try {
       const runs = await fetchSyncWorkflowRuns(process.env.GITHUB_TOKEN, process.env.GITHUB_REPOSITORY);
       checks.push(evaluateSyncRuns(runs));
+      const latestRun = Array.isArray(runs)
+        ? runs.filter((run) => run?.created_at).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0]
+        : null;
+      checks.push(...evaluateSourceFreshnessArtifact(await loadSyncStatusArtifact(), latestRun, {
+        repository: process.env.GITHUB_REPOSITORY,
+      }));
     } catch (error) {
       checks.push(evaluateSyncApiFailure(error));
+      checks.push(...evaluateSourceFreshnessArtifact(null, null, { repository: process.env.GITHUB_REPOSITORY }));
     }
   } else {
     checks.push(credentialCheck);

@@ -41,6 +41,15 @@ jobs:
           RESCUEGROUPS_API_KEY: ${{ secrets.RESCUEGROUPS_API_KEY }}
         run: node sync-rescuegroups-dogs.cjs
 
+      - name: Upload private source freshness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rescuegroups-sync-status-${{ github.run_id }}-${{ github.run_attempt }}
+          path: monitoring-output/rescuegroups-sync-status.json
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Run DACC ShelterManager bio enrichment
         # Only runs once the primary sync above has succeeded (default GitHub
         # Actions step ordering). continue-on-error is intentional: a
@@ -65,16 +74,7 @@ jobs:
 
       - name: Commit updated sitemap and platform stats if changed
         if: always()
-        run: |
-          if ! git diff --quiet -- public/sitemap.xml public/dog-sitemap.xml src/generated/platform-stats.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add public/sitemap.xml public/dog-sitemap.xml src/generated/platform-stats.json
-            git commit -m "Auto-update public dog artifacts [skip ci]"
-            git push
-          else
-            echo "Public dog artifacts unchanged, nothing to commit."
-          fi
+        run: node scripts/publish-generated-artifacts.cjs
 
       - name: Fail workflow if RescueGroups sync failed
         if: always() && steps.rescuegroups_sync.outcome != 'success'

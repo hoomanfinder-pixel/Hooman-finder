@@ -3,6 +3,7 @@ const DEFAULT_MAX_PAGES = 5;
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_MAX_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 1000;
+const MAX_RETRY_AFTER_MS = 60_000;
 
 class IncompleteRosterError extends Error {
   constructor(message, details = {}) {
@@ -52,7 +53,33 @@ function wait(milliseconds) {
 
 function isRetryable(error) {
   return error?.name === "AbortError" || error instanceof TypeError ||
-    error?.status === 408 || error?.status === 429 || Number(error?.status) >= 500;
+    error?.status === 408 || error?.status === 425 || error?.status === 429 ||
+    [500, 502, 503, 504].includes(Number(error?.status)) || error?.retryableResponse === true;
+}
+
+function parseRetryAfter(value, now = Date.now()) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const text = String(value).trim();
+  if (/^\d+(?:\.\d+)?$/.test(text)) return Math.ceil(Number(text) * 1000);
+  const at = Date.parse(text);
+  return Number.isFinite(at) ? Math.max(0, at - now) : null;
+}
+
+function retryDelay(error, attempt, retryDelayMs, now = Date.now()) {
+  const retryAfterMs = parseRetryAfter(error?.retryAfter, now);
+  if (retryAfterMs !== null) {
+    if (retryAfterMs > MAX_RETRY_AFTER_MS) return null;
+    return retryAfterMs;
+  }
+  return Math.min(retryDelayMs * (2 ** (attempt - 1)), 10_000);
+}
+
+function safeErrorCategory(error) {
+  if (error?.name === "AbortError") return "timeout";
+  if (error?.status) return `http_${Number(error.status)}`;
+  if (error?.retryableResponse) return "incomplete_response";
+  if (error instanceof TypeError) return "network_error";
+  return "invalid_roster";
 }
 
 async function fetchRosterPage({
@@ -66,24 +93,49 @@ async function fetchRosterPage({
   logger,
   orgId,
   page,
+  validate,
 }) {
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       const response = await fetchWithTimeout(url, options, timeoutMs, fetchImpl);
       if (!response.ok) {
-        const body = await response.text();
+        // Some read-only diagnostics wrap HTTP 400 responses to extract a
+        // bounded error-pointer category. Consume only that redacted wrapper;
+        // never attach upstream response text to the thrown error or logs.
+        if (Number(response.status) === 400 && typeof response.text === "function") {
+          try { await response.text(); } catch { /* retain the status-only diagnostic */ }
+        }
         const error = new IncompleteRosterError(
-          `RescueGroups request failed for org ${orgId}, page ${page}: ${response.status} ${body.slice(0, 500)}`
+          `RescueGroups request failed for org ${orgId}, page ${page}: HTTP ${response.status}`
         );
         error.status = response.status;
+        error.retryAfter = response.headers?.get?.("retry-after") || null;
         throw error;
       }
-      return response;
+      let json;
+      try {
+        json = await response.json();
+      } catch {
+        const error = new IncompleteRosterError(
+          `RescueGroups returned invalid JSON for org ${orgId}, page ${page}.`
+        );
+        error.retryableResponse = true;
+        error.retryAfter = response.headers?.get?.("retry-after") || null;
+        throw error;
+      }
+      if (typeof validate !== "function") return { response, json };
+      return { response, json, metadata: validate(json) };
     } catch (error) {
       if (attempt >= maxAttempts || !isRetryable(error)) throw error;
-      const delayMs = Math.min(retryDelayMs * (2 ** (attempt - 1)), 10000);
+      const delayMs = retryDelay(error, attempt, retryDelayMs);
+      if (delayMs === null) {
+        throw new IncompleteRosterError(
+          `RescueGroups retry for org ${orgId}, page ${page} stopped because Retry-After exceeds the bounded retry window (${MAX_RETRY_AFTER_MS}ms).`,
+          { orgId, page, retryAfterExceeded: true }
+        );
+      }
       logger.warn(
-        `RescueGroups org ${orgId} page ${page} attempt ${attempt}/${maxAttempts} failed (${error.message}); retrying in ${delayMs}ms.`
+        `RescueGroups org ${orgId} page ${page} attempt ${attempt}/${maxAttempts} failed (${safeErrorCategory(error)}); retrying in ${delayMs}ms.`
       );
       await sleep(delayMs);
     }
@@ -101,7 +153,9 @@ function requireInteger(value, label, { minimum = 0 } = {}) {
 
 function validatePage({ json, requestedOrgId, requestedPage, pageLimit }) {
   if (!json || !Array.isArray(json.data) || !json.meta) {
-    throw new IncompleteRosterError("RescueGroups response is missing data or metadata.");
+    const error = new IncompleteRosterError("RescueGroups response is missing data or metadata.");
+    error.retryableResponse = true;
+    throw error;
   }
 
   const count = requireInteger(json.meta.count, "count");
@@ -184,7 +238,7 @@ async function fetchCompleteRescueGroupsRoster({
       );
     }
 
-    const response = await fetchRosterPage({
+    const fetched = await fetchRosterPage({
       url: pagedUrl(apiUrl, page, pageLimit),
       options: {
         method: "POST",
@@ -202,23 +256,14 @@ async function fetchCompleteRescueGroupsRoster({
       logger,
       orgId,
       page,
+      validate: (json) => validatePage({
+        json,
+        requestedOrgId: String(orgId),
+        requestedPage: page,
+        pageLimit,
+      }),
     });
-
-    let json;
-    try {
-      json = await response.json();
-    } catch (error) {
-      throw new IncompleteRosterError(
-        `RescueGroups returned invalid JSON for org ${orgId}, page ${page}: ${error.message}`
-      );
-    }
-
-    const meta = validatePage({
-      json,
-      requestedOrgId: String(orgId),
-      requestedPage: page,
-      pageLimit,
-    });
+    const { json, metadata: meta } = fetched;
 
     if (expectedCount === null) {
       expectedCount = meta.count;
@@ -287,7 +332,11 @@ async function reconcileCompleteRoster({
   const mapped = await mapRoster(roster, source);
   const upsertResult = await upsert(mapped.rows, source, mapped);
   if (Number(upsertResult?.failed || upsertResult?.skipped || 0) > 0) {
-    throw new Error(`One or more dog upserts failed for ${source.name}; stale marking aborted.`);
+    const error = new Error(`One or more dog upserts failed for ${source.name}; stale marking aborted.`);
+    error.partial = Number(upsertResult?.inserted || 0) + Number(upsertResult?.updated || 0) > 0;
+    error.upsertResult = upsertResult;
+    error.roster = roster;
+    throw error;
   }
 
   let staleResult = { skipped: true, reason: roster.quarantineReason };
@@ -317,6 +366,8 @@ module.exports = {
   DEFAULT_PAGE_LIMIT,
   DEFAULT_RETRY_DELAY_MS,
   IncompleteRosterError,
+  MAX_RETRY_AFTER_MS,
+  parseRetryAfter,
   fetchCompleteRescueGroupsRoster,
   getAnimalOrgIds,
   pagedUrl,
