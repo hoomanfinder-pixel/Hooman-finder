@@ -19,6 +19,7 @@ import { isPubliclyVisibleDog } from "./dogVisibility.js";
 const {
   HASHED_FIELDS,
   computeSourceContentHash,
+  classifyHashedFieldChanges,
 } = require("../../scripts/dog-enrichment-hash.cjs");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("../../scripts/rescuegroups-shelter-utils.cjs");
 
@@ -107,6 +108,28 @@ test("version-only and provenance-only enrichment changes are meaningful", () =>
   const changedProvenance = JSON.parse(JSON.stringify(currentDog));
   changedProvenance.ai_traits.energy_level.evidence_basis = "bio_explicit";
   assert.equal(hasMeaningfulChange(next, changedProvenance), true);
+});
+
+test("shadow field diagnostics classify formatting, ignored fallback, and material changes without changing hashes", () => {
+  const baseline = {
+    name: "River",
+    description: "Friendly dog.\nLoves walks.",
+    energy_level: "Moderate",
+    activity_level: "Slightly Active",
+    qualities: ["Gentle", "Playful"],
+  };
+  const formattingOnly = { ...baseline, description: " Friendly dog.  Loves walks. " };
+  const formatting = classifyHashedFieldChanges(baseline, formattingOnly);
+  assert.equal(formatting.description, "representation_only");
+  assert.notEqual(computeSourceContentHash(baseline), computeSourceContentHash(formattingOnly));
+
+  const ignoredFallback = { ...baseline, activity_level: "Highly Active" };
+  assert.equal(classifyHashedFieldChanges(baseline, ignoredFallback).activity_level, "prompt_ineffective");
+  assert.equal(asDogInput(baseline).current_energy_level, asDogInput(ignoredFallback).current_energy_level);
+
+  const material = { ...baseline, description: "Needs an experienced adopter." };
+  assert.equal(classifyHashedFieldChanges(baseline, material).description, "potentially_material");
+  assert.equal(classifyHashedFieldChanges(baseline, { ...baseline, last_checked_at: "later" }).last_checked_at, undefined);
 });
 
 test("source older-kids-only quality survives a conflicting broad child boolean", () => {

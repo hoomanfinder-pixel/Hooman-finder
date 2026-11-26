@@ -1,5 +1,7 @@
 // sync-rescuegroups-dogs.cjs
 
+const fs = require("node:fs/promises");
+
 console.log("SYNC FILE STARTED");
 
 require("dotenv").config({ path: ".env.local" });
@@ -26,6 +28,7 @@ const {
 } = require("./scripts/rescuegroups-adoption-urls.cjs");
 const {
   HASHED_FIELDS,
+  classifyHashedFieldChanges,
   computeSourceContentHash,
   computeTextContentHash,
   mergeHashedSnapshot,
@@ -717,6 +720,15 @@ function describeError(error) {
   return [...new Set(details)].join("; ");
 }
 
+function safeSourceErrorCategory(error) {
+  if (error?.status) return `upstream_http_${Number(error.status)}`;
+  if (error?.retryableResponse) return "incomplete_upstream_response";
+  if (error?.name === "AbortError") return "upstream_timeout";
+  if (error instanceof TypeError) return "network_failure";
+  if (/Supabase|database|upsert|lookup/i.test(String(error?.message || ""))) return "database_or_reconciliation_failure";
+  return "source_refresh_failure";
+}
+
 function isRetryableRescueGroupsError(error) {
   if (error?.name === "AbortError" || error instanceof TypeError) return true;
   return error?.status === 408 || error?.status === 429 || error?.status >= 500;
@@ -1010,6 +1022,7 @@ async function upsertDogs(dogs) {
   let updated = 0;
   let filtered = 0;
   let failed = 0;
+  const hashFieldChanges = {};
 
   for (const dog of dogs) {
     const existingDog = existingByRescueGroupsId.get(String(dog.rescuegroups_id));
@@ -1027,6 +1040,11 @@ async function upsertDogs(dogs) {
           buildExistingDogUpdate(cleanDog, existingDog),
           publicationFilterReason
         );
+        const finalHashedSnapshot = mergeHashedSnapshot(existingDog, updateRow);
+        for (const [field, kind] of Object.entries(classifyHashedFieldChanges(existingDog, finalHashedSnapshot))) {
+          hashFieldChanges[field] ||= { representation_only: 0, prompt_ineffective: 0, potentially_material: 0 };
+          hashFieldChanges[field][kind] += 1;
+        }
 
         const { error } = await supabase
           .from("dogs")
@@ -1073,7 +1091,7 @@ async function upsertDogs(dogs) {
     `Upsert complete. Inserted ${inserted}. Updated ${updated}. Filtered ${filtered}. Failed ${failed}.`
   );
 
-  return { inserted, updated, filtered, failed };
+  return { inserted, updated, filtered, failed, hashFieldChanges };
 }
 
 async function markMissingDogsUnavailableForRescue(rescue, seenRescueGroupsIds) {
@@ -1188,16 +1206,16 @@ async function startIngestionRun(rescue) {
 
 async function finishIngestionRun(rescue, runId, outcome) {
   const now = new Date().toISOString();
-  const failed = outcome.error ? 1 : Number(outcome.upsertResult?.failed || 0);
-  const status = outcome.error ? "failed" : failed > 0 ? "partial" : "success";
+  const failed = Number(outcome.upsertResult?.failed || (outcome.error && !outcome.error.upsertResult ? 1 : 0));
+  const status = outcome.error?.partial ? "partial" : outcome.error ? "failed" : failed > 0 ? "partial" : "success";
   const errorSummary = outcome.error ? describeError(outcome.error).slice(0, 2000) : null;
   const runUpdate = {
     finished_at: now,
     status,
-    fetched_count: Number(outcome.roster?.count || 0),
-    inserted_count: Number(outcome.upsertResult?.inserted || 0),
-    updated_count: Number(outcome.upsertResult?.updated || 0),
-    filtered_count: Number(outcome.upsertResult?.filtered || 0),
+    fetched_count: Number(outcome.roster?.count || outcome.error?.roster?.count || 0),
+    inserted_count: Number(outcome.upsertResult?.inserted || outcome.error?.upsertResult?.inserted || 0),
+    updated_count: Number(outcome.upsertResult?.updated || outcome.error?.upsertResult?.updated || 0),
+    filtered_count: Number(outcome.upsertResult?.filtered || outcome.error?.upsertResult?.filtered || 0),
     stale_marked_count: Number(outcome.staleResult?.staleMarked || 0),
     failed_count: failed,
     error_summary: errorSummary,
@@ -1230,16 +1248,20 @@ async function syncConfiguredRescues({
 }) {
   let totalUpserted = 0;
   const failures = [];
+  const sourceOutcomes = [];
+  const hashFieldChanges = {};
 
   for (const rescue of rescues) {
     let runId = null;
     try {
       if (rescue.enabled === false) {
         logger.log(`Skipping disabled source ${rescue.name}: ${rescue.disabledReason || "disabled by source control"}.`);
+        sourceOutcomes.push(sourceOutcome(rescue, "disabled"));
         continue;
       }
       if (!rescue.supabaseShelterId && !rescue.rescueGroupsOrgId) {
         logger.log(`Skipping ${rescue.name}: missing shelter and RescueGroups org IDs.`);
+        sourceOutcomes.push(sourceOutcome(rescue, "unverified", { error_category: "missing_source_identity" }));
         continue;
       }
 
@@ -1278,23 +1300,96 @@ async function syncConfiguredRescues({
 
       const syncResult = result.upsertResult;
 
+      for (const [field, counts] of Object.entries(syncResult.hashFieldChanges || {})) {
+        hashFieldChanges[field] ||= { representation_only: 0, prompt_ineffective: 0, potentially_material: 0 };
+        hashFieldChanges[field].representation_only += counts.representation_only;
+        hashFieldChanges[field].prompt_ineffective += counts.prompt_ineffective;
+        hashFieldChanges[field].potentially_material += counts.potentially_material;
+      }
+
       totalUpserted += syncResult.inserted + syncResult.updated;
       if (onRunFinish) await onRunFinish(rescue, runId, result);
+      sourceOutcomes.push(sourceOutcome(rescue, "success", { fetched: result.roster.count, ...syncResult, last_successful_sync_at: new Date().toISOString() }));
     } catch (error) {
       if (onRunFinish && runId) await onRunFinish(rescue, runId, { error });
       failures.push({ rescue, error });
+      if (error.upsertResult?.hashFieldChanges) {
+        for (const [field, counts] of Object.entries(error.upsertResult.hashFieldChanges)) {
+          hashFieldChanges[field] ||= { representation_only: 0, prompt_ineffective: 0, potentially_material: 0 };
+          hashFieldChanges[field].representation_only += counts.representation_only;
+          hashFieldChanges[field].prompt_ineffective += counts.prompt_ineffective;
+          hashFieldChanges[field].potentially_material += counts.potentially_material;
+        }
+      }
+      sourceOutcomes.push(sourceOutcome(rescue, error.partial ? "partial" : "failed", {
+        fetched: error.roster?.count || 0,
+        ...error.upsertResult,
+        error_category: safeSourceErrorCategory(error),
+      }));
       logger.error(`Error syncing ${rescue.name}: ${describeError(error)}`);
     }
   }
 
   if (failures.length > 0) {
     const failedNames = failures.map(({ rescue }) => rescue.name).join(", ");
-    throw new Error(
+    const error = new Error(
       `RescueGroups refresh failed for ${failures.length}/${rescues.length} configured source(s): ${failedNames}. Later workflow steps must not run against an incomplete refresh.`
     );
+    error.sourceOutcomes = sourceOutcomes;
+    error.hashFieldChanges = hashFieldChanges;
+    throw error;
   }
 
-  return { totalUpserted, failures: 0 };
+  return { totalUpserted, failures: 0, sourceOutcomes, hashFieldChanges };
+}
+
+function sourceOutcome(rescue, status, details = {}) {
+  const registry = rescue.ingestionSourceState || {};
+  return {
+    source: String(rescue.name || registry.display_name || "Unknown source").slice(0, 160),
+    enabled: rescue.enabled !== false,
+    status,
+    last_successful_sync_at: details.last_successful_sync_at || registry.last_successful_sync_at || null,
+    fetched_count: Number(details.fetched || 0),
+    inserted_count: Number(details.inserted || 0),
+    updated_count: Number(details.updated || 0),
+    failed_count: Number(details.failed || 0),
+    error_category: details.error_category || null,
+  };
+}
+
+async function writeSyncHealthArtifact({ sourceOutcomes, hashFieldChanges, runId, attempt, repository, headSha, artifactPath = "monitoring-output/rescuegroups-sync-status.json", summaryPath = process.env.GITHUB_STEP_SUMMARY }) {
+  await fs.mkdir("monitoring-output", { recursive: true });
+  const payload = {
+    schema_version: 1,
+    repository: repository || null,
+    run_id: runId || null,
+    run_attempt: Number(attempt) || 1,
+    head_sha: headSha || null,
+    generated_at: new Date().toISOString(),
+    sources: sourceOutcomes || [],
+    hashed_field_changes: hashFieldChanges || {},
+  };
+  await fs.writeFile(artifactPath, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+  if (summaryPath) {
+    const failed = payload.sources.filter((source) => ["failed", "partial", "unverified"].includes(source.status));
+    const complete = failed.length === 0;
+    const lines = [
+      "## RescueGroups source health",
+      `Overall refresh: ${complete ? "complete" : `partial or unverified (${failed.length} source(s) need review)`}`,
+      "",
+      "| Source | Status | Last successful sync (UTC) | Inserted | Updated | Failed upserts | Safe diagnostic |",
+      "|---|---|---|---:|---:|---:|---|",
+      ...payload.sources.map((source) => `| ${source.source.replaceAll("|", "\\|")} | ${source.status} | ${source.last_successful_sync_at || "unknown"} | ${source.inserted_count} | ${source.updated_count} | ${source.failed_count} | ${source.error_category || "—"} |`),
+      "",
+      "Hashed-field changes are aggregate counts only; source text and dog identifiers are not included.",
+      `\n\`\`\`json\n${JSON.stringify(payload.hashed_field_changes)}\n\`\`\``,
+      "",
+    ];
+    await fs.appendFile(summaryPath, `${lines.join("\n")}\n`, "utf8");
+  }
+  console.log(`Private sanitized source-health artifact written: ${artifactPath}`);
+  return artifactPath;
 }
 
 async function main() {
@@ -1320,14 +1415,36 @@ async function main() {
   const enabledCount = managedRescues.filter((rescue) => rescue.enabled !== false).length;
   console.log(`Enabled rescues: ${enabledCount}; disabled: ${managedRescues.length - enabledCount}`);
 
-  const { totalUpserted } = await syncConfiguredRescues({
-    rescues: managedRescues,
-    onRunStart: startIngestionRun,
-    onRunFinish: finishIngestionRun,
+  let syncResult;
+  try {
+    syncResult = await syncConfiguredRescues({
+      rescues: managedRescues,
+      onRunStart: startIngestionRun,
+      onRunFinish: finishIngestionRun,
+    });
+  } catch (error) {
+    await writeSyncHealthArtifact({
+      sourceOutcomes: error.sourceOutcomes || [],
+      hashFieldChanges: error.hashFieldChanges || {},
+      runId: process.env.GITHUB_RUN_ID,
+      attempt: process.env.GITHUB_RUN_ATTEMPT,
+      repository: process.env.GITHUB_REPOSITORY,
+      headSha: process.env.GITHUB_SHA,
+    });
+    throw error;
+  }
+  await writeSyncHealthArtifact({
+    sourceOutcomes: syncResult.sourceOutcomes,
+    hashFieldChanges: syncResult.hashFieldChanges,
+    runId: process.env.GITHUB_RUN_ID,
+    attempt: process.env.GITHUB_RUN_ATTEMPT,
+    repository: process.env.GITHUB_REPOSITORY,
+    headSha: process.env.GITHUB_SHA,
   });
 
   console.log("");
-  console.log(`Sync complete. Total dogs inserted/updated: ${totalUpserted}`);
+  console.log(`Sync complete. Total dogs inserted/updated: ${syncResult.totalUpserted}`);
+  console.log(`Hashed source field change diagnostics: ${JSON.stringify(syncResult.hashFieldChanges)}`);
 }
 
 if (require.main === module) {
@@ -1343,6 +1460,7 @@ module.exports = {
   buildExistingDogUpdate,
   buildRequestBody,
   describeError,
+  safeSourceErrorCategory,
   fetchOnePageForRescue,
   fetchDogsForRescue,
   getAdoptionUrl,
@@ -1353,4 +1471,6 @@ module.exports = {
   mergeManagedRescues,
   loadManagedRescues,
   syncConfiguredRescues,
+  sourceOutcome,
+  writeSyncHealthArtifact,
 };

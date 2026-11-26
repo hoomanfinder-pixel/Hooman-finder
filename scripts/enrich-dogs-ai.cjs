@@ -30,6 +30,7 @@
 //   node scripts/enrich-dogs-ai.cjs --drain --limit=25 --max-batches=20 --max-attempts=3
 
 const { HASHED_FIELDS } = require("./dog-enrichment-hash.cjs");
+const fs = require("node:fs/promises");
 const { DACC_RESCUEGROUPS_ORG_ID } = require("./rescuegroups-shelter-utils.cjs");
 const { isGenericDescription } = require("./enrich-dacc-bios.cjs");
 
@@ -41,6 +42,11 @@ const DEFAULT_RETRY_DELAY_MS = 5000;
 const OPENAI_TIMEOUT_MS = 60_000;
 const MAX_ERROR_SUMMARY_LENGTH = 2000;
 const MODEL = "gpt-4o-mini";
+// Standard API token rates (USD per million tokens); keep this estimate
+// synchronized with the provider's published pricing. The source of truth
+// for billed usage remains the token counters stored for each run.
+const MODEL_INPUT_USD_PER_MILLION = 0.15;
+const MODEL_OUTPUT_USD_PER_MILLION = 0.60;
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
 
 const BIO_VALUES = new Set([
@@ -3450,7 +3456,40 @@ async function fetchDogs({ limit, force, dogId }) {
     );
   }
 
+  Object.defineProperty(resolved.dogs, "eligibleCount", {
+    value: resolved.eligibleCount,
+    enumerable: false,
+  });
   return resolved.dogs;
+}
+
+function getEligibleCount(dogs) {
+  return Number.isInteger(dogs?.eligibleCount) ? dogs.eligibleCount : dogs?.length || 0;
+}
+
+function backlogHistoryFromRuns(rows = []) {
+  return (Array.isArray(rows) ? rows : []).map((row) => {
+    const match = String(row?.error_summary || "").match(/BACKLOG_PENDING remaining=(\d+)/);
+    return match ? Number(match[1]) : null;
+  });
+}
+
+function shouldAlertForBacklogGrowth(remaining, previousCounts = []) {
+  const prior = previousCounts[0];
+  return Number.isFinite(remaining) && remaining > 0 && Number.isFinite(prior) && remaining > prior;
+}
+
+function consecutiveBacklogRuns(previousCounts = []) {
+  let pendingRuns = 1;
+  for (const count of previousCounts) {
+    if (!Number.isFinite(count)) break;
+    pendingRuns += 1;
+  }
+  return pendingRuns;
+}
+
+function shouldAlertForPersistentBacklog(remaining, previousCounts = [], threshold = 3) {
+  return Number(remaining) > 0 && consecutiveBacklogRuns(previousCounts) >= threshold;
 }
 
 function isDaccDog(dog) {
@@ -3579,13 +3618,29 @@ function determineRunStatus(stats, { error = null } = {}) {
   return completed > 0 ? "partial" : "failed";
 }
 
+function estimateBacklogUsage(backlogCount, runs = []) {
+  const eligibleRuns = runs.filter((run) =>
+    run?.model === MODEL && run?.status === "success" &&
+    Number(run?.failed_count || 0) === 0 && Number(run?.attempted_count || 0) > 0
+  );
+  const attempted = eligibleRuns.reduce((sum, run) => sum + Number(run.attempted_count || 0), 0);
+  if (!Number.isInteger(backlogCount) || backlogCount <= 0 || attempted <= 0) return null;
+  const inputPerDog = eligibleRuns.reduce((sum, run) => sum + Number(run.input_tokens || 0), 0) / attempted;
+  const outputPerDog = eligibleRuns.reduce((sum, run) => sum + Number(run.output_tokens || 0), 0) / attempted;
+  const inputTokens = Math.ceil(inputPerDog * backlogCount);
+  const outputTokens = Math.ceil(outputPerDog * backlogCount);
+  const estimatedUsd = (inputTokens * MODEL_INPUT_USD_PER_MILLION + outputTokens * MODEL_OUTPUT_USD_PER_MILLION) / 1_000_000;
+  return { sampleRuns: eligibleRuns.length, inputTokens, outputTokens, estimatedUsd };
+}
+
 function buildRunFinalizationPayload(
   stats,
-  { status = determineRunStatus(stats), error = null, failures = [], tokenUsage = runTokenUsage, finishedAt = new Date().toISOString() } = {}
+  { status = determineRunStatus(stats), error = null, failures = [], tokenUsage = runTokenUsage, finishedAt = new Date().toISOString(), backlogRemainingCount = null } = {}
 ) {
+  const backlogPending = Number.isInteger(backlogRemainingCount) && backlogRemainingCount > 0 && !error;
   return {
     finished_at: finishedAt,
-    status,
+    status: backlogPending ? "partial" : status,
     attempted_count: Number(stats?.attempted || 0),
     succeeded_count: Number(stats?.updated || 0),
     skipped_count: Number((stats?.skippedNoChange || 0) + (stats?.skippedNoData || 0)),
@@ -3593,7 +3648,9 @@ function buildRunFinalizationPayload(
     input_tokens: Number(tokenUsage?.input || 0),
     output_tokens: Number(tokenUsage?.output || 0),
     total_tokens: Number(tokenUsage?.total || 0),
-    error_summary: formatRunErrorSummary(failures, error),
+    error_summary: backlogPending
+      ? `BACKLOG_PENDING remaining=${backlogRemainingCount}; processing cap reached with no AI or database failures.`
+      : formatRunErrorSummary(failures, error),
   };
 }
 
@@ -3605,6 +3662,7 @@ function printRunStats(stats, { dryRun = false, heading = "AI enrichment complet
   console.log(`Skipped (no meaningful change): ${stats.skippedNoChange}`);
   console.log(`Skipped (not enough source data): ${stats.skippedNoData}`);
   console.log(`Failed: ${stats.failed}`);
+  console.log(`Token usage: input=${runTokenUsage.input}, output=${runTokenUsage.output}, total=${runTokenUsage.total}`);
   console.log("========================================");
 }
 
@@ -3701,9 +3759,22 @@ async function startAiRun(maxDogs) {
   activeAiRunId = data.id;
   activeAiRunStats = emptyRunStats();
   activeAiRunFailures = [];
+  const { data: priorRuns, error: historyError } = await supabase
+    .from("ai_enrichment_runs")
+    .select("model,status,failed_count,error_summary,started_at,attempted_count,input_tokens,output_tokens")
+    .neq("id", activeAiRunId)
+    .order("started_at", { ascending: false })
+    .limit(5);
+  if (historyError) {
+    console.warn(`Could not read prior enrichment backlog summaries: ${historyError.message}`);
+    previousBacklogCounts = [];
+  } else {
+    previousBacklogCounts = backlogHistoryFromRuns(priorRuns);
+    recentUsageRuns = Array.isArray(priorRuns) ? priorRuns : [];
+  }
 }
 
-async function finishAiRun(stats, { status = determineRunStatus(stats), error = null, failures = [] } = {}) {
+async function finishAiRun(stats, { status = determineRunStatus(stats), error = null, failures = [], backlogRemainingCount = null } = {}) {
   if (!activeAiRunId || !supabase) return;
   const finalStats = stats || activeAiRunStats;
   const finalFailures = failures.length ? failures : activeAiRunFailures;
@@ -3714,6 +3785,7 @@ async function finishAiRun(stats, { status = determineRunStatus(stats), error = 
     status: finalStatus,
     error,
     failures: finalFailures,
+    backlogRemainingCount,
   });
   const { error: updateError } = await supabase
     .from("ai_enrichment_runs")
@@ -3723,6 +3795,29 @@ async function finishAiRun(stats, { status = determineRunStatus(stats), error = 
   activeAiRunId = null;
   activeAiRunStats = null;
   activeAiRunFailures = [];
+}
+
+let previousBacklogCounts = [];
+let recentUsageRuns = [];
+
+async function writeEnrichmentSummary({ status, remaining = 0, stats = emptyRunStats(), persistent = false, growing = false }) {
+  const lines = [
+    "## AI enrichment queue",
+    `- Outcome: ${status}`,
+    `- Eligible dogs remaining: ${remaining}`,
+    `- Attempted: ${stats.attempted}; updated: ${stats.updated}; failed: ${stats.failed}`,
+    `- Tokens: ${runTokenUsage.input} input; ${runTokenUsage.output} output; ${runTokenUsage.total} total`,
+  ];
+  const estimate = estimateBacklogUsage(remaining, recentUsageRuns);
+  if (estimate) {
+    lines.push(`- Estimated remaining usage: ~${estimate.inputTokens} input and ~${estimate.outputTokens} output tokens (~$${estimate.estimatedUsd.toFixed(4)} at standard ${MODEL} rates; based on ${estimate.sampleRuns} recent successful run(s)).`);
+  } else if (remaining > 0) {
+    lines.push("- Estimated remaining cost: unavailable (no suitable successful token-usage history).");
+  }
+  if (persistent || growing) lines.push(`- Action required: backlog ${growing ? "grew" : `remained pending for ${consecutiveBacklogRuns(previousBacklogCounts)} consecutive runs`}.`);
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+  if (!summaryPath) return;
+  await fs.appendFile(summaryPath, `${lines.join("\n")}\n\n`, { encoding: "utf8" });
 }
 
 async function main() {
@@ -3845,12 +3940,18 @@ async function main() {
 
   if (!queueCleared) {
     const remaining = await fetchDogs({ limit: 1, force: false, dogId: null });
-    if (remaining.length) {
-      const error = new Error(
-        `Eligible enrichment queue was not cleared within ${maxBatches} batches of ${limit}. Increase the explicit bound only after reviewing the backlog.`
-      );
-      await finishAiRun(totals, { status: determineRunStatus(totals, { error }), error, failures });
-      throw error;
+    const remainingCount = getEligibleCount(remaining);
+    if (remainingCount > 0) {
+      const growing = shouldAlertForBacklogGrowth(remainingCount, previousBacklogCounts);
+      const persistent = shouldAlertForPersistentBacklog(remainingCount, previousBacklogCounts);
+      console.warn(`Processing cap reached: ${remainingCount} eligible dog(s) remain. This is backlog, not an AI or database failure.`);
+      printRunStats(totals, { heading: "AI enrichment capped with backlog pending" });
+      await writeEnrichmentSummary({ status: "backlog pending", remaining: remainingCount, stats: totals, persistent, growing });
+      await finishAiRun(totals, { status: "partial", failures, backlogRemainingCount: remainingCount });
+      if (persistent || growing) {
+        throw new Error(`Action required: enrichment backlog ${growing ? "grew" : "persisted across scheduled runs"}; ${remainingCount} eligible dog(s) remain.`);
+      }
+      return;
     }
     queueCleared = true;
   }
@@ -3858,6 +3959,7 @@ async function main() {
   console.log(`\nEligible enrichment queue cleared after ${batchesRun} batch(es).`);
   printRunStats(totals, { heading: "AI enrichment queue drain complete" });
   await finishAiRun(totals, { status: determineRunStatus(totals), failures });
+  await writeEnrichmentSummary({ status: "queue cleared", stats: totals });
 }
 
 if (require.main === module) {
@@ -3893,6 +3995,12 @@ module.exports = {
   AI_ENRICHMENT_VERSION,
   collectPaginatedDogs,
   resolveEnrichmentCandidates,
+  backlogHistoryFromRuns,
+  shouldAlertForBacklogGrowth,
+  shouldAlertForPersistentBacklog,
+  consecutiveBacklogRuns,
+  estimateBacklogUsage,
+  getEligibleCount,
   validateDogId,
   validateRunMode,
   buildRunFinalizationPayload,

@@ -104,9 +104,37 @@ function mergeHashedSnapshot(existingDog, updateRow) {
   return snapshot;
 }
 
+// Diagnostic-only comparison. This does not participate in hashing or
+// eligibility. It classifies only visibly equivalent whitespace/Unicode
+// changes; other changes stay conservatively "potentially material" because
+// the old AI input snapshot is not persisted.
+function classifyHashedFieldChanges(previous, next) {
+  const fields = {};
+  for (const field of HASHED_FIELDS) {
+    const before = normalizeHashValue(previous?.[field]);
+    const after = normalizeHashValue(next?.[field]);
+    if (JSON.stringify(before) === JSON.stringify(after)) continue;
+    const normalizeForComparison = (value) => {
+      if (typeof value === "string") return value.normalize("NFKC").replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
+      if (Array.isArray(value)) return value.map(normalizeForComparison);
+      if (value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map((key) => [key, normalizeForComparison(value[key])]));
+      return value;
+    };
+    const promptIneffectiveFallback = field === "activity_level" &&
+      previous?.energy_level !== null && previous?.energy_level !== undefined &&
+      next?.energy_level !== null && next?.energy_level !== undefined;
+    const representationOnly = JSON.stringify(normalizeForComparison(before)) === JSON.stringify(normalizeForComparison(after));
+    fields[field] = promptIneffectiveFallback
+      ? "prompt_ineffective"
+      : representationOnly ? "representation_only" : "potentially_material";
+  }
+  return fields;
+}
+
 module.exports = {
   HASHED_FIELDS,
   computeSourceContentHash,
   computeTextContentHash,
+  classifyHashedFieldChanges,
   mergeHashedSnapshot,
 };
