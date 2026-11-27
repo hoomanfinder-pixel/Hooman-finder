@@ -10,6 +10,15 @@ import { filterPublicDogs } from "../src/lib/dogVisibility.js";
 import { MATCH_WEIGHTS, computeRankedMatches, getConfirmedIncompatibilities } from "../src/lib/matchingLogic.js";
 import { ALL_QUESTIONS, QUESTION_TYPES } from "../src/lib/quizQuestions.js";
 import enrichmentModule from "./enrich-dogs-ai.cjs";
+import { fetchPublicInventorySnapshot } from "./publicCoverageInventory.mjs";
+import {
+  buildNationwideCoverageReport,
+  buildUnverifiedCoverageReport,
+  compareCoverageReports,
+  getCoverageReportRevisions,
+  isAggregateOnlyReport,
+  renderFounderSummary,
+} from "./nationwideCoverageReport.mjs";
 
 const { getEnrichmentEligibilityReason } = enrichmentModule;
 
@@ -136,9 +145,11 @@ function isScoringRequested(questionId, answer, answers) {
 }
 
 function parseArgs(argv) {
-  const args = { inventory: "production", json: DEFAULT_JSON, markdown: DEFAULT_MARKDOWN, profilesCsv: DEFAULT_PROFILES_CSV, priorityCsv: DEFAULT_PRIORITY_CSV };
+  const args = { inventory: "production", mode: "full", json: DEFAULT_JSON, markdown: DEFAULT_MARKDOWN, profilesCsv: DEFAULT_PROFILES_CSV, priorityCsv: DEFAULT_PRIORITY_CSV, previous: null };
   for (const arg of argv.slice(2)) {
-    if (arg.startsWith("--inventory=")) args.inventory = arg.slice(12);
+    if (arg.startsWith("--mode=")) args.mode = arg.slice(7);
+    else if (arg.startsWith("--inventory=")) args.inventory = arg.slice(12);
+    else if (arg.startsWith("--previous=")) args.previous = path.resolve(arg.slice(11));
     else if (arg.startsWith("--json=")) args.json = path.resolve(arg.slice(7));
     else if (arg.startsWith("--markdown=")) args.markdown = path.resolve(arg.slice(11));
     else if (arg.startsWith("--profiles-csv=")) args.profilesCsv = path.resolve(arg.slice(15));
@@ -147,6 +158,95 @@ function parseArgs(argv) {
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return args;
+}
+
+async function fetchNationwideSnapshot(referenceTimestamp) {
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) throw new Error("Missing public read-only Supabase configuration.");
+  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return fetchPublicInventorySnapshot({ client, referenceTime: Date.parse(referenceTimestamp) });
+}
+
+function readPreviousReport(filename) {
+  if (!filename) return null;
+  try {
+    return JSON.parse(fs.readFileSync(filename, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeNationwideReport(args, report) {
+  fs.mkdirSync(path.dirname(args.json), { recursive: true });
+  fs.mkdirSync(path.dirname(args.markdown), { recursive: true });
+  if (!isAggregateOnlyReport(report)) throw new Error("Aggregate report contains a prohibited raw inventory field.");
+  fs.writeFileSync(args.json, JSON.stringify(report, null, 2) + "\n");
+  fs.writeFileSync(args.markdown, renderFounderSummary(report) + "\n");
+  if (process.env.GITHUB_OUTPUT) {
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `verification_status=${report.verification.status}\n`);
+    const revisions = getCoverageReportRevisions();
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `report_version=${revisions.report_version}\n`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `matcher_revision=${revisions.matcher_revision}\n`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `profile_set_version=${revisions.profile_set_version}\n`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `report_definition_revision=${revisions.report_definition_revision}\n`);
+    fs.appendFileSync(process.env.GITHUB_OUTPUT, `artifact_key=nationwide-coverage-v${revisions.report_version}-${revisions.matcher_revision.slice(0, 12)}-${revisions.profile_set_version.slice(0, 12)}-${revisions.report_definition_revision.slice(0, 12)}\n`);
+  }
+  console.log(JSON.stringify({
+    report: args.json,
+    founder_summary: args.markdown,
+    verification_status: report.verification.status,
+    public_dogs: report.verification.status === "verified" ? report.nationwide_coverage.public_dogs : null,
+    report_version: report.report_version,
+  }, null, 2));
+}
+
+async function runNationwideMode(args) {
+  let referenceTimestamp = new Date().toISOString();
+  const revisions = getCoverageReportRevisions();
+  let report;
+  try {
+    let snapshot;
+    if (args.inventory === "production") snapshot = await fetchNationwideSnapshot(referenceTimestamp);
+    else {
+      const parsed = JSON.parse(fs.readFileSync(path.resolve(args.inventory), "utf8"));
+      const candidateRows = Array.isArray(parsed) ? parsed : parsed.candidate_rows || parsed.dogs;
+      if (!Array.isArray(candidateRows)) throw new Error("Local inventory snapshot has no candidate rows.");
+      if (parsed?.snapshot_at && Number.isFinite(Date.parse(parsed.snapshot_at))) referenceTimestamp = parsed.snapshot_at;
+      const referenceTime = Date.parse(referenceTimestamp);
+      snapshot = {
+        reference_timestamp: referenceTimestamp,
+        query_rows: candidateRows.length,
+        candidate_rows: candidateRows,
+        public_dogs: filterPublicDogs(candidateRows, { now: referenceTime }),
+      };
+    }
+    const dogs = snapshot.public_dogs;
+    const evidence = evidenceAudit(dogs);
+    const diversity = inventoryDiversity(dogs, evidence);
+    const eligibility = Object.fromEntries(dogs.map((dog) => [String(dog.id), getEnrichmentEligibilityReason(dog)]).filter(([, reason]) => reason));
+    report = buildNationwideCoverageReport({
+      candidateRows: snapshot.candidate_rows,
+      publicDogs: dogs,
+      queryRows: snapshot.query_rows,
+      referenceTimestamp: snapshot.reference_timestamp,
+      evidenceQuality: evidence,
+      inventoryDiversity: diversity,
+      enrichmentEligibility: eligibility,
+      revisions,
+    });
+  } catch (error) {
+    const reason = error?.name === "IncompleteInventorySnapshotError"
+      ? "Inventory pagination or exact-count validation failed."
+      : error?.cause
+        ? "Public inventory query failed."
+        : "Public inventory access or validation failed.";
+    report = buildUnverifiedCoverageReport({ reason, referenceTimestamp, revisions });
+  }
+  const previous = readPreviousReport(args.previous);
+  report.comparison = compareCoverageReports(report, previous);
+  writeNationwideReport(args, report);
+  if (report.verification.status !== "verified") process.exitCode = 1;
 }
 
 function stable(value) {
@@ -651,9 +751,11 @@ function renderMarkdown(report) {
 async function main() {
   const args = parseArgs(process.argv);
   if (args.help) {
-    console.log("node scripts/audit-match-coverage.mjs [--inventory=production|file.json] [--json=...] [--markdown=...] [--profiles-csv=...] [--priority-csv=...]");
+    console.log("node scripts/audit-match-coverage.mjs [--mode=full|nationwide] [--inventory=production|file.json] [--json=...] [--markdown=...] [--previous=...");
     return;
   }
+  if (args.mode === "nationwide") return runNationwideMode(args);
+  if (args.mode !== "full") throw new Error(`Unknown audit mode: ${args.mode}`);
   const generatedAt = new Date().toISOString();
   console.log("Loading read-only public inventory...");
   const dogs = args.inventory === "production" ? await fetchProductionDogs(generatedAt) : loadInventory(args.inventory, generatedAt);
