@@ -810,9 +810,13 @@ Allowed values for grooming_level:
 - "unknown"
 
 Max alone hours:
-- Use max_alone_hours_estimate.value only when the biography directly states a number/range of hours, directly says the dog can or cannot be left alone, or explicitly describes separation distress tied to being alone.
-- Otherwise use null and leave can_be_left_alone unknown.
+- Use max_alone_hours_estimate.value only when the biography directly states a number/range of hours the dog can be left alone. For a stated range, use the lower end.
+- Never convert qualitative comfort, distress, “normal workday,” or general independence wording into a precise number of hours. Keep the number null when the biography gives no duration.
+- Use alone_time_observation for qualitative behavior. Distinguish general independence from an explicit claim about being comfortable alone, and distinguish both from a foster/staff observation of the dog actually being left alone.
+- Use separation_concern or significant_distress only when the bio describes relevant alone-time behavior. Otherwise use unknown.
 - Never estimate alone time from breed, age, energy, calmness, house training, crate training, independence stereotypes, or general temperament.
+- alone_time_observation values: general_independence, alone_comfort_claim, observed_comfort, separation_concern, significant_distress, unknown.
+- observed_comfort requires evidence the dog was actually left alone and the observation is attributed to a foster, shelter staff, or another direct observer. “Independent” or “settles well” without alone-time context is general_independence, not alone-time capacity.
 
 Apartment suitability:
 - Populate apartment_friendly only when the biography directly mentions apartments, shared-wall housing, a house-only requirement, or another explicit housing-type limitation.
@@ -858,6 +862,7 @@ Potty training examples:
 - "not potty trained" => potty_trained false.
 - Crate training, generic puppy/basic-command training, and unspecified "training in progress" are not potty-training evidence.
 - Populate crate_trained only from crate-specific evidence and potty_trained only from house/potty/accident-specific evidence.
+- Populate leash_trained only from leash-walking manners (for example, walks nicely on leash, pulls, or is learning leash manners). Leash reactivity alone is not evidence of leash training status.
 
 Playfulness:
 - Direct dog-specific wording such as "playful", "loves toys", "loves to play", "enjoys fetch", "enjoys tug", or "playful with people/dogs" supports playfulness true with bio_explicit provenance.
@@ -908,6 +913,7 @@ Return exactly this JSON shape:
   "needs_yard": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "can_be_left_alone": { "value": "unknown", "confidence": 0, "evidence": "" },
   "max_alone_hours_estimate": { "value": null, "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
+  "alone_time_observation": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "exercise_needs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "training_needs": { "value": "unknown", "confidence": 0, "evidence": "", "evidence_basis": "profile_inference" },
   "home_environment": { "value": "unknown", "confidence": 0, "evidence": "" },
@@ -1120,6 +1126,26 @@ function normalizeNumericTraitObject(obj) {
   }, { unknown: null });
 }
 
+function normalizeAloneObservationObject(obj) {
+  const allowed = new Set([
+    "general_independence",
+    "alone_comfort_claim",
+    "observed_comfort",
+    "separation_concern",
+    "significant_distress",
+  ]);
+  const value = String(obj?.value || "unknown").trim().toLowerCase();
+  const normalized = normalizeUnknownMetadata({
+    ...(obj && typeof obj === "object" ? obj : {}),
+    value: allowed.has(value) ? value : "unknown",
+    confidence: normalizeConfidence(obj?.confidence),
+    evidence: typeof obj?.evidence === "string" ? obj.evidence.slice(0, 280) : "",
+    evidence_basis: normalizeEvidenceBasis(obj?.evidence_basis),
+  });
+  if (!allowed.has(value)) normalized.confidence = 0;
+  return normalized;
+}
+
 function safeParseJson(text) {
   const raw = String(text || "").trim();
 
@@ -1186,6 +1212,7 @@ function normalizeAiTraits(parsed, dogInput) {
     needs_yard: normalizeTraitObject(parsed.needs_yard),
     can_be_left_alone: normalizeTraitObject(parsed.can_be_left_alone),
     max_alone_hours_estimate: normalizeNumericTraitObject(parsed.max_alone_hours_estimate),
+    alone_time_observation: normalizeAloneObservationObject(parsed.alone_time_observation),
     exercise_needs: normalizeEnergyLikeTraitObject(parsed.exercise_needs),
     training_needs: normalizeEnergyLikeTraitObject(parsed.training_needs),
     home_environment: normalizeTraitObject(parsed.home_environment),
@@ -1964,6 +1991,25 @@ function normalizeAiTraits(parsed, dogInput) {
     setTraitFromBio("crate_trained", "true", 0.88, "Bio directly describes crate training.");
   }
 
+  if (includesAny([
+    "walks nicely on leash",
+    "walks well on leash",
+    "good on leash",
+    "loose leash walking",
+    "great leash manners",
+    "good leash manners",
+  ])) {
+    setTraitFromBio("leash_trained", "true", 0.84, "Bio directly describes positive leash-walking manners.");
+  } else if (includesAny([
+    "working on leash manners",
+    "learning leash manners",
+    "needs leash work",
+    "pulls on leash",
+    "pulls on the leash",
+  ])) {
+    setTraitFromBio("leash_trained", "maybe", 0.78, "Bio directly describes leash-manners training in progress or pulling; confirm the current behavior.");
+  }
+
   if (hasExplicitPlayfulnessEvidence()) {
     strengthenTraitFromBio(
       "playfulness",
@@ -2045,7 +2091,35 @@ function normalizeAiTraits(parsed, dogInput) {
     setTraitFromBio("needs_yard", "likely", 0.74, "Bio suggests a yard would be a strong fit.");
   }
 
-  const hasMildAloneConcern = includesAny([
+  // Ignore statements about other dogs or a previous era of this dog's life.
+  const aloneEvidenceDescriptionLower = descriptionLower
+    .split(/(?<=[.!?])\s+/)
+    .filter((sentence) => !/\b(?:other dogs?|another dog|previous dog|former dog|used to|previously|in the past|years ago|when (?:he|she|they) were younger|at (?:his|her|their) previous home|before (?:coming to )?(?:the )?shelter|before adoption)\b/i.test(sentence))
+    .join(" ");
+  const aloneDurationValues = [];
+  const explicitAlonePatterns = [
+    /\b(?:left|be left|stay|be) alone (?:for |up to |no more than |longer than )?(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*hours?\b/i,
+    /\b(\d+(?:\.\d+)?)(?:\s*(?:-|to)\s*(\d+(?:\.\d+)?))?\s*hours?\s+(?:alone|by (?:himself|herself|themselves))\b/i,
+  ];
+  for (const sentence of aloneEvidenceDescriptionLower.split(/(?<=[.!?])\s+/)) {
+    const limit = sentence.match(/\b(?:cannot|can't|shouldn't|should not|unable to|not able to)\b[^.!?]{0,100}\b(?:be )?left alone\b[^.!?]{0,60}\b(?:no more than|more than|longer than|over|up to)\s+(\d+(?:\.\d+)?)\s*hours?\b/i);
+    if (limit) {
+      aloneDurationValues.push(Number(limit[1]));
+      continue;
+    }
+    if (/\b(?:cannot|can't|shouldn't|should not|unable to|not able to)\b[^.!?]{0,100}\b(?:be )?left alone\b/i.test(sentence)) continue;
+    const match = explicitAlonePatterns.map((pattern) => sentence.match(pattern)).find(Boolean);
+    if (match) {
+      const first = Number(match[1] || match[3]);
+      const second = match[2] || match[4];
+      if (first > 0) aloneDurationValues.push(second ? Math.min(first, Number(second)) : first);
+    }
+  }
+  const distinctAloneDurations = [...new Set(aloneDurationValues)];
+  const hasConflictingAloneDurations = distinctAloneDurations.length > 1;
+  const explicitAloneHours = hasConflictingAloneDurations ? null : distinctAloneDurations[0] ?? null;
+  const includesAloneEvidence = (phrases) => phrases.some((phrase) => aloneEvidenceDescriptionLower.includes(phrase));
+  const hasMildAloneConcern = includesAloneEvidence([
     "mild separation anxiety",
     "some separation anxiety",
     "mild separation concerns",
@@ -2065,7 +2139,7 @@ function normalizeAiTraits(parsed, dogInput) {
     "whines when left alone",
   ]);
 
-  const hasExplicitSevereAloneConcern = includesAny([
+  const hasExplicitSevereAloneConcern = includesAloneEvidence([
       "severe separation anxiety",
       "panic when left alone",
       "panics when left alone",
@@ -2078,7 +2152,7 @@ function normalizeAiTraits(parsed, dogInput) {
       "needs someone home at all times",
     ]) ||
     (!hasMildAloneConcern &&
-      includesAny([
+      includesAloneEvidence([
         "separation anxiety",
         "anxious when left alone",
         "does not like to be left alone",
@@ -2088,7 +2162,11 @@ function normalizeAiTraits(parsed, dogInput) {
   // A foster or shelter's own day-to-day observation is more trustworthy
   // than generic bio-writer prose, so alone-time evidence attributed to one
   // gets a confidence bump below rather than being scored differently.
-  const hasFosterObservation = includesAny([
+  const hasFosterObservation = includesAloneEvidence([
+    "foster observed",
+    "foster noticed",
+    "shelter staff observed",
+    "staff observed",
     "foster reports",
     "foster says",
     "her foster says",
@@ -2114,7 +2192,7 @@ function normalizeAiTraits(parsed, dogInput) {
   const hasStrongWorkdayEvidence =
     !hasSevereAloneConcern &&
     !hasMildAloneConcern &&
-    includesAny([
+    includesAloneEvidence([
       "handles alone time beautifully",
       "comfortable alone",
       "does well alone",
@@ -2126,16 +2204,30 @@ function normalizeAiTraits(parsed, dogInput) {
       "eight hours alone",
       "8 hours alone",
     ]);
-
-  const explicitAloneHoursMatch = descriptionLower.match(
-    /\b(?:can be |okay |fine |comfortable )?(?:left )?alone (?:for |up to )?(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*hours?\b|\b(\d+)(?:\s*(?:-|to)\s*(\d+))?\s*hours?\s+(?:alone|by (?:himself|herself|themselves))\b/
+  const hasObservedAloneComfort = hasFosterObservation && (
+    /\b(?:left alone|alone time|alone)\b[^.!?]{0,100}\b(?:settle[ds]?|comfortable|calm|no distress|did well|fine)\b/.test(aloneEvidenceDescriptionLower) ||
+    /\b(?:settle[ds]?|comfortable|calm|no distress|did well|fine)\b[^.!?]{0,100}\b(?:left alone|alone time|alone)\b/.test(aloneEvidenceDescriptionLower)
   );
-  const explicitAloneHours = explicitAloneHoursMatch
-    ? Math.max(
-        Number(explicitAloneHoursMatch[1] || explicitAloneHoursMatch[3] || 0),
-        Number(explicitAloneHoursMatch[2] || explicitAloneHoursMatch[4] || 0)
-      )
-    : null;
+
+  const setAloneObservation = (value, confidence, evidence) => {
+    normalized.alone_time_observation = {
+      value,
+      confidence,
+      evidence,
+      evidence_basis: "bio_explicit",
+    };
+  };
+  if (hasExplicitSevereAloneConcern) {
+    setAloneObservation("significant_distress", hasFosterObservation ? 0.9 : 0.84, "Bio describes significant distress when left alone.");
+  } else if (hasMildAloneConcern) {
+    setAloneObservation("separation_concern", hasFosterObservation ? 0.82 : 0.72, "Bio describes separation-related concerns or adjustment support.");
+  } else if (!hasConflictingAloneDurations && (hasObservedAloneComfort || (hasFosterObservation && hasStrongWorkdayEvidence))) {
+    setAloneObservation("observed_comfort", 0.86, "Foster or shelter observation describes comfort when actually left alone.");
+  } else if (!hasConflictingAloneDurations && hasStrongWorkdayEvidence) {
+    setAloneObservation("alone_comfort_claim", 0.7, "Bio claims the dog is comfortable alone but does not identify a direct observation.");
+  } else if (!hasConflictingAloneDurations && /\b(?:independent|settles on (?:his|her|their) own|entertains (?:himself|herself|themselves))\b/.test(aloneEvidenceDescriptionLower)) {
+    setAloneObservation("general_independence", 0.55, "Bio describes general independence, not observed alone-time capacity.");
+  }
 
   if (hasExplicitSevereAloneConcern || hasMildAloneConcern) {
     setTraitFromBio(
@@ -2155,12 +2247,14 @@ function normalizeAiTraits(parsed, dogInput) {
     evidence_basis: "profile_inference",
   };
 
-  if (hasStrongWorkdayEvidence) {
+  if (!hasConflictingAloneDurations && (hasStrongWorkdayEvidence || hasObservedAloneComfort || (explicitAloneHours && !hasMildAloneConcern && !hasExplicitSevereAloneConcern))) {
     setTraitFromBio(
       "can_be_left_alone",
       "true",
       0.84,
-      "Bio gives direct evidence that the dog settles comfortably alone."
+      explicitAloneHours
+        ? "Bio directly states an alone-time duration."
+        : "Bio gives a qualitative claim that the dog settles comfortably alone."
     );
   } else if (hasExplicitSevereAloneConcern) {
     setTraitFromBio("can_be_left_alone", "false", 0.88, "Bio explicitly says the dog cannot be left alone or becomes distressed when alone.");
@@ -2191,24 +2285,6 @@ function normalizeAiTraits(parsed, dogInput) {
       "Bio explicitly states how many hours the dog can be left alone.",
       "bio_explicit"
     );
-  } else if (hasExplicitSevereAloneConcern) {
-    setNumericTraitFromBio(
-      "max_alone_hours_estimate",
-      2,
-      hasFosterObservation ? 0.8 : 0.74,
-      "Bio explicitly describes distress or inability to remain alone.",
-      "bio_explicit"
-    );
-  } else if (hasMildAloneConcern) {
-    setNumericTraitFromBio(
-      "max_alone_hours_estimate",
-      4,
-      hasFosterObservation ? 0.64 : 0.58,
-      "Bio explicitly describes mild alone-time distress or adjustment needs.",
-      "bio_explicit"
-    );
-  } else if (hasStrongWorkdayEvidence) {
-    setNumericTraitFromBio("max_alone_hours_estimate", 8, hasFosterObservation ? 0.78 : 0.72, "Bio explicitly states comfort alone for a normal workday.", "bio_explicit");
   }
 
   if (

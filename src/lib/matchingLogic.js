@@ -6,6 +6,7 @@ import {
   hasSpecificChildAgeBand,
   resolveChildCompatibility,
 } from "./childCompatibility.js";
+import { resolveAloneTimeEvidence } from "./aloneTimeEvidence.js";
 
 // Match scoring has three deliberately separate layers:
 // 1. rawCompatibilityPct: compatibility after source/confidence adjustment,
@@ -754,15 +755,24 @@ function scoreQuestion(questionId, answer, dog, answersById = {}, matchOptions =
     }
     case "alone_time": {
       const needed = aloneTimeNeededHours(answer);
-      const confirmedRaw = hoursRaw(dog?.max_alone_hours, needed);
-      const evidence = confirmedRaw !== null ? structuredCredit(confirmedRaw) : adjustedAiCredit(dog, "max_alone_hours", hoursRaw(dog?.bio_max_alone_hours, needed));
-      const fitLanguage = evidence?.rawCompatibility > 0.5 ? "fits" : "may not fit";
+      const aloneEvidence = resolveAloneTimeEvidence(dog);
+      const confirmedRaw = hoursRaw(aloneEvidence.structuredHours, needed);
+      const bioRaw = hoursRaw(aloneEvidence.bioHours, needed);
+      const bioConfidence = Number(parseAiTraits(dog?.ai_traits)?.max_alone_hours_estimate?.confidence);
+      const evidence = aloneEvidence.conflict
+        ? null
+        : confirmedRaw !== null
+        ? structuredCredit(confirmedRaw)
+        : bioRaw !== null
+          ? bioExplicitCredit(bioRaw, Number.isFinite(bioConfidence) ? bioConfidence : 0.82)
+          : null;
+      const fitLanguage = evidence?.rawCompatibility > 0.5 ? "may fit" : "may not fit";
       return result(
         questionId,
         evidence,
         evidence?.source === "structured"
-          ? `Shelter-listed alone-time capacity ${fitLanguage} your weekday routine`
-          : `Estimated alone-time capacity ${fitLanguage} your weekday routine`
+          ? `Shelter-listed alone-time duration ${fitLanguage} your weekday routine`
+          : `Biography-stated alone-time duration ${fitLanguage} your weekday routine; confirm the hours with the rescue`
       );
     }
     case "allergy_sensitivity": {
@@ -888,6 +898,35 @@ function pottyTrainingConfirmationCautions(dog, answers) {
     : [];
 }
 
+function aloneTimeConfirmationCautions(dog, answers) {
+  const answer = String(answers?.alone_time ?? "").toLowerCase();
+  if (!answer || isNoPreferenceValue(answer)) return [];
+  const evidence = resolveAloneTimeEvidence(dog);
+  if (evidence.bioDurationConflict) {
+    return ["The listing gives conflicting alone-time durations; confirm current capacity with the rescue."];
+  }
+  if (evidence.durationConflict) {
+    return ["Shelter-listed and biography-stated alone-time durations differ; confirm current capacity with the rescue."];
+  }
+  if (evidence.behaviorConflict) {
+    return ["A stated alone-time duration conflicts with biography-described separation concerns; confirm current capacity with the rescue."];
+  }
+  if (evidence.structuredHours !== null) return [];
+  if (evidence.bioHours !== null) {
+    return ["Alone-time duration comes from the listing bio; confirm that the dog can manage your selected hours."];
+  }
+  if (evidence.legacyDurationUnverified) {
+    return ["A stored alone-time estimate could not be verified from an explicit duration in the listing bio."];
+  }
+  if (evidence.observation === "general_independence") {
+    return ["The listing mentions general independence, which does not establish the hours your routine requires."];
+  }
+  if (evidence.observation !== "unknown") {
+    return ["The listing describes alone-time behavior but does not establish the hours your routine requires."];
+  }
+  return [];
+}
+
 function confirmedYardRequirementCautions(dog, answers) {
   const yardType = confirmedYardRequirementType(dog);
   if (String(answers?.yard ?? "").toLowerCase() !== "no" || !yardType) return [];
@@ -965,6 +1004,7 @@ export function computeRankedMatches(dogs, answersById, matchOptions = {}) {
     const yardRequirementCautions = confirmedYardRequirementCautions(dog, answersById);
     const compatibilityCautions = [
       ...pottyTrainingConfirmationCautions(dog, answersById),
+      ...aloneTimeConfirmationCautions(dog, answersById),
       ...yardRequirementCautions,
     ];
     const scorePct = coverageAdjustedPct !== null && yardRequirementCautions.length

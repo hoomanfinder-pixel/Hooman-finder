@@ -247,19 +247,17 @@ test.describe("alone-time preference ranking", () => {
     await expect(fittingCard).toContainText("Top potential fit");
     await expect(lowerSuitabilityCard).toContainText("#2 potential fit");
     await expect(lowerSuitabilityCard).toContainText(
-      "Shelter-listed alone-time capacity may not fit your weekday routine"
+      "Shelter-listed alone-time duration may not fit your weekday routine"
     );
-    await expect(page.getByText("Important compatibility caution")).toHaveCount(0);
+    await expect(fittingCard.getByRole("alert")).toContainText("alone-time durations differ");
 
     await openResultProfile(fittingCard);
     await expect(page).toHaveURL(/\/dog\/e2e-alone-fit/);
     await expect(page.getByRole("heading", { name: "Harbor", exact: true })).toBeVisible();
-    await expect(
-      page.getByText("Shelter-listed alone-time capacity fits your weekday routine", {
-        exact: true,
-      })
-    ).toBeVisible();
-    await expect(page.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByText("8 hrs listed", { exact: true })).toBeVisible();
+    await expect(page.getByText("About 6 hrs stated", { exact: true })).toBeVisible();
+    await expect(page.getByText(/differs from the shelter-listed duration/)).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("alone-time durations differ");
     await expectNoBareProtocolLinks(page);
   });
 });

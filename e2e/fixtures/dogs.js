@@ -274,6 +274,23 @@ export const aloneTimeDogs = [
     name: "Harbor",
     color: "#C7D4BB",
     max_alone_hours: 8,
+    bio_max_alone_hours: 6,
+    bio_max_alone_hours_label: "5-6",
+    description: "Her foster reports she can be left alone for 6 to 8 hours and settles comfortably.",
+    ai_traits: {
+      max_alone_hours_estimate: {
+        value: 6,
+        confidence: 0.88,
+        evidence_basis: "bio_explicit",
+        evidence: "Foster reports alone-time duration.",
+      },
+      alone_time_observation: {
+        value: "observed_comfort",
+        confidence: 0.86,
+        evidence_basis: "bio_explicit",
+        evidence: "Foster observed comfortable alone time.",
+      },
+    },
   }),
   scenarioDog({
     id: "e2e-alone-mismatch",

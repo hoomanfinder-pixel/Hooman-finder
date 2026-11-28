@@ -1,4 +1,5 @@
 // src/lib/matchReasons.js
+import { resolveAloneTimeEvidence } from "./aloneTimeEvidence.js";
 
 function normStr(v) {
   return (v ?? "").toString().trim().toLowerCase();
@@ -170,15 +171,14 @@ export function getMatchReasons(dog, answers, limit = 3) {
 
   // --- Alone time (only if dog.max_alone_hours is a number)
   const alone = normStr(answers.alone_time); // lt4, 4to6, 6to8, gt8
-  const maxAlone = Number(dog.max_alone_hours);
-  const bioMaxAlone = Number(dog.bio_max_alone_hours);
+  const aloneEvidence = resolveAloneTimeEvidence(dog);
   const neededAlone = aloneTimeNeededHours(alone);
-  if (neededAlone && Number.isFinite(maxAlone) && maxAlone > 0) {
-    if (maxAlone >= neededAlone) {
-      pushUnique(reasons, "Listed alone-time capacity fits your weekday routine");
+  if (neededAlone && aloneEvidence.structuredHours !== null) {
+    if (aloneEvidence.structuredHours >= neededAlone) {
+      pushUnique(reasons, "Shelter-listed alone-time duration fits your weekday routine");
     }
-  } else if (neededAlone && Number.isFinite(bioMaxAlone) && bioMaxAlone > 0 && bioMaxAlone >= neededAlone) {
-    pushUnique(reasons, "Listing bio estimate suggests the alone time may fit your weekday routine");
+  } else if (neededAlone && aloneEvidence.bioHours !== null && aloneEvidence.bioHours >= neededAlone) {
+    pushUnique(reasons, "Biography-stated alone-time duration may fit your weekday routine; confirm the hours with the rescue");
   }
 
   // --- Allergies
