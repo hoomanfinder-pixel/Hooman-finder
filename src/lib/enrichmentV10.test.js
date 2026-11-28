@@ -45,6 +45,7 @@ function baseParsedTraits(overrides = {}) {
     needs_yard: trait(),
     can_be_left_alone: trait(),
     max_alone_hours_estimate: trait(null),
+    alone_time_observation: trait(),
     exercise_needs: trait(),
     training_needs: trait(),
     home_environment: trait(),
@@ -402,10 +403,12 @@ test("profile-derived lifestyle estimates remain profile_inference", () => {
 });
 
 test("alone time stays unknown without direct alone-time evidence", () => {
-  for (const description of [
-    "A calm senior who is house trained and loves naps.",
-    "A crate-trained independent dog with low energy.",
-    "An easygoing young dog who settles well in the home.",
+  for (const [description, expectedAloneValue, expectedObservation] of [
+    ["A calm senior who is house trained and loves naps.", "unknown", "unknown"],
+    ["A crate-trained independent dog with low energy.", "unknown", "general_independence"],
+    ["An easygoing young dog who settles well in the home.", "unknown", "unknown"],
+    ["She does well alone, but the listing does not say for how long.", "true", "alone_comfort_claim"],
+    ["A comfortable dog who can manage a normal workday alone.", "true", "alone_comfort_claim"],
   ]) {
     const normalized = normalizeAiTraits(
       baseParsedTraits({
@@ -414,8 +417,9 @@ test("alone time stays unknown without direct alone-time evidence", () => {
       }),
       dogInput({ breed: "Shiba Inu", age_years: 9, energy_level: "Low", description })
     );
-    assert.equal(normalized.can_be_left_alone.value, "unknown", description);
+    assert.equal(normalized.can_be_left_alone.value, expectedAloneValue, description);
     assert.equal(normalized.max_alone_hours_estimate.value, null, description);
+    assert.equal(normalized.alone_time_observation.value, expectedObservation, description);
   }
 });
 
@@ -423,15 +427,42 @@ test("direct alone-time statements remain usable", () => {
   const hours = normalizeAiTraits(baseParsedTraits(), dogInput({
     description: "Her foster says she can be left alone for 4 to 6 hours and settles comfortably.",
   }));
-  assert.equal(hours.max_alone_hours_estimate.value, 6);
+  assert.equal(hours.max_alone_hours_estimate.value, 4);
   assert.equal(hours.max_alone_hours_estimate.evidence_basis, "bio_explicit");
+  assert.equal(hours.can_be_left_alone.value, "true");
+  assert.equal(hours.alone_time_observation.value, "observed_comfort");
 
   const distress = normalizeAiTraits(baseParsedTraits(), dogInput({
     description: "He panics when left alone and cannot be left alone for long.",
   }));
   assert.equal(distress.can_be_left_alone.value, "false");
-  assert.equal(distress.max_alone_hours_estimate.value, 2);
-  assert.equal(distress.max_alone_hours_estimate.evidence_basis, "bio_explicit");
+  assert.equal(distress.max_alone_hours_estimate.value, null);
+  assert.equal(distress.alone_time_observation.value, "significant_distress");
+});
+
+test("qualitative alone-time concerns and vague workday claims never become numeric durations", () => {
+  for (const [description, expected] of [
+    ["Foster says she prefers someone home and is still learning to be alone.", "separation_concern"],
+    ["He is destructive when left alone and needs someone home at all times.", "significant_distress"],
+    ["Foster observed her settled calmly when left alone.", "observed_comfort"],
+    ["A very independent dog who entertains herself.", "general_independence"],
+  ]) {
+    const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({ description }));
+    assert.equal(normalized.max_alone_hours_estimate.value, null, description);
+    assert.equal(normalized.alone_time_observation.value, expected, description);
+  }
+});
+
+test("an explicit upper limit is numeric while an inability duration is not", () => {
+  const limit = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "She cannot be left alone for more than 2 hours.",
+  }));
+  assert.equal(limit.max_alone_hours_estimate.value, 2);
+
+  const unable = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "He cannot be left alone for 8 hours.",
+  }));
+  assert.equal(unable.max_alone_hours_estimate.value, null);
 });
 
 test("apartment suitability requires direct housing evidence", () => {
@@ -630,6 +661,25 @@ test("potty training requires potty, house-training, or accident-specific eviden
   }
 });
 
+test("crate, leash, potty, and obedience evidence remain separate training dimensions", () => {
+  const crateOnly = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "Crate trained and comfortable sleeping in her kennel.",
+  }));
+  assert.equal(crateOnly.crate_trained.value, "true");
+  assert.equal(crateOnly.potty_trained.value, "unknown");
+  assert.equal(crateOnly.leash_trained.value, "unknown");
+
+  const leashAndPotty = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "Fully house trained, walks nicely on leash, and is learning basic obedience.",
+    obedience_training: "Basic Training",
+  }));
+  assert.equal(leashAndPotty.potty_trained.value, "true");
+  assert.equal(leashAndPotty.leash_trained.value, "true");
+  assert.equal(leashAndPotty.crate_trained.value, "unknown");
+  assert.equal(leashAndPotty.training_needs.value, "medium_low");
+  assert.equal(leashAndPotty.training_needs.evidence_basis, "structured_source");
+});
+
 test("Abby's selective compatible-dog wording is not collapsed to false", () => {
   const description = "While she is dog selective and takes time to warm up to new canine friends (she prefers low-energy dogs), she can do well in a home with a patient introduction process—or as the only dog.";
   const normalized = normalizeAiTraits(
@@ -779,6 +829,27 @@ test("unsupported prior alone-time values are not carried forward", () => {
   assert.equal(merged.bio_max_alone_hours, null);
   assert.equal(merged.bio_max_alone_hours_label, "unknown");
   assert.equal(carriedForwardFields.includes("bio_max_alone_hours"), false);
+});
+
+test("alone-time enrichment ignores other-dog and historical duration claims", () => {
+  for (const description of [
+    "Other dogs can stay alone for 8 hours.",
+    "She used to be left alone for 8 hours at her previous home.",
+  ]) {
+    const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({ description }));
+    assert.equal(normalized.max_alone_hours_estimate.value, null);
+    assert.equal(normalized.can_be_left_alone.value, "unknown");
+    assert.equal(normalized.alone_time_observation.value, "unknown");
+  }
+});
+
+test("conflicting biography durations do not become a numeric or positive alone-time estimate", () => {
+  const normalized = normalizeAiTraits(baseParsedTraits(), dogInput({
+    description: "She can be left alone for 4 hours. A newer note says she can be left alone for 8 hours.",
+  }));
+  assert.equal(normalized.max_alone_hours_estimate.value, null);
+  assert.equal(normalized.can_be_left_alone.value, "unknown");
+  assert.equal(normalized.alone_time_observation.value, "unknown");
 });
 
 test("unsupported safety-sensitive compatibility claims remain unknown", () => {

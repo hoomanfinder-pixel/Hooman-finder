@@ -29,6 +29,7 @@ import { FALLBACK_DOG_IMAGE, normalizeImageUrl } from "../lib/urlSafety";
 import { decodeHtmlEntities } from "../utils/decodeHtmlEntities";
 import { hasUsefulBioValue, getTraitDisplay } from "../lib/traitDisplay";
 import { getChildTraitDisplay } from "../lib/childCompatibility";
+import { resolveAloneTimeEvidence } from "../lib/aloneTimeEvidence";
 import {
   formatFitScore,
   getEvidenceLabels,
@@ -155,13 +156,31 @@ function normalizeEnergyValue(value) {
   return "unknown";
 }
 
-function obedienceTrainingNeed(value) {
-  const raw = String(value || "").trim().toLowerCase();
-  if (!raw) return null;
-  if (raw.includes("needs training")) return "High";
-  if (raw.includes("basic training")) return "Moderate";
-  if (raw.includes("well trained")) return "Low";
-  return null;
+function getTrainingTraitDisplay(trait) {
+  const value = String(trait?.value || "unknown").toLowerCase();
+  const labels = {
+    true: "Yes, described in the listing",
+    likely: "Likely",
+    maybe: "Possible; needs confirmation",
+    false: "No, described in the listing",
+    unknown: "Unknown",
+  };
+  if (!Object.hasOwn(labels, value) || value === "unknown") {
+    return { value: "Unknown", source: "unknown", estimated: false };
+  }
+  return {
+    value: labels[value],
+    estimated: true,
+    ...estimatedTraitMetadata(trait?.evidence_basis),
+    note: trait?.evidence || "AI interpretation of listing-specific training information; confirm with the rescue.",
+  };
+}
+
+function getStructuredObedienceDisplay(value) {
+  const raw = String(value || "").trim();
+  return raw
+    ? { value: raw, source: "listed", estimated: false, title: "Obedience information supplied in the shelter or rescue listing." }
+    : { value: "Unknown", source: "unknown", estimated: false };
 }
 
 function displayEnergyValue(value) {
@@ -264,23 +283,6 @@ function getSheddingTrait({ structuredValue, bioValue, evidenceBasis }) {
     value: "Unknown",
     source: "unknown",
     estimated: false,
-  };
-}
-
-function getEstimatedTextTrait({ value, displayValue, evidenceBasis }) {
-  const raw = String(value || "").trim();
-  if (!raw || raw.toLowerCase() === "unknown") {
-    return {
-      value: "Unknown",
-      source: "unknown",
-      estimated: false,
-    };
-  }
-
-  return {
-    value: displayValue || raw,
-    estimated: true,
-    ...estimatedTraitMetadata(evidenceBasis),
   };
 }
 
@@ -688,6 +690,78 @@ export default function DogDetail() {
 
   const aiTraits = parseAiTraits(dog.ai_traits);
   const aiDisclosure = getAiDisclosure(aiTraits);
+  const aloneTimeEvidence = resolveAloneTimeEvidence(dog);
+  const aloneTimeProfileTraits = [];
+  if (aloneTimeEvidence.structuredHours !== null) {
+    aloneTimeProfileTraits.push({
+      label: "Alone time · shelter-listed",
+      trait: {
+        value: `${aloneTimeEvidence.structuredHours} hrs listed`,
+        source: "listed",
+        estimated: false,
+        note: aloneTimeEvidence.bioDurationConflict
+          ? "The biography gives conflicting durations; confirm current capacity with the rescue."
+          : aloneTimeEvidence.durationConflict
+          ? "The biography gives a different duration; confirm current capacity with the rescue."
+          : aloneTimeEvidence.behaviorConflict
+            ? "The biography also describes separation concerns; confirm current capacity with the rescue."
+            : "",
+        title: "Structured alone-time duration supplied by the shelter or rescue listing.",
+      },
+    });
+  }
+  if (aloneTimeEvidence.bioHours !== null && (aloneTimeEvidence.structuredHours === null || aloneTimeEvidence.conflict)) {
+    aloneTimeProfileTraits.push({
+      label: "Alone time · listing bio",
+      trait: {
+        value: `About ${aloneTimeEvidence.bioHours} hrs stated`,
+        estimated: true,
+        ...{
+          source: "bio",
+          note: aloneTimeEvidence.behaviorConflict
+            ? "The biography also describes separation concerns; confirm current capacity with the rescue."
+            : aloneTimeEvidence.durationConflict ? "This differs from the shelter-listed duration; confirm with the rescue." : "Explicit duration in the listing bio; confirm the dog's current capacity.",
+          title: "A duration stated in the biography is not a guarantee of current capacity.",
+        },
+      },
+    });
+  }
+  if ((!aloneTimeEvidence.structuredHours && aloneTimeEvidence.bioHours === null) || aloneTimeEvidence.bioDurationConflict) {
+    aloneTimeProfileTraits.push({
+      label: aloneTimeEvidence.bioDurationConflict ? "Alone time · confirmation needed" : "Alone time",
+      trait: {
+        value: aloneTimeEvidence.bioDurationConflict ? "Conflicting durations" : "Unknown duration",
+        source: "unknown",
+        estimated: false,
+        note: aloneTimeEvidence.bioDurationConflict
+          ? "The biography gives more than one duration; ask the rescue which information is current."
+          : aloneTimeEvidence.legacyDurationUnverified ? "A prior stored estimate could not be verified against an explicit duration in the listing bio." : "The listing does not establish a duration.",
+      },
+    });
+  }
+  const aloneObservationLabels = {
+    general_independence: "General independence mentioned",
+    alone_comfort_claim: "Bio says the dog is comfortable alone",
+    observed_comfort: "Observed comfort when left alone",
+    separation_concern: "Separation-related concerns mentioned",
+    significant_distress: "Significant separation distress mentioned",
+  };
+  const aloneObservation = aloneTimeEvidence.observation;
+  if (aloneObservation !== "unknown") {
+    const observationTrait = aloneTimeEvidence.observationEvidence || {};
+    const observationBasis = observationTrait.evidence_basis || "bio_explicit";
+    const metadata = estimatedTraitMetadata(observationBasis);
+    aloneTimeProfileTraits.push({
+      label: "Alone-time behavior",
+      trait: {
+        value: aloneObservationLabels[aloneObservation] || "Behavior needs confirmation",
+        estimated: true,
+        ...metadata,
+        note: observationTrait.evidence || "Qualitative behavior does not establish a number of hours.",
+        title: "Qualitative alone-time information does not establish the hours a dog can be left alone.",
+      },
+    });
+  }
   const profileTraits = [
     { label: "Size", trait: getSizeTrait({ structuredValue: dog.size, bioValue: dog.bio_size }) },
     {
@@ -731,17 +805,7 @@ export default function DogDetail() {
         evidenceBasis: aiTraits?.shedding_level?.evidence_basis,
       }),
     },
-    {
-      label: "Alone time",
-      trait: getEstimatedTextTrait({
-        value: dog.bio_max_alone_hours_label,
-        displayValue:
-          dog.bio_max_alone_hours_label && dog.bio_max_alone_hours_label !== "unknown"
-            ? `Likely ${dog.bio_max_alone_hours_label} hrs`
-            : "",
-        evidenceBasis: aiTraits?.max_alone_hours_estimate?.evidence_basis,
-      }),
-    },
+    ...aloneTimeProfileTraits,
     {
       label: "Exercise needs",
       trait: getEnergyTrait({
@@ -751,12 +815,32 @@ export default function DogDetail() {
       }),
     },
     {
-      label: "Training needs",
+      label: "Obedience training",
+      trait: getStructuredObedienceDisplay(dog.obedience_training),
+    },
+    {
+      label: "Training support estimate",
       trait: getEnergyTrait({
-        structuredValue: obedienceTrainingNeed(dog.obedience_training),
+        structuredValue: null,
         bioValue: dog.bio_training_needs,
         evidenceBasis: aiTraits?.training_needs?.evidence_basis,
       }),
+    },
+    {
+      label: "First-time owner fit",
+      trait: getTraitDisplay({
+        structuredValue: dog.first_time_friendly,
+        bioValue: dog.bio_first_time_friendly,
+        evidenceBasis: aiTraits?.first_time_friendly?.evidence_basis,
+      }),
+    },
+    {
+      label: "Crate training",
+      trait: getTrainingTraitDisplay(aiTraits?.crate_trained),
+    },
+    {
+      label: "Leash manners",
+      trait: getTrainingTraitDisplay(aiTraits?.leash_trained),
     },
   ];
   const confirmedTraits = profileTraits.filter(({ trait }) => !trait.estimated && trait.source !== "unknown");
@@ -774,6 +858,11 @@ export default function DogDetail() {
     normalizeEnergyValue(dog.bio_exercise_needs) !== "unknown" ||
     normalizeEnergyValue(dog.bio_training_needs) !== "unknown" ||
     Boolean(dog.bio_max_alone_hours) ||
+    aloneTimeEvidence.observation !== "unknown" ||
+    String(aiTraits?.crate_trained?.value || "unknown") !== "unknown" ||
+    String(aiTraits?.leash_trained?.value || "unknown") !== "unknown" ||
+    String(aiTraits?.training_needs?.value || "unknown") !== "unknown" ||
+    dog.first_time_friendly === true || dog.first_time_friendly === false ||
     Boolean(dog.bio_size);
   const matchScorePct = Number(quizMatch?.scorePct);
   const hasQuizMatch = isRealMatchScore(quizMatch);

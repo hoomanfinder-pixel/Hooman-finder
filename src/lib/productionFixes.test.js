@@ -765,7 +765,7 @@ test("alone-time capacity cannot duplicate separation-anxiety scoring", () => {
   const [hoursOnly] = computeRankedMatches([{ name: "Hours only", max_alone_hours: 6 }], answers);
   assert.deepEqual(hoursOnly.breakdown.contributions.map((entry) => entry.questionId), ["alone_time"]);
   assert.equal(hoursOnly.breakdown.evidenceCoveredWeight, MATCH_WEIGHTS.alone_time);
-  assert.match(hoursOnly.breakdown.contributions[0].explanation, /fits your weekday routine/);
+  assert.match(hoursOnly.breakdown.contributions[0].explanation, /may fit your weekday routine/);
 
   const [insufficientHours] = computeRankedMatches([{ name: "Insufficient hours", max_alone_hours: 2 }], answers);
   assert.match(insufficientHours.breakdown.contributions[0].explanation, /may not fit your weekday routine/);
